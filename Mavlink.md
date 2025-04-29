@@ -68,6 +68,8 @@ while True:
 ```
 
 - `/dev/ttyACM0`やボーレートは環境に合わせて変更してください[^4]。
+- 瀧の作った受信用のプログラムは　https://github.com/KeitaTK/Mavlink_raspi.git　にあります。
+  必要に応じて　git clone https://github.com/KeitaTK/Mavlink_raspi.git でインストールしてください。
 
 
 ## 5. トラブルシューティング
@@ -118,4 +120,115 @@ while True:
 [^15]: https://sites.google.com/site/satakegiken/ドローン情報/ardupilot-pixhawk
 
 [^16]: https://www.youtube.com/watch?v=DGAB34fJQFc
+
+
+
+<img src="https://r2cdn.perplexity.ai/pplx-full-logo-primary-dark%402x.png" class="logo" width="120"/>
+
+## ATTITUDE_QUATERNIONメッセージを有効にする方法
+
+### 1. ArduPilotの対応状況
+
+- **ArduPilot（Copter/Plane）の標準ファームウェアでは、ATTITUDE_QUATERNIONメッセージは長らくデフォルトで送信されていませんでしたが、近年のバージョンでは送信機能が追加されています**[^1][^3][^5]。
+- ただし、多くの場合**自動送信はされず、明示的なリクエストが必要**です[^1][^3]。
+
+---
+
+### 2. 有効化手順
+
+#### **A. SET_MESSAGE_INTERVALコマンドで送信をリクエストする**
+
+MAVLinkの`SET_MESSAGE_INTERVAL`コマンドを使い、ATTITUDE_QUATERNIONメッセージの送信間隔を指定してリクエストします。
+
+**Python（pymavlink）での例：**
+
+```python
+from pymavlink import mavutil
+
+connection = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)
+connection.wait_heartbeat()
+
+# ATTITUDE_QUATERNION (ID: 61) を10Hz（100ms間隔）で送信リクエスト
+connection.mav.command_long_send(
+    connection.target_system,
+    connection.target_component,
+    mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
+    0,
+    mavutil.mavlink.MAVLINK_MSG_ID_ATTITUDE_QUATERNION,  # 61
+    100000,  # 100,000マイクロ秒 = 0.1秒 = 10Hz
+    0, 0, 0, 0, 0
+)
+```
+
+- これでファームウェアが対応していれば、ATTITUDE_QUATERNIONメッセージが送信されるようになります[^1][^3][^5]。
+
+
+#### **B. Mission PlannerやQGroundControlでの確認**
+
+- 「MAVLink Inspector」などで`ATTITUDE_QUATERNION`が送信されているか確認できます。
+
+---
+
+### 3. 注意点・補足
+
+- **ファームウェアバージョンによっては未対応の場合もあり**ます。古いArduPilot（例：4.0系以前）ではこのメッセージが実装されていないことがあります[^1][^3]。
+- **リクエストしても送信されない場合は、ファームウェアのアップデートが必要**です[^1][^3]。
+- **Mission Planner等のGCSから直接リクエストする方法は標準UIにはありません**。PythonやMAVProxyなどでコマンド送信が必要です。
+
+---
+
+### 4. 参考
+
+- [ArduPilot公式MAVLinkメッセージ一覧（ATTITUDE_QUATERNIONはID: 61）][^5]
+- [ArduPilotフォーラムでの議論][^1][^3]
+
+---
+
+**まとめ：**
+
+- `ATTITUDE_QUATERNION`はデフォルト送信されない場合が多い
+- `SET_MESSAGE_INTERVAL`コマンドで明示的に送信リクエストする
+- それでも送信されない場合はファームウェアのバージョンアップを検討する[^1][^3][^5]
+
+<div style="text-align: center">⁂</div>
+
+[^1]: https://discuss.ardupilot.org/t/can-not-receive-message-attitude-quaternion-using-pymavlink/68219
+
+[^2]: https://discuss.ardupilot.org/t/set-message-interval-ignored-by-sitl-after-a-few-seconds/69411
+
+[^3]: https://github.com/ArduPilot/pymavlink/issues/513
+
+[^4]: https://github.com/dronekit/dronekit-python/issues/987
+
+[^5]: https://ardupilot.org/copter/docs/ArduCopter_MAVLink_Messages.html
+
+[^6]: https://ardupilot.org/dev/docs/mavlink-requesting-data.html
+
+[^7]: https://mavlink.io/en/messages/common.html
+
+[^8]: https://github.com/ArduPilot/MissionPlanner/blob/master/ExtLibs/Mavlink/message_definitions/common.xml
+
+[^9]: https://discuss.ardupilot.org/t/set-attitude-target-with-attitude-quaternion-and-body-yaw-rate-mixup/110675
+
+[^10]: https://discuss.ardupilot.org/t/mavlink-command-set-message-interval-does-not-respect-disabling-of-local-position-ned-messages/96507
+
+[^11]: https://ardupilot.org/dev/docs/mavlink-basics.html
+
+[^12]: https://discuss.ardupilot.org/t/set-attitude-target-with-guided-no-gps-lack-of-documentation/111845
+
+[^13]: https://discuss.px4.io/t/disabling-mavlink-mavros-messages/2957
+
+[^14]: https://discuss.ardupilot.org/t/guided-nogps-set-attitude-target-attitude-ang-velocity-control/109113
+
+[^15]: https://github.com/ardupilot/ardupilot/blob/master/libraries/GCS_MAVLink/GCS_Common.cpp
+
+[^16]: https://ardupilot.org/dev/docs/mavlink-commands.html
+
+[^17]: https://ardupilot.org/dev/docs/apmcopter-programming-attitude-control-2.html
+
+[^18]: https://ardupilot.org/dev/docs/code-overview-adding-a-new-mavlink-message.html
+
+[^19]: https://ardupilot.org/dev/docs/mavlink-gimbal-mount.html
+
+[^20]: https://discuss.ardupilot.org/t/arducopter-quaternion-based-attitude-control/23554
 
