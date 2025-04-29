@@ -1,5 +1,6 @@
 from pymavlink import mavutil
-import math  # 追加
+import math
+import sys
 
 # USB接続の場合、/dev/ttyACM0を指定
 connection = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)
@@ -18,19 +19,22 @@ connection.mav.command_long_send(
 )
 
 while True:
-    msg = connection.recv_match(blocking=True)
-    if msg:
-        if msg.get_type() == 'ATTITUDE':
-            # ラジアンから度数へ変換
-            roll_deg = math.degrees(msg.roll)
-            pitch_deg = math.degrees(msg.pitch)
-            yaw_deg = math.degrees(msg.yaw)
-            
-            # フォーマットして表示
-            print(f"\n[姿勢情報]")
-            print(f"ロール角: {roll_deg:6.2f}°")
-            print(f"ピッチ角: {pitch_deg:6.2f}°")
-            print(f"ヨー角: {yaw_deg:6.2f}°")
-            print("-" * 30)
-        else:
-            print(f"[その他メッセージ] {msg}")
+    try:
+        msg = connection.recv_match(blocking=True)
+        if msg:
+            if msg.get_type() == 'ATTITUDE':
+                # ラジアンから度数へ変換
+                roll_deg = math.degrees(msg.roll)
+                pitch_deg = math.degrees(msg.pitch)
+                yaw_deg = math.degrees(msg.yaw)
+                
+                # フォーマットして表示
+                print(f"\n[姿勢情報]")
+                print(f"ロール角: {roll_deg:6.2f}°")
+                print(f"ピッチ角: {pitch_deg:6.2f}°")
+                print(f"ヨー角: {yaw_deg:6.2f}°")
+                print("-" * 30)
+            else:
+                print(f"[その他メッセージ] {msg}")
+    except KeyboardInterrupt:  # Ctrl+Cが押されたら
+        sys.exit()
