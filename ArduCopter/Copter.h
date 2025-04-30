@@ -72,6 +72,7 @@
 #include <AP_OpticalFlow/AP_OpticalFlow.h>
 #include <AP_Winch/AP_Winch_config.h>
 #include <AP_SurfaceDistance/AP_SurfaceDistance.h>
+#include <AP_MyModule/AP_MyModule.h>
 
 // Configuration
 #include "defines.h"
@@ -524,6 +525,8 @@ private:
 #if HAL_PARACHUTE_ENABLED
     AP_Parachute parachute;
 #endif
+
+    AP_MyModule my_module;  
 
     // Landing Gear Controller
 #if AP_LANDINGGEAR_ENABLED
@@ -1116,6 +1119,7 @@ private:
 
 public:
     void failsafe_check();      // failsafe.cpp
+    void my_module_update();
 };
 
 extern Copter copter;
