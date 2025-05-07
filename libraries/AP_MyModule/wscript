@@ -1,22 +1,3 @@
-# def build(bld):
-#     bld.ap_library(
-#         source=['AP_MyModule.cpp'],
-#         includes=['.'],
-#         depends=['AP_HAL', 'AP_Vehicle']
-#     )
-
-
-# libraries/AP_MyModule/wscript
-# def configure(cfg):
-#     pass  # 必要に応じて設定処理を追加
-
-# def build(bld):
-#     bld.ap_library(
-#         source=['AP_MyModule.cpp'],
-#         includes=['.'],
-#         depends=['AP_HAL', 'AP_Vehicle']
-#     )
-
 def configure(cfg):
     cfg.env.AP_LIBRARIES.append('AP_MyModule')
     cfg.env.append_value('AP_MODULE_NAMES', 'AP_MyModule')
