@@ -2925,7 +2925,7 @@ void GCS_MAVLINK::send_autopilot_version() const
     uint16_t vendor_id = 0;
     uint16_t product_id = 0;
 #endif
-    uint64_t uid = 0;
+    uint64_t uid = 100;
     uint8_t  uid2[MAVLINK_MSG_AUTOPILOT_VERSION_FIELD_UID2_LEN] = {0};
 
     uint8_t uid_len = sizeof(uid2); // taken as reference and modified
