@@ -61,7 +61,7 @@ master.mav.command_long_send(
 )
 
 # コマンドACKを待機
-ack = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+ack = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=10)
 if ack and ack.command == mavutil.mavlink.MAV_CMD_PREFLIGHT_STORAGE and ack.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
     print("EEPROMへの保存成功")
 else:
