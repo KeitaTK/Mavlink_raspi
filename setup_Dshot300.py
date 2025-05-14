@@ -49,6 +49,8 @@ for param_name, param_value in params_to_set.items():
     print(f'パラメータ設定: {param_name} = {message["param_value"]}')
     time.sleep(0.5)
 
+time.sleep(5)
+
 # 設定をEEPROMに永続的に保存するコマンドを送信
 print("設定をEEPROMに保存中...")
 master.mav.command_long_send(
