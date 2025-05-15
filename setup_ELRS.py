@@ -27,7 +27,7 @@ def set_param(param_id, param_value, param_type=mavutil.mavlink.MAV_PARAM_TYPE_R
     timeout = 5
     while time.time() - start_time < timeout:
         message = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=1)
-        if message and message.param_id.decode('utf-8').strip('\x00') == param_id:
+        if message and message.param_id.strip('\x00') == param_id:
             print(f"Successfully set {param_id} to {message.param_value}")
             return True
     print(f"Failed to set {param_id} - no confirmation received")
