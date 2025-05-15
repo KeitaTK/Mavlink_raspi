@@ -36,8 +36,7 @@ def set_param(param_id, param_value, param_type=mavutil.mavlink.MAV_PARAM_TYPE_R
 # パラメータ設定
 set_param('SERIAL2_PROTOCOL', 23)
 set_param('RSSI_TYPE', 3)
-rc_options_value = 8192 + 16384  # Suppress CRSFメッセージ + 420kbaudの設定
-set_param('RC_OPTIONS', rc_options_value)
+set_param('RC_OPTIONS', 10336)
 
 # パラメータをEEPROMに永続保存する
 print("Saving parameters to EEPROM...")
