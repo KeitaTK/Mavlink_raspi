@@ -18,9 +18,31 @@ parameters = {
     'ARMING_RUDDER': 0,
     'RC9_OPTION': 153,
     'DISARM_DELAY': 0,  # ディスアームの遅延を無効化（即時ディスアーム）
-    'COM_DISARM_PREFE': 0,  # ディスアーム条件を緩和
     'MOT_SPIN_ARM': 0.02,
-    'MOT_SPIN_MIN': 0.03
+    'MOT_SPIN_MIN': 0.03,
+    # バッテリーモニターを有効化（電圧＋電流センサー）
+    'BATT_MONITOR': 4,
+
+    # 5セルLiIon用電圧設定
+    'BATT_ARM_VOLT': 19.5,    # アーム可能電圧
+    'BATT_CRT_VOLT': 14.0,    # 危険電圧
+    'BATT_LOW_VOLT': 15.5,    # 警告電圧
+
+    # モーター出力電圧範囲
+    'MOT_BAT_VOLT_MAX': 21.0,  # 最大電圧
+    'MOT_BAT_VOLT_MIN': 13.5,  # 最小電圧
+    
+    # PIDパラメータ
+    'ATC_RAT_RLL_P': 0.12,
+    'ATC_RAT_RLL_I': 0.12,
+    'ATC_RAT_RLL_D': 0.0035,
+
+    'ATC_RAT_PIT_P': 0.12,
+    'ATC_RAT_PIT_I': 0.12,
+    'ATC_RAT_PIT_D': 0.0035,
+    'ATC_RAT_YAW_P': 0.25,
+    'ATC_RAT_YAW_I': 0.025
+
 }
 
 # すべてのパラメータを設定
