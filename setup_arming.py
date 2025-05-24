@@ -16,7 +16,7 @@ parameters = {
     'BRD_SAFETYOPTION': 0,
     'ARMING_CHECK': 80,
     'ARMING_RUDDER': 0,
-    'RC5_OPTION': 153,
+    'RC9_OPTION': 153,
     'DISARM_DELAY': 0,  # ディスアームの遅延を無効化（即時ディスアーム）
     'COM_DISARM_PREFE': 0,  # ディスアーム条件を緩和
 }
