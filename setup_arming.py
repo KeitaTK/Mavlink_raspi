@@ -32,16 +32,19 @@ parameters = {
     'MOT_BAT_VOLT_MAX': 21.0,  # 最大電圧
     'MOT_BAT_VOLT_MIN': 13.5,  # 最小電圧
     
-    # PIDパラメータ
-    'ATC_RAT_RLL_P': 0.12,
-    'ATC_RAT_RLL_I': 0.12,
-    'ATC_RAT_RLL_D': 0.0035,
-
-    'ATC_RAT_PIT_P': 0.12,
-    'ATC_RAT_PIT_I': 0.12,
-    'ATC_RAT_PIT_D': 0.0035,
-    'ATC_RAT_YAW_P': 0.25,
-    'ATC_RAT_YAW_I': 0.025
+# PID設定
+    'ATC_RAT_RLL_P': 0.08,
+    'ATC_RAT_RLL_I': 0.08,
+    'ATC_RAT_RLL_D': 0.002,
+    
+    # Pitch軸
+    'ATC_RAT_PIT_P': 0.08,
+    'ATC_RAT_PIT_I': 0.08,
+    'ATC_RAT_PIT_D': 0.002,
+    
+    # Yaw軸
+    'ATC_RAT_YAW_P': 0.20,
+    'ATC_RAT_YAW_I': 0.020,
 
 }
 
