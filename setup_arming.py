@@ -19,7 +19,7 @@ parameters = {
     'RC9_OPTION': 153,
     'DISARM_DELAY': 0,  # ディスアームの遅延を無効化（即時ディスアーム）
     'MOT_SPIN_ARM': 0.02,
-    'MOT_SPIN_MIN': 0.03,
+    'MOT_SPIN_MIN': 0.02,
     # バッテリーモニターを有効化（電圧＋電流センサー）
     'BATT_MONITOR': 4,
 
