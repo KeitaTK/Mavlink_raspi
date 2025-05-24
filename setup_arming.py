@@ -19,8 +19,8 @@ parameters = {
     'RC9_OPTION': 153,
     'DISARM_DELAY': 0,  # ディスアームの遅延を無効化（即時ディスアーム）
     'COM_DISARM_PREFE': 0,  # ディスアーム条件を緩和
-    'MOT_SPIN_ARM': 0.05,
-    'MOT_SPIN_MIN': 0.07
+    'MOT_SPIN_ARM': 0.02,
+    'MOT_SPIN_MIN': 0.03
 }
 
 # すべてのパラメータを設定
