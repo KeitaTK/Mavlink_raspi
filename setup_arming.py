@@ -38,18 +38,18 @@ parameters = {
     'MOT_BAT_VOLT_MIN': 13.5,  # 最小電圧
     
 # PID設定
-    'ATC_RAT_RLL_P': 0.08,
-    'ATC_RAT_RLL_I': 0.08,
-    'ATC_RAT_RLL_D': 0.002,
+    'ATC_RAT_RLL_P': 0.05,
+    'ATC_RAT_RLL_I': 0.05,
+    'ATC_RAT_RLL_D': 0.001,
     
     # Pitch軸
-    'ATC_RAT_PIT_P': 0.16,
-    'ATC_RAT_PIT_I': 0.16,
-    'ATC_RAT_PIT_D': 0.004,
+    'ATC_RAT_PIT_P': 0.05,
+    'ATC_RAT_PIT_I': 0.05,
+    'ATC_RAT_PIT_D': 0.001,
     
     # Yaw軸
-    'ATC_RAT_YAW_P': 0.20,
-    'ATC_RAT_YAW_I': 0.020,
+    'ATC_RAT_YAW_P': 0.1,
+    'ATC_RAT_YAW_I': 0.01,
 
 }
 
