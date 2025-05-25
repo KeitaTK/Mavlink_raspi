@@ -20,8 +20,8 @@ parameters = {
     'DISARM_DELAY': 0,  # ディスアームの遅延を無効化（即時ディスアーム）
     'MOT_SPIN_ARM': 0.02,
     'MOT_SPIN_MIN': 0.02,
-    # バッテリーモニターを有効化（電圧＋電流センサー）
-    'BATT_MONITOR': 4,
+    # バッテリーモニターを有効化（電圧）
+    'BATT_MONITOR': 3,
 
     # 5セルLiIon用電圧設定
     'BATT_ARM_VOLT': 16.0,    # アーム可能電圧
