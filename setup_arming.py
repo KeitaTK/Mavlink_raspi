@@ -27,6 +27,11 @@ parameters = {
     'BATT_ARM_VOLT': 16.0,    # アーム可能電圧
     'BATT_CRT_VOLT': 14.0,    # 危険電圧
     'BATT_LOW_VOLT': 15.5,    # 警告電圧
+    'BATT_CAPACITY': 0,
+    'BATT_ARM_MAH': 0, 
+    'BATT_CRT_MAH': 0,
+    'BATT_LOW_MAH': 0,
+
 
     # モーター出力電圧範囲
     'MOT_BAT_VOLT_MAX': 21.0,  # 最大電圧
