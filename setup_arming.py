@@ -24,7 +24,7 @@ parameters = {
     'BATT_MONITOR': 4,
 
     # 5セルLiIon用電圧設定
-    'BATT_ARM_VOLT': 19.5,    # アーム可能電圧
+    'BATT_ARM_VOLT': 16.0,    # アーム可能電圧
     'BATT_CRT_VOLT': 14.0,    # 危険電圧
     'BATT_LOW_VOLT': 15.5,    # 警告電圧
 
