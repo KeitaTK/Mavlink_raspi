@@ -38,9 +38,9 @@ parameters = {
     'ATC_RAT_RLL_D': 0.002,
     
     # Pitch軸
-    'ATC_RAT_PIT_P': 0.08,
-    'ATC_RAT_PIT_I': 0.08,
-    'ATC_RAT_PIT_D': 0.002,
+    'ATC_RAT_PIT_P': 0.16,
+    'ATC_RAT_PIT_I': 0.16,
+    'ATC_RAT_PIT_D': 0.004,
     
     # Yaw軸
     'ATC_RAT_YAW_P': 0.20,
