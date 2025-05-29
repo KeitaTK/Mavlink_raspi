@@ -4305,6 +4305,12 @@ void GCS_MAVLINK::handle_message(const mavlink_message_t &msg)
         break;
 #endif
 
+#if AP_MAVLINK_AUTOPILOT_VERSION_REQUEST_ENABLED
+    case MAVLINK_MSG_ID_TAKI_CUSTOME1_REQUEST:
+        handle_send_autopilot_version(msg);
+        break;
+#endif
+
     case MAVLINK_MSG_ID_MISSION_WRITE_PARTIAL_LIST:
     case MAVLINK_MSG_ID_MISSION_REQUEST_LIST:
     case MAVLINK_MSG_ID_MISSION_COUNT:
