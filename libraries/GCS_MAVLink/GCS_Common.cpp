@@ -4305,7 +4305,7 @@ void GCS_MAVLINK::handle_message(const mavlink_message_t &msg)
         break;
 #endif
 
-#if AP_MAVLINK_AUTOPILOT_VERSION_REQUEST_ENABLED
+#if AP_MAVLINK_TAKI_CUSTOME_REQUEST_ENABLED
     case MAVLINK_MSG_ID_TAKI_CUSTOME1_REQUEST:
         handle_send_autopilot_version(msg);
         break;
