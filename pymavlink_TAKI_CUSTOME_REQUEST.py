@@ -31,25 +31,50 @@
 #         print(f"  {k}: {v}")
 
 
+# from pymavlink import mavutil
+# import time
+
+# master = mavutil.mavlink_connection('/dev/ttyACM0', baud=57600)
+
+# # カスタムメッセージリクエスト送信
+# master.mav.taki_custome1_request_send(
+#     master.target_system,
+#     master.target_component
+# )
+# print("TAKI_CUSTOME1_REQUEST sent")
+
+# # TAKI_CUSTOME1メッセージのみを監視
+# start_time = time.time()
+# while time.time() - start_time < 5:
+#     msg = master.recv_match(type='TAKI_CUSTOME1', blocking=False)
+#     if msg:
+#         print(f"TAKI_CUSTOME1 received - counter={msg.test_counter}")
+#         break  # 受信したら終了
+#     time.sleep(0.1)
+# else:
+#     print("No TAKI_CUSTOME1 message received within 5 seconds")
+
+
 from pymavlink import mavutil
 import time
 
 master = mavutil.mavlink_connection('/dev/ttyACM0', baud=57600)
 
-# カスタムメッセージリクエスト送信
-master.mav.taki_custome1_request_send(
-    master.target_system,
-    master.target_component
-)
-print("TAKI_CUSTOME1_REQUEST sent")
-
-# TAKI_CUSTOME1メッセージのみを監視
-start_time = time.time()
-while time.time() - start_time < 5:
-    msg = master.recv_match(type='TAKI_CUSTOME1', blocking=False)
+for i in range(3):
+    print(f"\n--- Test {i+1} ---")
+    
+    # リクエスト送信
+    master.mav.taki_custome1_request_send(
+        master.target_system,
+        master.target_component
+    )
+    print("Request sent")
+    
+    # レスポンス受信
+    msg = master.recv_match(type='TAKI_CUSTOME1', blocking=True, timeout=3)
     if msg:
-        print(f"TAKI_CUSTOME1 received - counter={msg.test_counter}")
-        break  # 受信したら終了
-    time.sleep(0.1)
-else:
-    print("No TAKI_CUSTOME1 message received within 5 seconds")
+        print(f"Response: counter={msg.test_counter}")
+    else:
+        print("No response")
+    
+    time.sleep(1)
