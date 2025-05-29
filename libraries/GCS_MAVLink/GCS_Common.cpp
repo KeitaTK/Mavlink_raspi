@@ -2974,16 +2974,21 @@ void GCS_MAVLINK::send_autopilot_version() const
  */
 void GCS_MAVLINK::send_taki_custome1() const
 {
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "send_taki_custome1() called");
+    
     static uint32_t test_counter = 0;
     test_counter++;
     
     mavlink_msg_taki_custome1_send(
         chan,
-        test_counter,                    // test_counter
-        mavlink_system.sysid,           // taki_system_id
-        mavlink_system.compid           // taki_component_id
+        test_counter,
+        mavlink_system.sysid,
+        mavlink_system.compid
     );
+    
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Counter: %lu", (unsigned long)test_counter);
 }
+
 
 #if AP_AHRS_ENABLED
 /*
@@ -4662,13 +4667,27 @@ void GCS_MAVLINK::handle_send_autopilot_version(const mavlink_message_t &msg)
 }
 #endif
 
+// #if AP_MAVLINK_TAKI_CUSTOME_REQUEST_ENABLED
+// void GCS_MAVLINK::handle_send_taki_custome1(const mavlink_message_t &msg)
+// {
+//     // send_message(MSG_AUTOPILOT_VERSION);
+//     send_message(MSG_TAKI_CUSTOME1);
+// }
+// #endif
+
 #if AP_MAVLINK_TAKI_CUSTOME_REQUEST_ENABLED
 void GCS_MAVLINK::handle_send_taki_custome1(const mavlink_message_t &msg)
 {
-    // send_message(MSG_AUTOPILOT_VERSION);
+    // デバッグ出力を追加
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TAKI_CUSTOME1_REQUEST received!");
+    
     send_message(MSG_TAKI_CUSTOME1);
+    
+    // 送信後も確認
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TAKI_CUSTOME1 sent!");
 }
 #endif
+
 
 void GCS_MAVLINK::send_banner()
 {
