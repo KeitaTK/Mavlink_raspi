@@ -4307,7 +4307,7 @@ void GCS_MAVLINK::handle_message(const mavlink_message_t &msg)
 
 #if AP_MAVLINK_TAKI_CUSTOME_REQUEST_ENABLED
     case MAVLINK_MSG_ID_TAKI_CUSTOME1_REQUEST:
-        handle_send_autopilot_version(msg);
+        handle_send_taki_custome1(msg);
         break;
 #endif
 
@@ -4642,6 +4642,13 @@ void GCS_MAVLINK::handle_common_mission_message(const mavlink_message_t &msg)
 
 #if AP_MAVLINK_AUTOPILOT_VERSION_REQUEST_ENABLED
 void GCS_MAVLINK::handle_send_autopilot_version(const mavlink_message_t &msg)
+{
+    send_message(MSG_AUTOPILOT_VERSION);
+}
+#endif
+
+#if AP_MAVLINK_TAKI_CUSTOME_REQUEST_ENABLED
+void GCS_MAVLINK::handle_send_taki_custome1(const mavlink_message_t &msg)
 {
     send_message(MSG_AUTOPILOT_VERSION);
 }
