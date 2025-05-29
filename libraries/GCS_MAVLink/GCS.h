@@ -351,6 +351,7 @@ public:
     virtual void send_attitude() const;
     virtual void send_attitude_quaternion() const;
     void send_autopilot_version() const;
+    void send_taki_custome1() const;   // ← 宣言を追加
     void send_extended_sys_state() const;
     void send_local_position() const;
     void send_vfr_hud();
@@ -608,6 +609,9 @@ protected:
 
 #if AP_MAVLINK_AUTOPILOT_VERSION_REQUEST_ENABLED
     void handle_send_autopilot_version(const mavlink_message_t &msg);
+#endif
+#if AP_MAVLINK_TAKI_CUSTOME_REQUEST_ENABLED
+    void handle_send_taki_custome1(const mavlink_message_t &msg);
 #endif
 #if AP_MAVLINK_MAV_CMD_REQUEST_AUTOPILOT_CAPABILITIES_ENABLED
     MAV_RESULT handle_command_request_autopilot_capabilities(const mavlink_command_int_t &packet);

@@ -2969,6 +2969,26 @@ void GCS_MAVLINK::send_autopilot_version() const
     );
 }
 
+/*
+  send TAKI_CUSTOME1 packet
+ */
+void GCS_MAVLINK::send_taki_custome1() const
+{
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "send_taki_custome1() called");
+    
+    static uint32_t test_counter = 0;
+    test_counter++;
+    
+    mavlink_msg_taki_custome1_send(
+        chan,
+        test_counter,
+        mavlink_system.sysid,
+        mavlink_system.compid
+    );
+    
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Counter: %lu", (unsigned long)test_counter);
+}
+
 
 #if AP_AHRS_ENABLED
 /*
@@ -4305,6 +4325,12 @@ void GCS_MAVLINK::handle_message(const mavlink_message_t &msg)
         break;
 #endif
 
+#if AP_MAVLINK_TAKI_CUSTOME_REQUEST_ENABLED
+    case MAVLINK_MSG_ID_TAKI_CUSTOME1_REQUEST:
+        handle_send_taki_custome1(msg);
+        break;
+#endif
+
     case MAVLINK_MSG_ID_MISSION_WRITE_PARTIAL_LIST:
     case MAVLINK_MSG_ID_MISSION_REQUEST_LIST:
     case MAVLINK_MSG_ID_MISSION_COUNT:
@@ -4640,6 +4666,28 @@ void GCS_MAVLINK::handle_send_autopilot_version(const mavlink_message_t &msg)
     send_message(MSG_AUTOPILOT_VERSION);
 }
 #endif
+
+// #if AP_MAVLINK_TAKI_CUSTOME_REQUEST_ENABLED
+// void GCS_MAVLINK::handle_send_taki_custome1(const mavlink_message_t &msg)
+// {
+//     // send_message(MSG_AUTOPILOT_VERSION);
+//     send_message(MSG_TAKI_CUSTOME1);
+// }
+// #endif
+
+#if AP_MAVLINK_TAKI_CUSTOME_REQUEST_ENABLED
+void GCS_MAVLINK::handle_send_taki_custome1(const mavlink_message_t &msg)
+{
+    // デバッグ出力を追加
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TAKI_CUSTOME1_REQUEST received!");
+    
+    send_message(MSG_TAKI_CUSTOME1);
+    
+    // 送信後も確認
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TAKI_CUSTOME1 sent!");
+}
+#endif
+
 
 void GCS_MAVLINK::send_banner()
 {
@@ -6596,6 +6644,14 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
         CHECK_PAYLOAD_SIZE(AUTOPILOT_VERSION);
         send_autopilot_version();
         break;
+
+// ← ここに追加
+#if AP_MAVLINK_TAKI_CUSTOME_REQUEST_ENABLED
+    case MSG_TAKI_CUSTOME1:
+        CHECK_PAYLOAD_SIZE(TAKI_CUSTOME1);
+        send_taki_custome1();
+        break;
+#endif
 
 #if HAL_WITH_ESC_TELEM
     case MSG_ESC_TELEMETRY:
