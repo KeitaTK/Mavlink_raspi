@@ -351,6 +351,7 @@ public:
     virtual void send_attitude() const;
     virtual void send_attitude_quaternion() const;
     void send_autopilot_version() const;
+    void send_taki_custome1() const;   // ← 宣言を追加
     void send_extended_sys_state() const;
     void send_local_position() const;
     void send_vfr_hud();
