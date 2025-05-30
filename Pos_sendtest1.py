@@ -7,7 +7,8 @@ master.wait_heartbeat()
 print("Connected!")
 
 # カスタムメッセージ送信
-master.mav.taki_pos_motive_send(1.5, 2.3, 3.7)
+for i in range(100):
+    master.mav.taki_pos_motive_send(1.5, 2.3, 3.7)
 print("TAKI_POS_MOTIVE sent: x=1.5, y=2.3, z=3.7")
 
 # デバッグメッセージを5秒間監視
