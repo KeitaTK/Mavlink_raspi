@@ -8,7 +8,7 @@ print("Connected!")
 
 # カスタムメッセージ送信
 for i in range(100):
-    master.mav.taki_pos_motive_send(1.5, 2.3, 3.7)
+    master.mav.taki_pos_motive_send(1.5, 2.3, i)
     time.sleep(0.01)
 print("TAKI_POS_MOTIVE sent: x=1.5, y=2.3, z=3.7")
 
