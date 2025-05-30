@@ -13,7 +13,7 @@ for i in range(100):
 print("TAKI_POS_MOTIVE sent: x=1.5, y=2.3, z=3.7")
 
 # デバッグメッセージを5秒間監視
-for i in range(5):  # 0.5秒間（0.1秒間隔）
+for i in range(100):  # 0.5秒間（0.1秒間隔）
     msg = master.recv_match(blocking=False)
     if msg and msg.get_type() == 'STATUSTEXT':
         print(f"DEBUG: {msg.text}")
