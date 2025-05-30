@@ -113,6 +113,9 @@ enum ap_message : uint8_t {
 #endif
 #if AP_MAVLINK_TAKI_CUSTOME_REQUEST_ENABLED
     MSG_TAKI_CUSTOME1,
+#endif
+#if AP_MAVLINK_TAKI_POS_MOTIVE_ENABLED
+    MSG_ID_TAKI_POS_MOTIVE,
 #endif    
     MSG_LAST // MSG_LAST must be the last entry in this enum
 };

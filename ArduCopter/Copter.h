@@ -234,6 +234,11 @@ public:
     friend class PayloadPlace;
 
     Copter(void);
+    struct {
+        Vector3f position;  // x, y, z coordinates
+        bool valid;         // データの有効性フラグ
+        uint32_t timestamp; // 最後の更新時刻
+    } external_coords;
 
 private:
 

@@ -106,6 +106,11 @@
 #include <AP_RCProtocol/AP_RCProtocol.h>
 #endif
 
+// ArduCopter用のインクルードをここに追加
+#include "../ArduCopter/Copter.h"
+extern Copter copter;
+
+
 #if HAL_WITH_IO_MCU
 #include <AP_IOMCU/AP_IOMCU.h>
 extern AP_IOMCU iomcu;
@@ -4330,6 +4335,55 @@ void GCS_MAVLINK::handle_message(const mavlink_message_t &msg)
         handle_send_taki_custome1(msg);
         break;
 #endif
+
+// #if AP_MAVLINK_TAKI_POS_MOTIVE_ENABLED
+//     case MAVLINK_MSG_ID_TAKI_POS_MOTIVE:
+//     {
+//         // メッセージをデコード
+//         mavlink_taki_pos_motive_t packet;              // ← 正しい構造体名
+//         mavlink_msg_taki_pos_motive_decode(&msg, &packet);  // ← 正しい関数名
+        
+//         // グローバル変数copterに直接アクセス
+//         copter.external_coords.position.x = packet.x_coord;
+//         copter.external_coords.position.y = packet.y_coord; 
+//         copter.external_coords.position.z = packet.z_coord;
+//         copter.external_coords.valid = true;
+//         copter.external_coords.timestamp = AP_HAL::millis();
+
+//         break;
+//     }
+// #endif
+
+#if AP_MAVLINK_TAKI_POS_MOTIVE_ENABLED
+    case MAVLINK_MSG_ID_TAKI_POS_MOTIVE:
+    {
+        // メッセージをデコード
+        mavlink_taki_pos_motive_t packet;
+        mavlink_msg_taki_pos_motive_decode(&msg, &packet);
+        
+        // 受信データのデバッグ出力
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Received: x=%.2f y=%.2f z=%.2f", 
+                     packet.x_coord, packet.y_coord, packet.z_coord);
+        
+        // グローバル変数copterに直接アクセス
+        copter.external_coords.position.x = packet.x_coord;
+        copter.external_coords.position.y = packet.y_coord; 
+        copter.external_coords.position.z = packet.z_coord;
+        copter.external_coords.valid = true;
+        copter.external_coords.timestamp = AP_HAL::millis();
+
+        // 格納後の確認デバッグ出力
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Stored: x=%.2f y=%.2f z=%.2f valid=%d", 
+                     copter.external_coords.position.x,
+                     copter.external_coords.position.y,
+                     copter.external_coords.position.z,
+                     copter.external_coords.valid ? 1 : 0);
+
+        break;
+    }
+#endif
+
+
 
     case MAVLINK_MSG_ID_MISSION_WRITE_PARTIAL_LIST:
     case MAVLINK_MSG_ID_MISSION_REQUEST_LIST:
