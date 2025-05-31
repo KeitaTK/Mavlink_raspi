@@ -5,6 +5,56 @@ import signal
 import sys
 import time
 
+class FrequencyController:
+    def __init__(self, target_hz=20):
+        self.target_hz = target_hz
+        self.interval = 1.0 / target_hz
+        self.last_send_time = 0
+    
+    def should_send(self):
+        current_time = time.time()
+        if current_time - self.last_send_time >= self.interval:
+            self.last_send_time = current_time
+            return True
+        return False
+
+class LatestDataBuffer:
+    def __init__(self):
+        self.latest_data = None
+        self.data_count = 0
+    
+    def update(self, data):
+        self.latest_data = data
+        self.data_count += 1
+    
+    def get_latest(self):
+        return self.latest_data
+    
+    def get_count(self):
+        return self.data_count
+
+def get_latest_udp_data(sock):
+    """UDPソケットから最新データのみを取得（検索結果[5]を参考）"""
+    sock.setblocking(False)  # ノンブロッキングモードに設定
+    
+    newest_data = None
+    packets_read = 0
+    
+    while True:
+        try:
+            data_bytes, sender_addr = sock.recvfrom(1024)
+            if data_bytes:
+                newest_data = data_bytes
+                packets_read += 1
+        except socket.error as e:
+            # EWOULDBLOCK または EAGAIN でデータが無い場合
+            if e.errno == socket.errno.EWOULDBLOCK or e.errno == socket.errno.EAGAIN:
+                break
+            else:
+                raise e
+    
+    return newest_data, packets_read
+
 def signal_handler(signum, frame):
     """Ctrl+C ハンドラー"""
     print("\nCtrl+C pressed! Closing socket and exiting...")
@@ -16,7 +66,7 @@ def signal_handler(signum, frame):
         print("MAVLink connection closed")
     sys.exit(0)
 
-def simple_receiver_with_mavlink():
+def receiver_with_20hz_control():
     global sock, master
     
     # SIGINT (Ctrl+C) ハンドラー設定
@@ -33,90 +83,87 @@ def simple_receiver_with_mavlink():
         master = mavutil.mavlink_connection('/dev/ttyACM0', baud=921600)
         master.wait_heartbeat()
         print("✓ MAVLink connection established")
-        print(f"  System ID: {master.target_system}")
-        print(f"  Component ID: {master.target_component}")
     except Exception as e:
         print(f"✗ MAVLink connection failed: {e}")
-        print("Continuing with UDP reception only...")
         master = None
     
-    print("Waiting for Motive data on port 15769...")
+    # 20Hz送信制御とデータバッファ
+    freq_controller = FrequencyController(target_hz=20)
+    data_buffer = LatestDataBuffer()
+    
+    print("Receiving 50Hz Motive data, sending at 20Hz...")
     print("Press Ctrl+C to stop")
-    print("-" * 60)
+    print("-" * 70)
     
     packet_count = 0
     mavlink_send_count = 0
+    skipped_packets = 0
     
     try:
         while True:
             try:
-                # タイムアウト付き受信
-                sock.settimeout(1.0)
-                data_bytes, sender_addr = sock.recvfrom(1024)
-                packet_count += 1
+                # 50HzのUDPデータから最新データのみを取得
+                newest_data, packets_read = get_latest_udp_data(sock)
                 
-                # データ処理
-                data = pickle.loads(data_bytes)
-                pos = data['position']    # [x, y, z]
-                quat = data['quaternion'] # [w, x, y, z]
+                if newest_data:
+                    # データ処理
+                    data = pickle.loads(newest_data)
+                    pos = data['position']    # [x, y, z]
+                    quat = data['quaternion'] # [w, x, y, z]
+                    
+                    # 最新データをバッファに保存
+                    data_buffer.update({'pos': pos, 'quat': quat})
+                    packet_count += 1
+                    
+                    if packets_read > 1:
+                        skipped_packets += packets_read - 1
+                    
+                    # 20Hz制御で送信判定
+                    if freq_controller.should_send() and master is not None:
+                        latest_data = data_buffer.get_latest()
+                        if latest_data:
+                            try:
+                                # MAVLink送信
+                                time_usec = int(time.time() * 1000000)
+                                
+                                master.mav.att_pos_mocap_send(
+                                    time_usec,              # time_usec
+                                    latest_data['quat'],    # q (w,x,y,z)
+                                    latest_data['pos'][0],  # x
+                                    latest_data['pos'][1],  # y
+                                    latest_data['pos'][2]   # z
+                                )
+                                
+                                mavlink_send_count += 1
+                                
+                                # 送信確認表示
+                                print(f"[{mavlink_send_count:03d}] MAVLink → "
+                                      f"Pos: ({latest_data['pos'][0]:+6.2f}, {latest_data['pos'][1]:+6.2f}, {latest_data['pos'][2]:+6.2f}) | "
+                                      f"RX: {packet_count} pkts | Skipped: {skipped_packets}")
+                                
+                            except Exception as e:
+                                print(f"✗ MAVLink error: {e}")
                 
-                # データ検証
-                if pos is None or quat is None:
-                    print(f"#{packet_count:04d} | Invalid data: pos={pos}, quat={quat}")
-                    continue
+                # 短時間スリープ（CPUリソース節約）
+                time.sleep(0.001)  # 1ms
                 
-                if len(pos) != 3 or len(quat) != 4:
-                    print(f"#{packet_count:04d} | Wrong data length: pos={len(pos)}, quat={len(quat)}")
-                    continue
-                
-                # コンソール表示
-                print(f"#{packet_count:04d} | "
-                      f"Pos: ({pos[0]:+6.2f}, {pos[1]:+6.2f}, {pos[2]:+6.2f}) | "
-                      f"Quat: ({quat[0]:+5.2f}, {quat[1]:+5.2f}, {quat[2]:+5.2f}, {quat[3]:+5.2f})")
-                
-                # MAVLink送信（接続が有効な場合のみ）
-                if master is not None:
-                    try:
-                        # タイムスタンプ（マイクロ秒）
-                        time_usec = int(time.time() * 1000000)
-                        
-                        # ATT_POS_MOCAPメッセージ送信（定義に基づく正しい形式）
-                        master.mav.att_pos_mocap_send(
-                            time_usec,      # uint64_t time_usec
-                            quat,           # float[4] q - 配列として渡す (w,x,y,z)
-                            pos[0],         # float x (NED North)
-                            pos[1],         # float y (NED East)  
-                            pos[2]          # float z (NED Down)
-                            # covariance は省略（オプション）
-                        )
-                        
-                        mavlink_send_count += 1
-                        if mavlink_send_count % 10 == 1:  # 10回に1回表示
-                            print(f"      → ATT_POS_MOCAP sent #{mavlink_send_count}")
-                        
-                    except Exception as e:
-                        print(f"      ✗ MAVLink error: {e}")
-                        # デバッグ情報
-                        print(f"        time_usec: {time_usec} (type: {type(time_usec)})")
-                        print(f"        quat: {quat} (type: {type(quat)}, len: {len(quat)})")
-                        print(f"        pos: {pos} (type: {type(pos)}, len: {len(pos)})")
-                
-            except socket.timeout:
-                continue  # タイムアウト時は継続
-            except KeyError as e:
-                print(f"#{packet_count:04d} | Missing key: {e}")
             except Exception as e:
-                print(f"#{packet_count:04d} | Data error: {e}")
+                print(f"Data processing error: {e}")
+                time.sleep(0.01)
                 
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Main loop error: {e}")
     finally:
         sock.close()
         if master:
             master.close()
-        print(f"\nSummary:")
-        print(f"  UDP packets received: {packet_count}")
+        
+        # 統計情報表示
+        print(f"\nStatistics:")
+        print(f"  Total UDP packets received: {packet_count}")
+        print(f"  Total packets skipped: {skipped_packets}")
         print(f"  MAVLink messages sent: {mavlink_send_count}")
+        print(f"  Effective send rate: {mavlink_send_count / (packet_count / 50.0):.1f} Hz")
 
 if __name__ == "__main__":
-    simple_receiver_with_mavlink()
+    receiver_with_20hz_control()
