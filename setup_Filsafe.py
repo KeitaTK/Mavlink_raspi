@@ -12,11 +12,27 @@ print(f"ハートビート受信: システム {master.target_system} コンポ�
 
 # 設定するパラメータとその値
 parameters = {
-    'FS_THR_ENABLE': 3,  # 送信機信号喪失時に着陸
-    'FS_OPTIONS': 32,    # 即時終了（モーター停止）
-    'FS_CRASH_CHECK': 1, # クラッシュ検出有効
-    'FS_EKF_ACTION': 1,  # EKF異常時は着陸
-    'FS_VIBE_ENABLE': 1  # 振動検出有効
+    # 'FS_THR_ENABLE': 3,  # 送信機信号喪失時に着陸
+    # 'FS_OPTIONS': 32,    # 即時終了（モーター停止）
+    # 'FS_CRASH_CHECK': 1, # クラッシュ検出有効
+    # 'FS_EKF_ACTION': 1,  # EKF異常時は着陸
+    # 'FS_VIBE_ENABLE': 1  # 振動検出有効
+    
+    'FS_EKF_ACTION': 3,          # ALTHOLDでプロポ制御継続
+    'FS_EKF_THRESH': 0.8,        # EKF信頼度閾値
+    
+    # プロポ接続切断時：着陸
+    'FS_THR_ENABLE': 3,          # 送信機喪失時は着陸
+    'FS_THR_VALUE': 975,         # プロポ失効検出値
+    
+    # その他の安全機能
+    'FS_OPTIONS': 32,            # 即時終了（モーター停止）
+    'FS_CRASH_CHECK': 1,         # クラッシュ検出有効
+    'FS_VIBE_ENABLE': 1,         # 振動検出有効
+    
+    # Dead Reckoning（GPS/外部位置失効時）
+    'FS_DR_ENABLE': 1,           # AltHoldモード（姿勢制御継続）
+    'FS_DR_TIMEOUT': 15,         # 15秒後フェイルセーフ
 }
 
 # すべてのパラメータを設定
