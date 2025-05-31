@@ -42,7 +42,7 @@ def simple_receiver_with_mavlink():
     
     print("Waiting for Motive data on port 15769...")
     print("Press Ctrl+C to stop")
-    print("-" * 50)
+    print("-" * 60)
     
     packet_count = 0
     mavlink_send_count = 0
@@ -80,27 +80,26 @@ def simple_receiver_with_mavlink():
                         # タイムスタンプ（マイクロ秒）
                         time_usec = int(time.time() * 1000000)
                         
-                        # ATT_POS_MOCAPメッセージ送信（正しい引数順序）
+                        # ATT_POS_MOCAPメッセージ送信（定義に基づく正しい形式）
                         master.mav.att_pos_mocap_send(
-                            time_usec,          # time_usec
-                            quat[0],            # q1 (w)
-                            quat[1],            # q2 (x)
-                            quat[2],            # q3 (y)
-                            quat[3],            # q4 (z)
-                            pos[0],             # x
-                            pos[1],             # y  
-                            pos[2],             # z
-                            None                # covariance (optional)
+                            time_usec,      # uint64_t time_usec
+                            quat,           # float[4] q - 配列として渡す (w,x,y,z)
+                            pos[0],         # float x (NED North)
+                            pos[1],         # float y (NED East)  
+                            pos[2]          # float z (NED Down)
+                            # covariance は省略（オプション）
                         )
                         
                         mavlink_send_count += 1
                         if mavlink_send_count % 10 == 1:  # 10回に1回表示
-                            print(f"      → MAVLink sent #{mavlink_send_count}")
+                            print(f"      → ATT_POS_MOCAP sent #{mavlink_send_count}")
                         
                     except Exception as e:
                         print(f"      ✗ MAVLink error: {e}")
-                        print(f"        pos type: {type(pos)}, quat type: {type(quat)}")
-                        print(f"        master type: {type(master)}")
+                        # デバッグ情報
+                        print(f"        time_usec: {time_usec} (type: {type(time_usec)})")
+                        print(f"        quat: {quat} (type: {type(quat)}, len: {len(quat)})")
+                        print(f"        pos: {pos} (type: {type(pos)}, len: {len(pos)})")
                 
             except socket.timeout:
                 continue  # タイムアウト時は継続
