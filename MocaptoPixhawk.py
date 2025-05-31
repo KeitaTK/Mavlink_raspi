@@ -30,10 +30,11 @@ def simple_receiver_with_mavlink():
     # MAVLink接続設定
     print("Setting up MAVLink connection...")
     try:
-        # Raspberry Piの場合は '/dev/serial0' または '/dev/ttyACM0'
         master = mavutil.mavlink_connection('/dev/ttyACM0', baud=921600)
         master.wait_heartbeat()
         print("✓ MAVLink connection established")
+        print(f"  System ID: {master.target_system}")
+        print(f"  Component ID: {master.target_component}")
     except Exception as e:
         print(f"✗ MAVLink connection failed: {e}")
         print("Continuing with UDP reception only...")
@@ -57,7 +58,16 @@ def simple_receiver_with_mavlink():
                 # データ処理
                 data = pickle.loads(data_bytes)
                 pos = data['position']    # [x, y, z]
-                quat = data['quaternion'] # [w, x, y, z] または [x, y, z, w]
+                quat = data['quaternion'] # [w, x, y, z]
+                
+                # データ検証
+                if pos is None or quat is None:
+                    print(f"#{packet_count:04d} | Invalid data: pos={pos}, quat={quat}")
+                    continue
+                
+                if len(pos) != 3 or len(quat) != 4:
+                    print(f"#{packet_count:04d} | Wrong data length: pos={len(pos)}, quat={len(quat)}")
+                    continue
                 
                 # コンソール表示
                 print(f"#{packet_count:04d} | "
@@ -70,10 +80,13 @@ def simple_receiver_with_mavlink():
                         # タイムスタンプ（マイクロ秒）
                         time_usec = int(time.time() * 1000000)
                         
-                        # ATT_POS_MOCAPメッセージ送信
+                        # ATT_POS_MOCAPメッセージ送信（正しい引数順序）
                         master.mav.att_pos_mocap_send(
                             time_usec,          # time_usec
-                            quat,               # q [w, x, y, z]
+                            quat[0],            # q1 (w)
+                            quat[1],            # q2 (x)
+                            quat[2],            # q3 (y)
+                            quat[3],            # q4 (z)
                             pos[0],             # x
                             pos[1],             # y  
                             pos[2],             # z
@@ -86,6 +99,8 @@ def simple_receiver_with_mavlink():
                         
                     except Exception as e:
                         print(f"      ✗ MAVLink error: {e}")
+                        print(f"        pos type: {type(pos)}, quat type: {type(quat)}")
+                        print(f"        master type: {type(master)}")
                 
             except socket.timeout:
                 continue  # タイムアウト時は継続
