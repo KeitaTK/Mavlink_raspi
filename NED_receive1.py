@@ -1,8 +1,3 @@
-#!/usr/bin/env python3
-"""
-Ctrl+C のみで終了する簡易版
-"""
-
 import socket
 import pickle
 import signal
