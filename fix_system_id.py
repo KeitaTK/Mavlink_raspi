@@ -1,81 +1,81 @@
-#!/usr/bin/env python3
-"""
-Pixhawk System ID 確認・設定スクリプト
-"""
-
 from pymavlink import mavutil
 import time
 
-def check_and_fix_system_id():
-    """System ID確認と修正"""
+def read_all_system_parameters():
+    """システムパラメータの包括的確認"""
     
-    print("=== System ID Diagnosis ===")
+    print("=== System Parameter Check (Improved) ===")
     
     try:
-        # USB経由で接続（設定変更のため）
-        print("Connecting via USB for parameter check...")
         master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)
         master.wait_heartbeat()
         
-        print(f"Current System ID: {master.target_system}")
-        print(f"Current Component ID: {master.target_component}")
+        print(f"USB Connection - System ID: {master.target_system}")
         
-        # SYSID_THISMAVパラメータ確認
-        print("\nChecking SYSID_THISMAV parameter...")
-        master.mav.param_request_read_send(
+        # パラメータリスト要求
+        print("\nRequesting all parameters...")
+        master.mav.param_request_list_send(
             master.target_system,
-            master.target_component,
-            'SYSID_THISMAV'.encode('utf-8'),
-            -1
+            master.target_component
         )
         
-        msg = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=5)
-        if msg:
-            current_sysid = msg.param_value
-            print(f"SYSID_THISMAV = {current_sysid}")
+        # システム関連パラメータを収集
+        system_params = {}
+        start_time = time.time()
+        
+        while time.time() - start_time < 10:  # 10秒間収集
+            msg = master.recv_match(type='PARAM_VALUE', blocking=False)
+            if msg:
+                try:
+                    param_id = msg.param_id
+                    if isinstance(param_id, bytes):
+                        param_id = param_id.decode('utf-8').rstrip('\x00')
+                    elif isinstance(param_id, str):
+                        param_id = param_id.rstrip('\x00')
+                    
+                    # システム・シリアル関連パラメータを記録
+                    if any(keyword in param_id for keyword in ['SYSID', 'SERIAL1', 'BRD_SER1']):
+                        system_params[param_id] = msg.param_value
+                        print(f"   {param_id} = {msg.param_value}")
+                        
+                except Exception as e:
+                    pass
             
-            if current_sysid == 0:
-                print("❌ System ID is 0 - This needs to be fixed!")
-                
-                # System IDを1に設定
-                print("Setting SYSID_THISMAV to 1...")
-                master.mav.param_set_send(
-                    master.target_system,
-                    master.target_component,
-                    'SYSID_THISMAV'.encode('utf-8'),
-                    1,
-                    mavutil.mavlink.MAV_PARAM_TYPE_INT8
-                )
-                
-                # 確認
-                confirm_msg = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=5)
-                if confirm_msg:
-                    print(f"✅ SYSID_THISMAV set to {confirm_msg.param_value}")
-                    
-                    # パラメータ保存
-                    print("Saving parameters...")
-                    master.mav.command_long_send(
-                        master.target_system,
-                        master.target_component,
-                        mavutil.mavlink.MAV_CMD_PREFLIGHT_STORAGE,
-                        0,
-                        1, 0, 0, 0, 0, 0, 0
-                    )
-                    
-                    print("✅ System ID fixed! Please reboot Pixhawk.")
-                    return True
+            time.sleep(0.01)
+        
+        # 重要パラメータの確認
+        print(f"\n=== Critical Parameters ===")
+        critical_params = ['SYSID_THISMAV', 'SERIAL1_PROTOCOL', 'SERIAL1_BAUD', 'BRD_SER1_RTSCTS']
+        
+        for param in critical_params:
+            if param in system_params:
+                value = system_params[param]
+                status = "✅" if is_param_correct(param, value) else "⚠️"
+                print(f"{status} {param} = {value}")
             else:
-                print(f"✅ System ID is correctly set to {current_sysid}")
-                return True
-        else:
-            print("❌ Failed to read SYSID_THISMAV")
-            return False
-            
+                print(f"❌ {param} = NOT FOUND")
+        
+        return system_params
+        
     except Exception as e:
-        print(f"❌ Error: {e}")
-        return False
+        print(f"Error: {e}")
+        return {}
     finally:
         master.close()
 
+def is_param_correct(param_name, value):
+    """パラメータ値の正当性チェック"""
+    correct_values = {
+        'SYSID_THISMAV': lambda x: x >= 1,
+        'SERIAL1_PROTOCOL': lambda x: x == 2,
+        'SERIAL1_BAUD': lambda x: x == 115200,
+        'BRD_SER1_RTSCTS': lambda x: x == 0
+    }
+    
+    if param_name in correct_values:
+        return correct_values[param_name](value)
+    return True
+
 if __name__ == "__main__":
-    check_and_fix_system_id()
+    read_all_system_parameters()
+
