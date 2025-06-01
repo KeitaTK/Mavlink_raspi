@@ -16,9 +16,7 @@ parameters = {
     'AHRS_EKF_TYPE': 3,        # EKF3を使用
     'EK2_ENABLE': 0,           # EKF2を無効
     'EK3_ENABLE': 1,           # EKF3を有効
-    'EK3_IMU_MASK': 1.0,    # シングルIMU使用
-    'EK3_GPS_TYPE': 0.0,    # GPS無効
-    'EK3_ALT_SOURCE': 0.0,   # デフォルト高度ソース
+
     
     # 外部位置データ用設定（モーションキャプチャ）
     'EK3_SRC1_POSXY': 6,       # ExternalNav（水平位置）
@@ -31,6 +29,19 @@ parameters = {
     'EK3_POS_I_GATE': 3,       # 位置イノベーションゲート
     'EK3_VEL_I_GATE': 5,       # 速度イノベーションゲート
     'EK3_HGT_I_GATE': 3,       # 高度イノベーションゲート
+
+    'EK3_IMU_MASK': 1.0,    # シングルIMU使用
+    'EK3_GPS_TYPE': 0.0,    # GPS無効
+    'EK3_ALT_SOURCE': 0.0,   # デフォルト高度ソース
+
+    'EK3_GPS_TYPE': 0,        # GPS使用方法（検索結果[3][4]）
+    'EK3_ALT_SOURCE': 2,      # 高度ソース（検索結果[3][4]）
+    'GPS_TYPE': 14,           # MAVLink GPS（検索結果[4]）
+    'GPS_DELAY_MS': 50,       # GPS遅延（検索結果[4]）
+    'COMPASS_USE': 0,         # コンパス無効（検索結果[3][4]）
+    'COMPASS_USE2': 0,        # コンパス2無効
+    'COMPASS_USE3': 0,        # コンパス3無効
+    'EK3_MAG_CAL': 5          # 磁気キャリブレーション（検索結果[3][4]）
 
 }
 
