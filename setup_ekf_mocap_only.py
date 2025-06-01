@@ -24,7 +24,7 @@ def setup_ekf_mocap_only(port='/dev/ttyAMA0', baud=115200):
     params = {
         # --- 基本 EKF 設定 ---
         'AHRS_EKF_TYPE':   3.0,   # EKF3
-        'EK2_ENABLE':      0.0,   # EKF2 無効
+        # 'EK2_ENABLE':      0.0,   # EKF2 無効
         'EK3_ENABLE':      1.0,   # EKF3 有効
         'EK3_IMU_MASK':    1.0,   # シングル IMU
 
@@ -41,9 +41,9 @@ def setup_ekf_mocap_only(port='/dev/ttyAMA0', baud=115200):
         'EK3_HGT_I_GATE':  3.0,
 
         # --- GPS 無効化 (GPS 端末を無視) ---
-        'GPS_TYPE':        0.0,   # GPS なし
+        # 'GPS_TYPE':        0.0,   # GPS なし
         'GPS_AUTO_CONFIG': 0.0,   # GPS 自動設定無効
-        'GPS_DELAY_MS':    0.0,   # GPS 遅延 0
+        # 'GPS_DELAY_MS':    0.0,   # GPS 遅延 0
 
         # --- コンパス無効化 ---
         'COMPASS_USE':     0.0,   # 内蔵コンパス OFF
