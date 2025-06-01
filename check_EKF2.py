@@ -11,12 +11,12 @@ import time
 from pymavlink import mavutil
 
 # 設定
-PORT     = '/dev/ttyAMA0'
-BAUD     = 115200
+# PORT     = '/dev/ttyAMA0'
+# BAUD     = 115200
 DURATION = 10.0  # 監視時間（秒）
 
 def main():
-    master = mavutil.mavlink_connection(PORT, baud=BAUD)
+    master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)  # ← ここを変更
     master.wait_heartbeat()
     print(f"Heartbeat from sysid={master.target_system} compid={master.target_component}\n")
 
