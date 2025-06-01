@@ -80,7 +80,10 @@ def receiver_with_20hz_control():
     # MAVLink接続設定
     print("Setting up MAVLink connection...")
     try:
-        master = mavutil.mavlink_connection('/dev/ttyACM0', baud=921600)
+        # USB接続の場合
+        # master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)
+        # telem1で接続するとき
+        master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200)
         master.wait_heartbeat()
         print("✓ MAVLink connection established")
     except Exception as e:
