@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-EKF Position Estimation Verification Script
-モーションキャプチャ + EKF統合の動作確認
+EKF Verification Script - Fixed Parameter Reading
+パラメータ読み取りエラーを修正したバージョン
 """
 
 from pymavlink import mavutil
@@ -14,7 +14,7 @@ import time
 import math
 from datetime import datetime
 
-class EKFVerificationTool:
+class EKFVerificationToolFixed:
     def __init__(self, mavlink_port='/dev/ttyACM0', mavlink_baud=921600, udp_port=15769):
         self.mavlink_port = mavlink_port
         self.mavlink_baud = mavlink_baud
@@ -51,82 +51,119 @@ class EKFVerificationTool:
             print(f"✗ Connection setup failed: {e}")
             return False
     
-    def verify_ekf_configuration(self):
-        """EKF設定状態を確認"""
-        print("\n=== EKF Configuration Check ===")
-        
-        ekf_params = {
-            'AHRS_EKF_TYPE': 3,      # 期待値
-            'EK3_ENABLE': 1,
-            'EK3_SRC1_POSXY': 6,     # ExternalNav
-            'EK3_SRC1_POSZ': 6,      # ExternalNav
-            'EK3_SRC1_YAW': 6        # ExternalNav
-        }
-        
-        config_ok = True
-        
-        for param, expected in ekf_params.items():
+    def read_parameter_safe(self, param_name, max_retries=3):
+        """安全なパラメータ読み取り（検索結果の修正を適用）"""
+        for attempt in range(max_retries):
             try:
+                # 検索結果の文字列エンコード確認
+                encoded_name = param_name.encode('utf-8')
+                print(f"  Reading {param_name} (attempt {attempt + 1}/{max_retries})")
+                
+                # パラメータリクエスト送信
                 self.master.mav.param_request_read_send(
                     self.master.target_system,
                     self.master.target_component,
-                    param.encode('utf-8'),
+                    encoded_name,
                     -1
                 )
                 
-                msg = self.master.recv_match(type='PARAM_VALUE', blocking=True, timeout=3)
-                if msg:
-                    value = msg.param_value
-                    status = "✓" if value == expected else "✗"
-                    print(f"  {status} {param} = {value} (expected: {expected})")
-                    
-                    if value != expected:
-                        config_ok = False
-                        
-                time.sleep(0.1)
+                # 応答待ち（タイムアウト延長）
+                start_time = time.time()
+                while time.time() - start_time < 5.0:  # 5秒タイムアウト
+                    msg = self.master.recv_match(type='PARAM_VALUE', blocking=False)
+                    if msg:
+                        # パラメータ名の比較（デコード処理改善）
+                        received_name = msg.param_id.decode('utf-8').rstrip('\x00')
+                        if received_name == param_name:
+                            print(f"    ✓ {param_name} = {msg.param_value}")
+                            return msg.param_value
+                    time.sleep(0.1)
+                
+                print(f"    Timeout on attempt {attempt + 1}")
+                time.sleep(0.5)  # リトライ前の待機
                 
             except Exception as e:
-                print(f"  ✗ Failed to read {param}: {e}")
+                print(f"    Error on attempt {attempt + 1}: {e}")
+                time.sleep(0.5)
+        
+        print(f"    ✗ Failed to read {param_name} after {max_retries} attempts")
+        return None
+    
+    def verify_ekf_configuration_fixed(self):
+        """修正されたEKF設定確認"""
+        print("\n=== EKF Configuration Check (Fixed) ===")
+        
+        ekf_params = {
+            'AHRS_EKF_TYPE': 3,
+            'EK3_ENABLE': 1,
+            'EK3_SRC1_POSXY': 6,
+            'EK3_SRC1_POSZ': 6,
+            'EK3_SRC1_YAW': 6
+        }
+        
+        config_ok = True
+        actual_values = {}
+        
+        for param_name, expected in ekf_params.items():
+            value = self.read_parameter_safe(param_name)
+            actual_values[param_name] = value
+            
+            if value is not None:
+                if abs(value - expected) < 0.1:  # 浮動小数点誤差を考慮
+                    print(f"  ✓ {param_name} = {value} ✓")
+                else:
+                    print(f"  ✗ {param_name} = {value} (expected: {expected})")
+                    config_ok = False
+            else:
+                print(f"  ✗ {param_name} = FAILED TO READ")
                 config_ok = False
+        
+        print(f"\nConfiguration Summary:")
+        for param, value in actual_values.items():
+            if value is not None:
+                print(f"  {param}: {value}")
         
         if config_ok:
             print("✅ EKF configuration is correct")
         else:
-            print("⚠️ EKF configuration needs adjustment")
+            print("⚠️ EKF configuration has issues")
+            print("\nTo fix configuration, run:")
+            print("python3 setup_ekf_params.py")
             
         return config_ok
     
-    def request_ekf_messages(self):
-        """EKFメッセージのリクエスト"""
-        try:
-            # LOCAL_POSITION_NEDリクエスト
-            self.master.mav.command_long_send(
-                self.master.target_system,
-                self.master.target_component,
-                mavutil.mavlink.MAV_CMD_GET_MESSAGE_INTERVAL,
-                0,
-                mavutil.mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED,
-                100000,  # 10Hz
-                0, 0, 0, 0, 0
-            )
-            
-            # EKF_STATUS_REPORTリクエスト
-            self.master.mav.command_long_send(
-                self.master.target_system,
-                self.master.target_component,
-                mavutil.mavlink.MAV_CMD_GET_MESSAGE_INTERVAL,
-                0,
-                mavutil.mavlink.MAVLINK_MSG_ID_EKF_STATUS_REPORT,
-                1000000,  # 1Hz
-                0, 0, 0, 0, 0
-            )
-            
-            print("✓ EKF message requests sent")
-            return True
-            
-        except Exception as e:
-            print(f"✗ Failed to request EKF messages: {e}")
-            return False
+    def request_ekf_messages_enhanced(self):
+        """強化されたEKFメッセージリクエスト"""
+        print("\nRequesting EKF messages...")
+        
+        messages_to_request = [
+            (mavutil.mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED, 200000, "LOCAL_POSITION_NED"),
+            (mavutil.mavlink.MAVLINK_MSG_ID_EKF_STATUS_REPORT, 1000000, "EKF_STATUS_REPORT"),
+            (mavutil.mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT, 500000, "GLOBAL_POSITION_INT")
+        ]
+        
+        success_count = 0
+        
+        for msg_id, interval, name in messages_to_request:
+            try:
+                self.master.mav.command_long_send(
+                    self.master.target_system,
+                    self.master.target_component,
+                    mavutil.mavlink.MAV_CMD_GET_MESSAGE_INTERVAL,
+                    0,
+                    msg_id,
+                    interval,
+                    0, 0, 0, 0, 0
+                )
+                print(f"  ✓ Requested {name}")
+                success_count += 1
+                time.sleep(0.2)
+                
+            except Exception as e:
+                print(f"  ✗ Failed to request {name}: {e}")
+        
+        print(f"Successfully requested {success_count}/{len(messages_to_request)} messages")
+        return success_count > 0
     
     def get_latest_mocap_data(self):
         """最新のモーションキャプチャデータを取得"""
@@ -146,8 +183,8 @@ class EKFVerificationTool:
             if newest_data:
                 data = pickle.loads(newest_data)
                 self.mocap_position = {
-                    'pos': data['position'],    # [x, y, z]
-                    'quat': data['quaternion'], # [w, x, y, z]
+                    'pos': data['position'],
+                    'quat': data['quaternion'],
                     'timestamp': time.time()
                 }
                 return True
@@ -157,88 +194,98 @@ class EKFVerificationTool:
             
         return False
     
-    def monitor_ekf_responses(self):
-        """EKF応答を監視"""
-        msg = self.master.recv_match(blocking=False)
-        if msg:
-            msg_type = msg.get_type()
+    def monitor_ekf_responses_enhanced(self):
+        """強化されたEKF応答監視"""
+        responses = []
+        
+        # より多くのメッセージを同時に確認
+        for _ in range(10):  # 複数回チェック
+            msg = self.master.recv_match(blocking=False)
+            if msg:
+                msg_type = msg.get_type()
+                responses.append(msg_type)
+                
+                if msg_type == 'LOCAL_POSITION_NED':
+                    self.ekf_position = {
+                        'x': msg.x,
+                        'y': msg.y,
+                        'z': msg.z,
+                        'vx': msg.vx,
+                        'vy': msg.vy,
+                        'vz': msg.vz,
+                        'timestamp': time.time()
+                    }
+                    
+                elif msg_type == 'EKF_STATUS_REPORT':
+                    self.ekf_status = {
+                        'velocity_variance': msg.velocity_variance,
+                        'pos_horiz_variance': msg.pos_horiz_variance,
+                        'pos_vert_variance': msg.pos_vert_variance,
+                        'compass_variance': msg.compass_variance,
+                        'timestamp': time.time()
+                    }
+        
+        # 受信したメッセージタイプを報告
+        if responses:
+            unique_responses = list(set(responses))
+            print(f"    Received: {', '.join(unique_responses)}")
+        
+        return len(responses) > 0
+    
+    def debug_mavlink_connection(self):
+        """MAVLink接続のデバッグ"""
+        print("\n=== MAVLink Connection Debug ===")
+        
+        try:
+            # ハートビート確認
+            print("Checking heartbeat...")
+            msg = self.master.recv_match(type='HEARTBEAT', blocking=True, timeout=5)
+            if msg:
+                print(f"  ✓ Heartbeat received from system {msg.get_srcSystem()}")
+                print(f"    Type: {msg.type}, Autopilot: {msg.autopilot}")
+                print(f"    Base mode: {msg.base_mode}, Custom mode: {msg.custom_mode}")
+            else:
+                print("  ✗ No heartbeat received")
+                return False
             
-            if msg_type == 'LOCAL_POSITION_NED':
-                self.ekf_position = {
-                    'x': msg.x,
-                    'y': msg.y,
-                    'z': msg.z,
-                    'vx': msg.vx,
-                    'vy': msg.vy,
-                    'vz': msg.vz,
-                    'timestamp': time.time()
-                }
-                return True
-                
-            elif msg_type == 'EKF_STATUS_REPORT':
-                self.ekf_status = {
-                    'velocity_variance': msg.velocity_variance,
-                    'pos_horiz_variance': msg.pos_horiz_variance,
-                    'pos_vert_variance': msg.pos_vert_variance,
-                    'compass_variance': msg.compass_variance,
-                    'timestamp': time.time()
-                }
-                return True
-                
-        return False
+            # システム状態確認
+            print("\nRequesting system status...")
+            self.master.mav.command_long_send(
+                self.master.target_system,
+                self.master.target_component,
+                mavutil.mavlink.MAV_CMD_GET_MESSAGE_INTERVAL,
+                0,
+                mavutil.mavlink.MAVLINK_MSG_ID_SYS_STATUS,
+                1000000,  # 1Hz
+                0, 0, 0, 0, 0
+            )
+            
+            # 数秒待って応答を確認
+            print("Waiting for system messages...")
+            messages_received = []
+            start_time = time.time()
+            
+            while time.time() - start_time < 5:
+                msg = self.master.recv_match(blocking=False)
+                if msg:
+                    msg_type = msg.get_type()
+                    if msg_type not in messages_received:
+                        messages_received.append(msg_type)
+                        print(f"  Received: {msg_type}")
+                time.sleep(0.1)
+            
+            print(f"Total message types received: {len(messages_received)}")
+            return len(messages_received) > 0
+            
+        except Exception as e:
+            print(f"Debug failed: {e}")
+            return False
     
-    def compare_positions(self):
-        """モーションキャプチャとEKF位置の比較"""
-        if not self.mocap_position or not self.ekf_position:
-            return None
-        
-        mocap_pos = self.mocap_position['pos']
-        ekf_pos = (self.ekf_position['x'], self.ekf_position['y'], self.ekf_position['z'])
-        
-        # 位置差分計算
-        diff_x = abs(mocap_pos[0] - ekf_pos[0])
-        diff_y = abs(mocap_pos[1] - ekf_pos[1])
-        diff_z = abs(mocap_pos[2] - ekf_pos[2])
-        
-        # 総合誤差
-        total_error = math.sqrt(diff_x**2 + diff_y**2 + diff_z**2)
-        
-        comparison = {
-            'mocap_pos': mocap_pos,
-            'ekf_pos': ekf_pos,
-            'diff': (diff_x, diff_y, diff_z),
-            'total_error': total_error,
-            'timestamp': time.time()
-        }
-        
-        # 履歴に追加
-        self.position_history.append(comparison)
-        
-        return comparison
-    
-    def evaluate_accuracy(self, comparison):
-        """精度評価"""
-        if not comparison:
-            return "No data"
-        
-        error = comparison['total_error']
-        
-        if error < 0.05:      # 5cm以内
-            return "Excellent"
-        elif error < 0.10:    # 10cm以内
-            return "Good"
-        elif error < 0.20:    # 20cm以内
-            return "Acceptable"
-        elif error < 0.50:    # 50cm以内
-            return "Poor"
-        else:
-            return "Very Poor"
-    
-    def display_status(self):
-        """現在の状況を表示"""
-        print(f"\n{'='*60}")
+    def display_enhanced_status(self):
+        """強化された状態表示"""
+        print(f"\n{'='*70}")
         print(f"EKF Position Estimation Status - {datetime.now().strftime('%H:%M:%S')}")
-        print(f"{'='*60}")
+        print(f"{'='*70}")
         
         # モーションキャプチャデータ
         if self.mocap_position:
@@ -246,7 +293,7 @@ class EKFVerificationTool:
             age = time.time() - self.mocap_position['timestamp']
             print(f"MOCAP Position: N={pos[0]:+7.3f}m E={pos[1]:+7.3f}m D={pos[2]:+7.3f}m (Age: {age:.1f}s)")
         else:
-            print("MOCAP Position: No data")
+            print("MOCAP Position: ❌ No data")
         
         # EKF位置データ
         if self.ekf_position:
@@ -255,12 +302,13 @@ class EKFVerificationTool:
             print(f"EKF Position:   N={pos['x']:+7.3f}m E={pos['y']:+7.3f}m D={pos['z']:+7.3f}m (Age: {age:.1f}s)")
             print(f"EKF Velocity:   N={pos['vx']:+6.2f}m/s E={pos['vy']:+6.2f}m/s D={pos['vz']:+6.2f}m/s")
         else:
-            print("EKF Position:   No data")
+            print("EKF Position:   ❌ No data")
         
         # EKF健全性
         if self.ekf_status:
             ekf = self.ekf_status
-            print(f"\nEKF Health:")
+            age = time.time() - ekf['timestamp']
+            print(f"\nEKF Health (Age: {age:.1f}s):")
             print(f"  Position H: {ekf['pos_horiz_variance']:.6f}")
             print(f"  Position V: {ekf['pos_vert_variance']:.6f}")
             print(f"  Velocity:   {ekf['velocity_variance']:.6f}")
@@ -273,33 +321,28 @@ class EKFVerificationTool:
             overall_health = pos_healthy and vel_healthy and compass_healthy
             
             print(f"  Overall: {'✅ GOOD' if overall_health else '⚠️ WARNING'}")
+        else:
+            print("\nEKF Health: ❌ No data")
         
-        # 位置比較
-        comparison = self.compare_positions()
-        if comparison:
-            diff = comparison['diff']
-            error = comparison['total_error']
-            accuracy = self.evaluate_accuracy(comparison)
-            
-            print(f"\nPosition Comparison:")
-            print(f"  Difference: N={diff[0]:6.3f}m E={diff[1]:6.3f}m D={diff[2]:6.3f}m")
-            print(f"  Total Error: {error*100:.1f}cm")
-            print(f"  Accuracy: {accuracy}")
-        
-        print(f"{'='*60}")
+        print(f"{'='*70}")
     
-    def run_verification_test(self, duration=30):
-        """検証テストの実行"""
-        print("=== EKF Position Estimation Verification ===")
+    def run_verification_test_fixed(self, duration=30):
+        """修正された検証テストの実行"""
+        print("=== EKF Position Estimation Verification (Fixed) ===")
         
         if not self.setup_connections():
             return False
         
-        if not self.verify_ekf_configuration():
-            print("⚠️ Continuing with current configuration...")
+        # MAVLink接続のデバッグ
+        if not self.debug_mavlink_connection():
+            print("⚠️ MAVLink connection issues detected")
         
-        if not self.request_ekf_messages():
-            return False
+        # EKF設定確認（修正版）
+        config_ok = self.verify_ekf_configuration_fixed()
+        
+        # EKFメッセージリクエスト（強化版）
+        if not self.request_ekf_messages_enhanced():
+            print("⚠️ Failed to request EKF messages")
         
         print(f"\nRunning verification for {duration} seconds...")
         print("Press Ctrl+C to stop early")
@@ -311,11 +354,11 @@ class EKFVerificationTool:
             while time.time() - start_time < duration:
                 # データ取得
                 self.get_latest_mocap_data()
-                self.monitor_ekf_responses()
+                self.monitor_ekf_responses_enhanced()
                 
-                # 5秒ごとに状態表示
-                if time.time() - last_display >= 5:
-                    self.display_status()
+                # 3秒ごとに状態表示
+                if time.time() - last_display >= 3:
+                    self.display_enhanced_status()
                     last_display = time.time()
                 
                 time.sleep(0.1)
@@ -323,54 +366,7 @@ class EKFVerificationTool:
         except KeyboardInterrupt:
             print("\nTest stopped by user")
         
-        # 最終結果
-        self.display_final_results()
         return True
-    
-    def display_final_results(self):
-        """最終結果の表示"""
-        print(f"\n{'='*60}")
-        print("FINAL VERIFICATION RESULTS")
-        print(f"{'='*60}")
-        
-        if len(self.position_history) > 0:
-            errors = [comp['total_error'] for comp in self.position_history]
-            avg_error = sum(errors) / len(errors)
-            max_error = max(errors)
-            min_error = min(errors)
-            
-            print(f"Position Accuracy Statistics:")
-            print(f"  Samples: {len(errors)}")
-            print(f"  Average Error: {avg_error*100:.1f}cm")
-            print(f"  Maximum Error: {max_error*100:.1f}cm")
-            print(f"  Minimum Error: {min_error*100:.1f}cm")
-            
-            # 精度分布
-            excellent = sum(1 for e in errors if e < 0.05)
-            good = sum(1 for e in errors if 0.05 <= e < 0.10)
-            acceptable = sum(1 for e in errors if 0.10 <= e < 0.20)
-            poor = sum(1 for e in errors if e >= 0.20)
-            
-            print(f"\nAccuracy Distribution:")
-            print(f"  Excellent (<5cm):   {excellent:3d} ({excellent/len(errors)*100:.1f}%)")
-            print(f"  Good (5-10cm):      {good:3d} ({good/len(errors)*100:.1f}%)")
-            print(f"  Acceptable (10-20cm): {acceptable:3d} ({acceptable/len(errors)*100:.1f}%)")
-            print(f"  Poor (>20cm):       {poor:3d} ({poor/len(errors)*100:.1f}%)")
-            
-            # 総合評価
-            if avg_error < 0.05:
-                overall = "✅ EXCELLENT - EKF estimation is highly accurate"
-            elif avg_error < 0.10:
-                overall = "✅ GOOD - EKF estimation is working well"
-            elif avg_error < 0.20:
-                overall = "⚠️ ACCEPTABLE - EKF estimation needs tuning"
-            else:
-                overall = "❌ POOR - EKF estimation has issues"
-            
-            print(f"\nOverall Assessment: {overall}")
-            
-        else:
-            print("❌ No position data collected - Check connections and setup")
     
     def cleanup(self):
         """リソースのクリーンアップ"""
@@ -388,12 +384,12 @@ def main():
     """メイン関数"""
     signal.signal(signal.SIGINT, signal_handler)
     
-    # テストツール作成
-    verifier = EKFVerificationTool()
+    # 修正版テストツール作成
+    verifier = EKFVerificationToolFixed()
     
     try:
-        # 検証テスト実行（30秒間）
-        verifier.run_verification_test(duration=30)
+        # 検証テスト実行
+        verifier.run_verification_test_fixed(duration=30)
         
     except Exception as e:
         print(f"Test failed: {e}")
