@@ -14,7 +14,8 @@ def integrated_ekf_mocap_test():
     print("=== EKF + Motion Capture Integration Test ===")
     
     # TELEM1接続
-    master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200)
+    # master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200)
+    master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)
     master.wait_heartbeat()
     print("✅ TELEM1 connected")
     
