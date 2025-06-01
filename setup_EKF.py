@@ -16,6 +16,9 @@ parameters = {
     'AHRS_EKF_TYPE': 3,        # EKF3を使用
     'EK2_ENABLE': 0,           # EKF2を無効
     'EK3_ENABLE': 1,           # EKF3を有効
+    'EK3_IMU_MASK': 1.0,    # シングルIMU使用
+    'EK3_GPS_TYPE': 0.0,    # GPS無効
+    'EK3_ALT_SOURCE': 0.0,   # デフォルト高度ソース
     
     # 外部位置データ用設定（モーションキャプチャ）
     'EK3_SRC1_POSXY': 6,       # ExternalNav（水平位置）
