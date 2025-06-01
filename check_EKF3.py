@@ -1,121 +1,175 @@
 #!/usr/bin/env python3
 """
-EKF処理状況の最終確認
+EKFとセンサー状態の詳細調査（修正版）
 """
 
 from pymavlink import mavutil
 import time
 
-def final_ekf_check():
-    """EKF最終確認"""
+def comprehensive_ekf_diagnosis():
+    """包括的なEKF診断"""
     
+    # USB接続で確認（より確実）
     master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)
     master.wait_heartbeat()
     
-    print("=== Final EKF Check ===")
-    print("Motion capture data confirmed at 16.6Hz")
-    print("Checking EKF response...")
-    print("-" * 50)
+    print("=== Comprehensive EKF Diagnosis ===")
+    print(f"System ID: {master.target_system}")
+    print(f"Component ID: {master.target_component}")
     
-    # EKFメッセージを強制要求
-    ekf_messages = [
-        (mavutil.mavlink.MAVLINK_MSG_ID_EKF_STATUS_REPORT, 1000000),
-        (mavutil.mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED, 200000),
-        (mavutil.mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT, 500000)
-    ]
+    # 1. 重要なEKFパラメータ確認
+    print("\n1. EKF Parameters Check:")
+    critical_params = {
+        'AHRS_EKF_TYPE': 3,
+        'EK3_ENABLE': 1,
+        'EK3_SRC1_POSXY': 6,
+        'EK3_SRC1_POSZ': 6,
+        'EK3_SRC1_YAW': 6,
+        'EK3_IMU_MASK': 1,
+        'EK3_GPS_TYPE': 0,  # GPS無効
+        'EK3_ALT_SOURCE': 0
+    }
     
-    for msg_id, interval in ekf_messages:
+    param_results = {}
+    for param, expected in critical_params.items():
+        try:
+            master.mav.param_request_read_send(
+                master.target_system,
+                master.target_component,
+                param.encode('utf-8'),
+                -1
+            )
+            
+            msg = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=5)
+            if msg:
+                param_name = str(msg.param_id).rstrip('\x00')
+                actual = msg.param_value
+                status = "✅" if actual == expected else "❌"
+                param_results[param] = actual
+                print(f"  {status} {param_name} = {actual} (expected: {expected})")
+            else:
+                param_results[param] = None
+                print(f"  ❌ {param} = TIMEOUT")
+            
+            time.sleep(0.3)
+            
+        except Exception as e:
+            print(f"  ❌ {param} = ERROR: {e}")
+    
+    # 2. センサー状態詳細確認
+    print("\n2. System Sensors Status:")
+    try:
         master.mav.command_long_send(
             master.target_system,
             master.target_component,
             mavutil.mavlink.MAV_CMD_GET_MESSAGE_INTERVAL,
             0,
-            msg_id,
-            interval,
+            mavutil.mavlink.MAVLINK_MSG_ID_SYS_STATUS,
+            500000,  # 2Hz
             0, 0, 0, 0, 0
         )
-        time.sleep(0.1)
-    
-    # 30秒間の詳細監視
-    print("Monitoring EKF for 30 seconds...")
-    start_time = time.time()
-    
-    ekf_status_count = 0
-    position_count = 0
-    mocap_count = 0
-    last_position = None
-    
-    while time.time() - start_time < 30:
-        msg = master.recv_match(blocking=False)
-        if msg:
-            msg_type = msg.get_type()
-            
-            if msg_type == 'ATT_POS_MOCAP':
-                mocap_count += 1
+        
+        start_time = time.time()
+        sensor_found = False
+        
+        while time.time() - start_time < 5:
+            msg = master.recv_match(blocking=False)
+            if msg and msg.get_type() == 'SYS_STATUS':
+                sensor_found = True
+                print(f"  Sensors Present: 0x{msg.onboard_control_sensors_present:08X}")
+                print(f"  Sensors Enabled: 0x{msg.onboard_control_sensors_enabled:08X}")
+                print(f"  Sensors Health:  0x{msg.onboard_control_sensors_health:08X}")
                 
-            elif msg_type == 'EKF_STATUS_REPORT':
-                ekf_status_count += 1
-                if ekf_status_count <= 3:  # 最初の3回のみ表示
-                    print(f"\n[{ekf_status_count}] EKF Status Report:")
-                    print(f"    Position Variance: {msg.pos_horiz_variance:.6f}")
-                    print(f"    Velocity Variance: {msg.velocity_variance:.6f}")
-                    print(f"    Compass Variance: {msg.compass_variance:.6f}")
+                # ビット解析
+                sensors = {
+                    0x01: "3D Gyro",
+                    0x02: "3D Accel", 
+                    0x04: "3D Mag",
+                    0x08: "Abs Pressure",
+                    0x20: "GPS",
+                    0x80: "Vision Position",
+                    0x200: "External Ground Truth"
+                }
+                
+                print(f"  Sensor Details:")
+                for bit, name in sensors.items():
+                    present = bool(msg.onboard_control_sensors_present & bit)
+                    enabled = bool(msg.onboard_control_sensors_enabled & bit)
+                    healthy = bool(msg.onboard_control_sensors_health & bit)
                     
-                    if (msg.pos_horiz_variance < 1.0 and 
-                        msg.velocity_variance < 1.0):
-                        print(f"    Health: ✅ GOOD")
-                    else:
-                        print(f"    Health: ⚠️ INITIALIZING")
-                
-            elif msg_type == 'LOCAL_POSITION_NED':
-                position_count += 1
-                last_position = (msg.x, msg.y, msg.z)
-                
-                if position_count <= 3:  # 最初の3回のみ表示
-                    print(f"\n[{position_count}] Local Position:")
-                    print(f"    Position: N={msg.x:+7.3f}m E={msg.y:+7.3f}m D={msg.z:+7.3f}m")
-                    print(f"    Velocity: N={msg.vx:+6.2f}m/s E={msg.vy:+6.2f}m/s D={msg.vz:+6.2f}m/s")
-                
-            elif msg_type == 'STATUSTEXT':
-                text = msg.text.lower()
-                if any(keyword in text for keyword in ['ekf', 'position', 'origin', 'gps']):
-                    print(f"    Status: {msg.text}")
+                    if present:
+                        status = "✅" if healthy else "❌"
+                        en_status = "ON" if enabled else "OFF"
+                        print(f"    {status} {name}: {en_status}")
+                break
+            time.sleep(0.1)
         
-        time.sleep(0.1)
+        if not sensor_found:
+            print(f"  ❌ No SYS_STATUS message received")
     
-    # 結果サマリー
-    print(f"\n{'='*50}")
-    print(f"30-Second Test Results:")
-    print(f"{'='*50}")
-    print(f"Motion Capture Messages: {mocap_count} ({mocap_count/30:.1f} Hz)")
-    print(f"EKF Status Reports: {ekf_status_count}")
-    print(f"Position Updates: {position_count}")
+    except Exception as e:
+        print(f"  ❌ Sensor check failed: {e}")
     
-    if last_position:
-        print(f"Latest Position: N={last_position[0]:+7.3f}m E={last_position[1]:+7.3f}m D={last_position[2]:+7.3f}m")
-    
-    # 成功判定
-    if ekf_status_count > 0 and position_count > 0:
-        print(f"\n🎉 SUCCESS: EKF is working!")
-        print(f"   ✅ EKF processing motion capture data")
-        print(f"   ✅ Position estimation active")
-        print(f"   ✅ Ready for flight control")
-        return True
+    # 3. AHRS状態確認
+    print("\n3. AHRS Status:")
+    try:
+        master.mav.command_long_send(
+            master.target_system,
+            master.target_component,
+            mavutil.mavlink.MAV_CMD_GET_MESSAGE_INTERVAL,
+            0,
+            mavutil.mavlink.MAVLINK_MSG_ID_ATTITUDE,
+            200000,  # 5Hz
+            0, 0, 0, 0, 0
+        )
         
-    elif ekf_status_count > 0:
-        print(f"\n⚠️ PARTIAL: EKF responding but no position yet")
-        print(f"   ✅ EKF status available")
-        print(f"   ⏳ Position estimation initializing")
-        return False
+        start_time = time.time()
+        attitude_found = False
         
+        while time.time() - start_time < 3:
+            msg = master.recv_match(blocking=False)
+            if msg and msg.get_type() == 'ATTITUDE':
+                attitude_found = True
+                print(f"  ✅ Attitude available: roll={msg.roll:.3f} pitch={msg.pitch:.3f} yaw={msg.yaw:.3f}")
+                break
+            time.sleep(0.1)
+        
+        if not attitude_found:
+            print(f"  ❌ No ATTITUDE message received")
+    
+    except Exception as e:
+        print(f"  ❌ AHRS check failed: {e}")
+    
+    # 4. 診断結果
+    print(f"\n4. Diagnosis Results:")
+    
+    # パラメータ問題チェック
+    param_issues = []
+    for param, expected in critical_params.items():
+        if param in param_results:
+            if param_results[param] != expected:
+                param_issues.append(f"{param}: {param_results[param]} != {expected}")
+    
+    if param_issues:
+        print(f"  ❌ Parameter Issues:")
+        for issue in param_issues:
+            print(f"    - {issue}")
     else:
-        print(f"\n❌ NO RESPONSE: EKF not responding")
-        print(f"   ❌ No EKF status messages")
-        print(f"   ❌ No position estimates")
-        print(f"   🔧 Additional troubleshooting needed")
-        return False
+        print(f"  ✅ All critical parameters correct")
+    
+    # 推奨次ステップ
+    print(f"\n5. Recommended Next Steps:")
+    if param_issues:
+        print(f"  1. Fix parameter issues and reboot")
+    else:
+        print(f"  1. Parameters OK - issue may be in EKF initialization")
+        print(f"  2. Try complete Pixhawk reboot")
+        print(f"  3. Check if IMU calibration is needed")
+        print(f"  4. Verify GPS origin is properly set")
     
     master.close()
+    return param_results
 
 if __name__ == "__main__":
-    final_ekf_check()
+    comprehensive_ekf_diagnosis()
+
