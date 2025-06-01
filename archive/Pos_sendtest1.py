@@ -2,7 +2,8 @@ from pymavlink import mavutil
 import time
 
 # 接続確立
-master = mavutil.mavlink_connection('/dev/ttyACM0', baud=57600)
+# master = mavutil.mavlink_connection('/dev/ttyACM0', baud=57600)
+master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200)
 master.wait_heartbeat()
 print("Connected!")
 
