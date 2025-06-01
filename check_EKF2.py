@@ -1,58 +1,45 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-check_position.py
+diagnose_full_ekf.py
 
-EKFのローカル位置（LOCAL_POSITION_NED）と
-グローバル位置（GLOBAL_POSITION_INT）が取得できているか確認するスクリプト
+EKF が自己位置推定に必要な各種メッセージを
+正しく受信・処理しているかを10秒間で診断します。
 """
 
 import time
 from pymavlink import mavutil
 
 # 設定
-SERIAL_PORT = '/dev/ttyACM0'   # USB経由でEKF監視する場合
-BAUDRATE    = 115200
-DURATION    = 10.0             # 監視時間 (秒)
-LOCAL_RATE  = 5    # LOCAL_POSITION_NED のレート(Hz)
-GLOBAL_RATE = 1    # GLOBAL_POSITION_INT のレート(Hz)
+PORT     = '/dev/ttyAMA0'
+BAUD     = 115200
+DURATION = 10.0  # 監視時間（秒）
 
 def main():
-    print("Connecting to autopilot...")
-    master = mavutil.mavlink_connection(SERIAL_PORT, baud=BAUDRATE)
+    master = mavutil.mavlink_connection(PORT, baud=BAUD)
     master.wait_heartbeat()
     print(f"Heartbeat from sysid={master.target_system} compid={master.target_component}\n")
 
-    # メッセージストリーム要求
-    def request_stream(msg_id, hz):
-        interval = int(1e6 / hz)
+    # ストリーム要求関数
+    def req_stream(msg_id, hz):
         master.mav.command_long_send(
-            master.target_system,
-            master.target_component,
+            master.target_system, master.target_component,
             mavutil.mavlink.MAV_CMD_GET_MESSAGE_INTERVAL,
-            0,
-            msg_id,
-            interval,
-            0,0,0,0,0
+            0, msg_id, int(1e6/hz), 0, 0, 0, 0, 0
         )
 
-    print(f"Requesting LOCAL_POSITION_NED @ {LOCAL_RATE}Hz")
-    request_stream(mavutil.mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED, LOCAL_RATE)
-    time.sleep(0.1)
-    print(f"Requesting GLOBAL_POSITION_INT @ {GLOBAL_RATE}Hz")
-    request_stream(mavutil.mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT, GLOBAL_RATE)
-    time.sleep(0.1)
+    # 必要なメッセージストリームをリクエスト
+    print("Requesting streams…")
+    req_stream(mavutil.mavlink.MAVLINK_MSG_ID_HIGHRES_IMU,    50)  # 生 IMU データ
+    req_stream(mavutil.mavlink.MAVLINK_MSG_ID_ATTITUDE,       10)  # 姿勢
+    req_stream(mavutil.mavlink.MAVLINK_MSG_ID_SYS_STATUS,      1)  # センサー状態
+    req_stream(mavutil.mavlink.MAVLINK_MSG_ID_EKF_STATUS_REPORT,1) # EKF 健全性
+    req_stream(mavutil.mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED,5) # ローカル位置
+    time.sleep(0.2)
 
-    # 監視ループ
-    print(f"\nListening for {DURATION:.1f}s...")
+    print(f"\nListening for {DURATION:.1f}s…\n")
     start = time.time()
-
-    local_count  = 0
-    global_count = 0
-    first_local  = True
-    first_global = True
-    last_local   = None
-    last_global  = None
+    counts = {}
 
     while time.time() - start < DURATION:
         msg = master.recv_match(blocking=False)
@@ -60,58 +47,47 @@ def main():
             time.sleep(0.01)
             continue
 
-        t = time.time() - start
-        if msg.get_type() == 'LOCAL_POSITION_NED':
-            local_count += 1
-            last_local = msg
-            if first_local:
-                print(f"\n[{t:.2f}s] LOCAL_POSITION_NED:")
-                print(f"  N={msg.x:+7.3f} m  E={msg.y:+7.3f} m  D={msg.z:+7.3f} m")
-                print(f"  V_N={msg.vx:+6.2f} m/s  V_E={msg.vy:+6.2f} m/s  V_D={msg.vz:+6.2f} m/s")
-                first_local = False
+        t = msg.get_type()
+        counts[t] = counts.get(t, 0) + 1
 
-        elif msg.get_type() == 'GLOBAL_POSITION_INT':
-            global_count += 1
-            last_global = msg
-            if first_global:
-                lat = msg.lat / 1e7
-                lon = msg.lon / 1e7
-                alt = msg.alt / 1000.0
-                rel = msg.relative_alt / 1000.0
-                print(f"\n[{t:.2f}s] GLOBAL_POSITION_INT:")
-                print(f"  LAT={lat:.7f}  LON={lon:.7f}")
-                print(f"  ALT={alt:.2f} m  REL_ALT={rel:.2f} m")
-                first_global = False
+        # 最初の1件を表示
+        if counts[t] == 1:
+            if t == 'HIGHRES_IMU':
+                print(f"[{t}] accel=({msg.xacc:.2f},{msg.yacc:.2f},{msg.zacc:.2f}) gyro=({msg.xgyro:.2f},{msg.ygyro:.2f},{msg.zgyro:.2f})")
+            elif t == 'ATTITUDE':
+                print(f"[{t}] roll={msg.roll:.3f} pitch={msg.pitch:.3f} yaw={msg.yaw:.3f}")
+            elif t == 'SYS_STATUS':
+                print(f"[{t}] sensors_present=0x{msg.onboard_control_sensors_present:08X} enabled=0x{msg.onboard_control_sensors_enabled:08X}")
+            elif t == 'EKF_STATUS_REPORT':
+                print(f"[{t}] pos_var={msg.pos_horiz_variance:.6f} vel_var={msg.velocity_variance:.6f}")
+            elif t == 'LOCAL_POSITION_NED':
+                print(f"[{t}] N={msg.x:+6.3f} E={msg.y:+6.3f} D={msg.z:+6.3f}")
 
     # 結果サマリー
-    print("\n" + "="*50)
-    print("Summary:")
-    print(f" LOCAL_POSITION_NED messages: {local_count}  ({local_count/DURATION:.1f} Hz)")
-    print(f" GLOBAL_POSITION_INT messages: {global_count}  ({global_count/DURATION:.1f} Hz)")
-
-    if last_local:
-        print(" Last LOCAL_POSITION_NED:")
-        print(f"  N={last_local.x:+7.3f}  E={last_local.y:+7.3f}  D={last_local.z:+7.3f}")
-    if last_global:
-        lat = last_global.lat / 1e7
-        lon = last_global.lon / 1e7
-        alt = last_global.alt / 1000.0
-        print(" Last GLOBAL_POSITION_INT:")
-        print(f"  LAT={lat:.7f}  LON={lon:.7f}  ALT={alt:.2f} m")
+    print("\n" + "="*40)
+    print("Message counts:")
+    for t, c in sorted(counts.items()):
+        print(f"  {t}: {c} msgs ({c/DURATION:.1f} Hz)")
+    print("="*40)
 
     # 判定
-    ok = True
-    if local_count == 0:
-        print("\n❌ No LOCAL_POSITION_NED received")
-        ok = False
-    if global_count == 0:
-        print("\n⚠️ No GLOBAL_POSITION_INT received (normal if no GPS)")
-        # GPSを使わない場合は警告のみ
+    if counts.get('HIGHRES_IMU',0)==0:
+        print("❌ No IMU data → check IMU connection/calibration")
+    if counts.get('ATTITUDE',0)==0:
+        print("❌ No ATTITUDE → EKF not running or no sensor data")
+    if counts.get('SYS_STATUS',0)==0:
+        print("❌ No SYS_STATUS → check system health")
+    if counts.get('EKF_STATUS_REPORT',0)==0:
+        print("❌ No EKF_STATUS_REPORT → EKF not initialized")
+    if counts.get('LOCAL_POSITION_NED',0)==0:
+        print("❌ No LOCAL_POSITION_NED → EKF not producing position")
 
-    if ok and local_count > 0:
-        print("\n✅ Position information is being received correctly!")
+    if (counts.get('HIGHRES_IMU',0)>0 and
+        counts.get('ATTITUDE',0)>0 and
+        counts.get('LOCAL_POSITION_NED',0)>0):
+        print("\n✅ EKF is receiving IMU, computing attitude and producing position!")
     else:
-        print("\n🔧 Please check EKF settings and data sources")
+        print("\n🔧 EKF pipeline incomplete—please address the missing stages above.")
 
     master.close()
 
