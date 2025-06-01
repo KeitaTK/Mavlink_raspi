@@ -9,10 +9,10 @@ print("ハートビートを待機中...")
 master.wait_heartbeat()
 print(f"ハートビート受信: システム {master.target_system} コンポーネント {master.target_component}")
 
-# 設定するパラメータとその値（修正版）
+# 設定するパラメータとその値
 parameters = {
     'SERIAL1_PROTOCOL': 2,      # MAVLink2
-    'SERIAL1_BAUD': 115200,     # ✅ 修正: 115200 bps（正しい値）
+    'SERIAL1_BAUD': 115200,     # 115200 bps（修正済み）
     'BRD_SER1_RTSCTS': 0        # フロー制御無効
 }
 
@@ -33,8 +33,16 @@ for param_id, param_value in parameters.items():
     message = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=5)
     if message:
         message_dict = message.to_dict()
-        # パラメータ名のデコード処理を追加
-        param_name = message_dict['param_id'].decode('utf-8').rstrip('\x00')
+        
+        # パラメータ名の安全なデコード処理（修正版）
+        param_name = message_dict['param_id']
+        if isinstance(param_name, bytes):
+            # バイト列の場合はデコード
+            param_name = param_name.decode('utf-8').rstrip('\x00')
+        elif isinstance(param_name, str):
+            # 既に文字列の場合はそのまま使用
+            param_name = param_name.rstrip('\x00')
+        
         print(f"確認: {param_name} = {message_dict['param_value']}")
     else:
         print(f"警告: {param_id}の設定確認タイムアウト")
@@ -62,6 +70,11 @@ else:
     print("⚠️ EEPROM保存の確認がタイムアウトしました")
 
 print("すべてのパラメータが設定されました")
+print("\n次のステップ:")
+print("1. Pixhawkを再起動してください")
+print("2. USB接続を切断してください") 
+print("3. TELEM1ケーブルを接続してください")
+print("4. /dev/serial0 で接続テストしてください")
 
 # 接続を閉じる
 master.close()
