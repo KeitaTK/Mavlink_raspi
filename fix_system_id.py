@@ -1,81 +1,64 @@
+#!/usr/bin/env python3
+"""
+TELEM1詳細診断 - ハートビート分析
+"""
+
 from pymavlink import mavutil
 import time
 
-def read_all_system_parameters():
-    """システムパラメータの包括的確認"""
+def detailed_telem1_diagnosis():
+    """TELEM1接続の詳細診断"""
     
-    print("=== System Parameter Check (Improved) ===")
+    print("=== TELEM1 Detailed Diagnosis ===")
     
     try:
-        master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)
-        master.wait_heartbeat()
+        # デバッグモード付きで接続
+        master = mavutil.mavlink_connection('/dev/serial0', baud=115200)
         
-        print(f"USB Connection - System ID: {master.target_system}")
-        
-        # パラメータリスト要求
-        print("\nRequesting all parameters...")
-        master.mav.param_request_list_send(
-            master.target_system,
-            master.target_component
-        )
-        
-        # システム関連パラメータを収集
-        system_params = {}
+        print("Listening for heartbeats...")
+        heartbeat_count = 0
         start_time = time.time()
         
-        while time.time() - start_time < 10:  # 10秒間収集
-            msg = master.recv_match(type='PARAM_VALUE', blocking=False)
+        while time.time() - start_time < 15 and heartbeat_count < 10:
+            msg = master.recv_match(blocking=False)
             if msg:
-                try:
-                    param_id = msg.param_id
-                    if isinstance(param_id, bytes):
-                        param_id = param_id.decode('utf-8').rstrip('\x00')
-                    elif isinstance(param_id, str):
-                        param_id = param_id.rstrip('\x00')
-                    
-                    # システム・シリアル関連パラメータを記録
-                    if any(keyword in param_id for keyword in ['SYSID', 'SERIAL1', 'BRD_SER1']):
-                        system_params[param_id] = msg.param_value
-                        print(f"   {param_id} = {msg.param_value}")
-                        
-                except Exception as e:
-                    pass
+                msg_type = msg.get_type()
+                
+                if msg_type == 'HEARTBEAT':
+                    heartbeat_count += 1
+                    print(f"\nHeartbeat #{heartbeat_count}:")
+                    print(f"  Source System: {msg.get_srcSystem()}")
+                    print(f"  Source Component: {msg.get_srcComponent()}")
+                    print(f"  Target System: {master.target_system}")
+                    print(f"  Target Component: {master.target_component}")
+                    print(f"  Type: {msg.type}")
+                    print(f"  Autopilot: {msg.autopilot}")
+                    print(f"  Base Mode: {msg.base_mode}")
+                    print(f"  System Status: {msg.system_status}")
+                
+                elif msg_type not in ['HEARTBEAT']:
+                    print(f"Other message: {msg_type}")
             
-            time.sleep(0.01)
+            time.sleep(0.1)
         
-        # 重要パラメータの確認
-        print(f"\n=== Critical Parameters ===")
-        critical_params = ['SYSID_THISMAV', 'SERIAL1_PROTOCOL', 'SERIAL1_BAUD', 'BRD_SER1_RTSCTS']
+        print(f"\nTotal heartbeats received: {heartbeat_count}")
         
-        for param in critical_params:
-            if param in system_params:
-                value = system_params[param]
-                status = "✅" if is_param_correct(param, value) else "⚠️"
-                print(f"{status} {param} = {value}")
+        if heartbeat_count > 0:
+            print("✅ TELEM1 is receiving heartbeats")
+            if master.target_system == 0:
+                print("⚠️ Target system is still 0 - This indicates a communication issue")
             else:
-                print(f"❌ {param} = NOT FOUND")
+                print(f"✅ Target system correctly identified as {master.target_system}")
+        else:
+            print("❌ No heartbeats received on TELEM1")
         
-        return system_params
+        master.close()
+        return heartbeat_count > 0
         
     except Exception as e:
-        print(f"Error: {e}")
-        return {}
-    finally:
-        master.close()
-
-def is_param_correct(param_name, value):
-    """パラメータ値の正当性チェック"""
-    correct_values = {
-        'SYSID_THISMAV': lambda x: x >= 1,
-        'SERIAL1_PROTOCOL': lambda x: x == 2,
-        'SERIAL1_BAUD': lambda x: x == 115200,
-        'BRD_SER1_RTSCTS': lambda x: x == 0
-    }
-    
-    if param_name in correct_values:
-        return correct_values[param_name](value)
-    return True
+        print(f"❌ Diagnosis failed: {e}")
+        return False
 
 if __name__ == "__main__":
-    read_all_system_parameters()
+    detailed_telem1_diagnosis()
 
