@@ -1,64 +1,75 @@
 #!/usr/bin/env python3
 """
-TELEM1詳細診断 - ハートビート分析
+Raspberry Pi 5 シリアル通信テスト
 """
 
-from pymavlink import mavutil
+import serial
 import time
 
-def detailed_telem1_diagnosis():
-    """TELEM1接続の詳細診断"""
+def test_pi5_serial_devices():
+    """Pi5の複数シリアルデバイステスト"""
     
-    print("=== TELEM1 Detailed Diagnosis ===")
+    devices_to_test = [
+        '/dev/serial0',    # -> ttyAMA10
+        '/dev/ttyAMA10',   # 直接指定
+        '/dev/ttyAMA0',    # 代替デバイス
+    ]
     
-    try:
-        # デバッグモード付きで接続
-        master = mavutil.mavlink_connection('/dev/serial0', baud=115200)
-        
-        print("Listening for heartbeats...")
-        heartbeat_count = 0
-        start_time = time.time()
-        
-        while time.time() - start_time < 15 and heartbeat_count < 10:
-            msg = master.recv_match(blocking=False)
-            if msg:
-                msg_type = msg.get_type()
-                
-                if msg_type == 'HEARTBEAT':
-                    heartbeat_count += 1
-                    print(f"\nHeartbeat #{heartbeat_count}:")
-                    print(f"  Source System: {msg.get_srcSystem()}")
-                    print(f"  Source Component: {msg.get_srcComponent()}")
-                    print(f"  Target System: {master.target_system}")
-                    print(f"  Target Component: {master.target_component}")
-                    print(f"  Type: {msg.type}")
-                    print(f"  Autopilot: {msg.autopilot}")
-                    print(f"  Base Mode: {msg.base_mode}")
-                    print(f"  System Status: {msg.system_status}")
-                
-                elif msg_type not in ['HEARTBEAT']:
-                    print(f"Other message: {msg_type}")
+    baudrates = [115200, 57600]
+    
+    for device in devices_to_test:
+        for baud in baudrates:
+            print(f"\n=== Testing {device} at {baud} baud ===")
             
-            time.sleep(0.1)
-        
-        print(f"\nTotal heartbeats received: {heartbeat_count}")
-        
-        if heartbeat_count > 0:
-            print("✅ TELEM1 is receiving heartbeats")
-            if master.target_system == 0:
-                print("⚠️ Target system is still 0 - This indicates a communication issue")
-            else:
-                print(f"✅ Target system correctly identified as {master.target_system}")
-        else:
-            print("❌ No heartbeats received on TELEM1")
-        
-        master.close()
-        return heartbeat_count > 0
-        
-    except Exception as e:
-        print(f"❌ Diagnosis failed: {e}")
-        return False
+            try:
+                ser = serial.Serial(device, baud, timeout=0.5)
+                print(f"✅ Opened {device}")
+                
+                # データ受信テスト
+                print("Listening for 3 seconds...")
+                start_time = time.time()
+                data_received = 0
+                mavlink_patterns = 0
+                
+                while time.time() - start_time < 3:
+                    if ser.in_waiting > 0:
+                        data = ser.read(ser.in_waiting)
+                        data_received += len(data)
+                        
+                        # MAVLinkパターン検索
+                        for byte in data:
+                            if byte in [0xFE, 0xFD]:  # MAVLink magic bytes
+                                mavlink_patterns += 1
+                                print(f"   MAVLink pattern found: 0x{byte:02X}")
+                    
+                    time.sleep(0.1)
+                
+                print(f"   Total bytes: {data_received}")
+                print(f"   MAVLink patterns: {mavlink_patterns}")
+                
+                if data_received > 0:
+                    print(f"✅ {device} at {baud}: Data received!")
+                    ser.close()
+                    return device, baud
+                else:
+                    print(f"❌ {device} at {baud}: No data")
+                
+                ser.close()
+                
+            except Exception as e:
+                print(f"❌ {device} at {baud}: {e}")
+    
+    return None, None
 
 if __name__ == "__main__":
-    detailed_telem1_diagnosis()
+    working_device, working_baud = test_pi5_serial_devices()
+    
+    if working_device:
+        print(f"\n🎉 Working configuration found:")
+        print(f"   Device: {working_device}")
+        print(f"   Baud: {working_baud}")
+    else:
+        print(f"\n❌ No working configuration found")
+        print("   Check physical wiring and Pixhawk power")
+
 
