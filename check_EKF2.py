@@ -15,7 +15,8 @@ import math
 from datetime import datetime
 
 class EKFVerificationToolFixed:
-    def __init__(self, mavlink_port='/dev/ttyACM0', mavlink_baud=921600, udp_port=15769):
+    # def __init__(self, mavlink_port='/dev/ttyACM0', mavlink_baud=921600, udp_port=15769):
+    def __init__(self, mavlink_port='/dev/ttyAMA0', mavlink_baud=115200, udp_port=15769):
         self.mavlink_port = mavlink_port
         self.mavlink_baud = mavlink_baud
         self.udp_port = udp_port
