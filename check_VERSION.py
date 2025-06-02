@@ -6,7 +6,7 @@ from pymavlink import mavutil
 print("USB接続通信")
 master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)
 # telem1で接続するとき
-print("tekem1通信接続")
+# print("tekem1通信接続")
 # master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200)
 
 # 2. heartbeat 受信待ち
