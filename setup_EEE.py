@@ -1,36 +1,20 @@
 from pymavlink import mavutil
 import time
 
+# 1) Pixhawk に接続
 master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200)
 master.wait_heartbeat()
 
-params = {
-    'EK3_SRC1_POSXY': 6.0,
-    'EK3_SRC1_VELXY': 0.0,
-    'EK3_SRC1_POSZ':  6.0,
-    'EK3_SRC1_VELZ':  0.0,
-    'EK3_SRC1_YAW':   6.0,
-}
-
-for name, val in params.items():
-    master.mav.param_set_send(
-        master.target_system, master.target_component,
-        name.encode('utf-8'),
-        val,
-        mavutil.mavlink.MAV_PARAM_TYPE_REAL32
-    )
-    time.sleep(0.2)
-
-# EEPROMに保存＆リブート
+# 2) LOCAL_POSITION_NED を 5Hz で出すように要求
+interval_us = int(1e6 / 5)  # 5Hz
 master.mav.command_long_send(
     master.target_system, master.target_component,
-    mavutil.mavlink.MAV_CMD_PREFLIGHT_STORAGE,
-    0,1,0,0,0,0,0,0
+    mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
+    0,
+    mavutil.mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED,
+    interval_us, 0,0,0,0,0
 )
-time.sleep(1)
-master.mav.command_long_send(
-    master.target_system, master.target_component,
-    mavutil.mavlink.MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN,
-    0,1,0,0,0,0,0,0
-)
-master.close()
+
+time.sleep(0.1)  # クロック合わせ
+
+print("→ LOCAL_POSITION_NED stream requested @5Hz")
