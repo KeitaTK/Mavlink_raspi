@@ -3,7 +3,8 @@ from pymavlink import mavutil
 import time
 
 def monitor_debug_messages():
-    master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)
+    # master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)
+    master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200)
     master.wait_heartbeat()
     
     print("Monitoring STATUSTEXT messages...")
