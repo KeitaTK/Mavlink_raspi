@@ -11,8 +11,8 @@ import time
 from pymavlink import mavutil
 
 # 接続ポートとボーレートを環境に合わせて変更してください
-# PORT = '/dev/ttyAMA0'   # TELEM1 UART
-PORT = '/dev/ttyACM0' # USB-CDC ACM
+PORT = '/dev/ttyAMA0'   # TELEM1 UART
+# PORT = '/dev/ttyACM0' # USB-CDC ACM
 BAUD = 115200
 
 def monitor_all_statustext():
