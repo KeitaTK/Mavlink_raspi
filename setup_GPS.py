@@ -9,7 +9,7 @@ print("ハートビートを待機中...")
 master.wait_heartbeat()
 print(f"ハートビート受信: システム {master.target_system} コンポーネント {master.target_component}")
 
-# Motiveモーションキャプチャ→GPS室内飛行用パラメータ（シンプル版）
+# Motiveモーションキャプチャ→GPS室内飛行用パラメータ
 parameters = {
     # GPS設定
     'GPS1_TYPE': 14,
@@ -31,6 +31,16 @@ parameters = {
     # RTL高度設定（室内用）
     'RTL_ALT': 100,           # 1m（100cm）
 }
+
+def safe_param_name(param_id):
+    """パラメータ名を安全に文字列化"""
+    try:
+        if isinstance(param_id, bytes):
+            return param_id.decode('utf-8').rstrip('\x00')
+        else:
+            return str(param_id).rstrip('\x00')
+    except:
+        return str(param_id)
 
 print("=" * 60)
 print("Motiveモーションキャプチャ→GPS室内飛行用パラメータ設定")
@@ -54,7 +64,7 @@ print("GPS_GLOBAL_ORIGIN設定完了")
 
 print("-" * 60)
 
-# すべてのパラメータを設定（シンプル版）
+# すべてのパラメータを設定
 for param_id, param_value in parameters.items():
     print(f"{param_id}を{param_value}に設定中...")
     
@@ -73,11 +83,12 @@ for param_id, param_value in parameters.items():
         param_type
     )
     
-    # シンプルな応答確認
+    # 応答確認（エラー対応版）
     try:
         message = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=3)
         if message:
-            param_name = message.param_id.decode('utf-8').rstrip('\x00')
+            # パラメータ名を安全に取得
+            param_name = safe_param_name(message.param_id)
             print(f"✅ 確認: {param_name} = {message.param_value}")
         else:
             print(f"⚠️  タイムアウト: {param_id}")
@@ -111,11 +122,11 @@ except:
 print("=" * 60)
 print("設定完了！")
 print("1. ArduPilotを再起動してください")
-print("2. Motiveデータブリッジを開始してください")
+print("2. Motiveデータブリッジを開始してください")  
 print("3. GuidedモードまたはLoiterモードでテスト飛行")
 print("=" * 60)
 
-# 簡単な確認
+# 簡単な確認（エラー対応版）
 print("\n最終確認:")
 check_params = ['GPS1_TYPE', 'EK3_SRC1_YAW', 'COMPASS_ENABLE']
 for param in check_params:
@@ -129,10 +140,13 @@ for param in check_params:
         
         msg = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=2)
         if msg:
-            name = msg.param_id.decode('utf-8').rstrip('\x00')
+            # パラメータ名を安全に取得
+            name = safe_param_name(msg.param_id)
             print(f"  {name}: {msg.param_value}")
+        else:
+            print(f"  {param}: タイムアウト")
     except Exception as e:
-        print(f"  {param}: 確認エラー")
+        print(f"  {param}: 確認エラー - {e}")
     time.sleep(0.2)
 
 print("すべての設定が完了しました！")
