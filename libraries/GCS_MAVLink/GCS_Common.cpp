@@ -2995,6 +2995,33 @@ void GCS_MAVLINK::send_taki_custome1() const
 }
 
 
+// #if AP_AHRS_ENABLED
+/*
+  send LOCAL_POSITION_NED message
+ */
+// void GCS_MAVLINK::send_local_position() const
+// {
+//     const AP_AHRS &ahrs = AP::ahrs();
+
+//     Vector3f local_position, velocity;
+//     if (!ahrs.get_relative_position_NED_origin(local_position) ||
+//         !ahrs.get_velocity_NED(velocity)) {
+//         // we don't know the position and velocity
+//         return;
+//     }
+
+//     mavlink_msg_local_position_ned_send(
+//         chan,
+//         AP_HAL::millis(),
+//         local_position.x,
+//         local_position.y,
+//         local_position.z,
+//         velocity.x,
+//         velocity.y,
+//         velocity.z);
+// }
+// #endif
+
 #if AP_AHRS_ENABLED
 /*
   send LOCAL_POSITION_NED message
@@ -3010,6 +3037,32 @@ void GCS_MAVLINK::send_local_position() const
         return;
     }
 
+    // 関数の開始をログ出力
+    send_text(MAV_SEVERITY_INFO, "LPOS_STREAM: Function called - starting position data collection");
+
+    // 現在のシステム時刻をログ出力（データ取得のタイミング確認用）
+    send_text(MAV_SEVERITY_INFO, "LPOS_STREAM: Timestamp - %lu ms", (unsigned long)AP_HAL::millis());
+
+    // AHRSの状態確認
+    #if AP_AHRS_ENABLED
+    send_text(MAV_SEVERITY_INFO, "LPOS_STREAM: AHRS is enabled and available");
+    #else
+    send_text(MAV_SEVERITY_INFO, "LPOS_STREAM: AHRS is NOT enabled");
+    #endif
+
+    // ── ここから追加 ──
+    send_text(MAV_SEVERITY_INFO,
+        "LPOS_STREAM: x=%.3f y=%.3f z=%.3f vx=%.3f vy=%.3f vz=%.3f",
+        (double)local_position.x,
+        (double)local_position.y,
+        (double)local_position.z,
+        (double)velocity.x,
+        (double)velocity.y,
+        (double)velocity.z
+    );
+    // ── ここまで追加 ──
+
+    // 既存：LOCAL_POSITION_NEDメッセージをGCSへ送信
     mavlink_msg_local_position_ned_send(
         chan,
         AP_HAL::millis(),
@@ -3021,6 +3074,7 @@ void GCS_MAVLINK::send_local_position() const
         velocity.z);
 }
 #endif
+
 
 /*
   send VIBRATION message
@@ -4040,6 +4094,46 @@ void GCS_MAVLINK::handle_att_pos_mocap(const mavlink_message_t &msg)
     visual_odom->handle_pose_estimate(m.time_usec, timestamp_ms, m.x, m.y, m.z, m.q, 0, 0, 0, 0);
 }
 
+// void GCS_MAVLINK::handle_att_pos_mocap(const mavlink_message_t &msg)
+// {
+//     mavlink_att_pos_mocap_t m;
+//     mavlink_msg_att_pos_mocap_decode(&msg, &m);
+
+//     // デバッグ用メッセージ追加
+//     gcs().send_text(MAV_SEVERITY_DEBUG, "DBG: enter handle_att_pos_mocap");
+
+//     // correct offboard timestamp to be in local ms since boot
+//     uint32_t timestamp_ms = correct_offboard_timestamp_usec_to_ms(
+//         m.time_usec, PAYLOAD_SIZE(chan, ATT_POS_MOCAP));
+
+//     AP_VisualOdom *visual_odom = AP::visualodom();
+//     if (visual_odom == nullptr) {
+//         // visual_odom が nullptr の場合
+//         gcs().send_text(MAV_SEVERITY_WARNING,
+//             "WARN: handle_att_pos_mocap early-return: visual_odom==null");
+//         return;
+//     }
+
+//     // handle_pose_estimate 呼び出し直前
+//     gcs().send_text(MAV_SEVERITY_INFO,
+//         "INFO: handle_att_pos_mocap calling handle_pose_estimate");
+
+//     // note: att_pos_mocap does not include reset counter
+//     visual_odom->handle_pose_estimate(
+//         m.time_usec,
+//         timestamp_ms,
+//         m.x, m.y, m.z,
+//         m.q,
+//         0, 0, 0, 0
+//     );
+
+//     // 呼び出し後のデバッグ
+//     gcs().send_text(MAV_SEVERITY_DEBUG,
+//         "DBG: handle_pose_estimate returned");
+// }
+
+
+
 void GCS_MAVLINK::handle_vision_speed_estimate(const mavlink_message_t &msg)
 {
     AP_VisualOdom *visual_odom = AP::visualodom();
@@ -4729,18 +4823,51 @@ void GCS_MAVLINK::handle_send_autopilot_version(const mavlink_message_t &msg)
 // }
 // #endif
 
+// #if AP_MAVLINK_TAKI_CUSTOME_REQUEST_ENABLED
+// void GCS_MAVLINK::handle_send_taki_custome1(const mavlink_message_t &msg)
+// {
+//     // デバッグ出力を追加
+//     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TAKI_CUSTOME1_REQUEST received!");
+    
+//     send_message(MSG_TAKI_CUSTOME1);
+    
+//     // 送信後も確認
+//     // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TAKI_CUSTOME1 sent!");
+// }
+// #endif
+
+
 #if AP_MAVLINK_TAKI_CUSTOME_REQUEST_ENABLED
 void GCS_MAVLINK::handle_send_taki_custome1(const mavlink_message_t &msg)
 {
-    // デバッグ出力を追加
-    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TAKI_CUSTOME1_REQUEST received!");
-    
+    // 関数呼び出しを示すデバッグメッセージ
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TAKI_CUSTOME1_REQUEST received!");
+
+    // EKF3の位置・速度を取得
+    const AP_AHRS &ahrs = AP::ahrs();
+    Vector3f position, velocity;
+
+    if (!ahrs.get_relative_position_NED_origin(position) ||
+        !ahrs.get_velocity_NED(velocity)) {
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "TAKI: EKF data unavailable");
+        return;
+    }
+
+    // 位置・速度をSTATUSTEXTで出力
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO,
+        "TAKI_EKF: x=%.3f y=%.3f z=%.3f vx=%.3f vy=%.3f vz=%.3f",
+        (double)position.x, (double)position.y, (double)position.z,
+        (double)velocity.x, (double)velocity.y, (double)velocity.z
+    );
+
+    // 呼び出し完了を示すメッセージ
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TAKI_EKF: handle_send_taki_custome1 called");
+
+    // 既存のメッセージ送信
     send_message(MSG_TAKI_CUSTOME1);
-    
-    // 送信後も確認
-    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TAKI_CUSTOME1 sent!");
 }
 #endif
+
 
 
 void GCS_MAVLINK::send_banner()
