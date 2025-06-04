@@ -1,7 +1,8 @@
 from pymavlink import mavutil
 import sys
 
-connection = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)
+# connection = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)
+connection = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200)
 connection.wait_heartbeat()
 print("Heartbeat received")
 
