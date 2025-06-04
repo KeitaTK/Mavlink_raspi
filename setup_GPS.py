@@ -10,14 +10,15 @@ master.wait_heartbeat()
 print(f"ハートビート受信: システム {master.target_system} コンポーネント {master.target_component}")
 
 # Motiveモーションキャプチャ→GPS室内飛行用パラメータ
+# 正しいパラメータ設定
 parameters = {
     # GPS設定
     'GPS1_TYPE': 14,
     'GPS_AUTO_SWITCH': 0,
     
-    # EKF3設定（モーションキャプチャ用）
-    'EK3_SRC1_YAW': 6,        # External Navigation
-    'EK3_SRC1_POSZ': 6,       # External Navigation  
+    # EKF3設定（GPS_INPUT対応、全てMotiveデータ由来）
+    'EK3_SRC1_YAW': 2,        # GPS（GPS_INPUTのyawフィールド）
+    'EK3_SRC1_POSZ': 0,       # GPS（GPS_INPUTの高精度高度データ）
     'EK3_GPS_CHECK': 1,       # 最小限チェック
     'EK3_POSNE_M_NSE': 0.01,  # 1cm精度
     'EK3_YAW_M_NSE': 0.1,     # ヨー角ノイズ
