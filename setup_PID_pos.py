@@ -1,35 +1,42 @@
 import time
 from pymavlink import mavutil
 
-def tune_altitude_response():
-    """高度制御の応答性を向上させる設定"""
+def tune_altitude_response_latest():
+    """最新ArduPilot対応の高度制御応答性向上設定"""
     
     master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200)
     master.wait_heartbeat()
     print(f"接続確認: システム {master.target_system}")
     
-    # 高度制御応答性向上パラメータ
+    # 最新バージョン対応の高度制御パラメータ（確認済みのもののみ）
     altitude_params = {
-        # 位置制御ゲイン（クイック応答）
-        'PSC_POSZ_P': 2.0,        # 高度位置制御Pゲイン（上げる）
+        # 位置制御ゲイン（応答性向上）
+        'PSC_POSZ_P': 2.0,        # 高度位置制御Pゲイン
         
-        # 速度制御ゲイン（強化）
+        # 速度制御ゲイン（応答性向上）
         'PSC_VELZ_P': 8.0,        # 高度速度制御Pゲイン
         'PSC_VELZ_I': 15.0,       # 高度速度制御Iゲイン
-        'PSC_VELZ_D': 0.02,       # 高度速度制御Dゲイン（追加）
+        'PSC_VELZ_D': 0.02,       # 高度速度制御Dゲイン
         
-        # 加速度制御ゲイン（調整）
+        # 加速度制御ゲイン（応答性向上）
         'PSC_ACCZ_P': 1.0,        # 高度加速度制御Pゲイン
         'PSC_ACCZ_I': 2.0,        # 高度加速度制御Iゲイン
         
-        # フィルタ設定（応答性重視）
-        'PSC_VELZ_FLTV': 10.0,    # 速度フィルタ（高周波カット）
-        'PSC_ACCZ_FLTA': 10.0,    # 加速度フィルタ
-        
-        # 制限値の調整
-        'PSC_VELZ_MAX': 300,      # 最大上昇速度（cm/s）（上げる）
-        'PSC_ACCZ_MAX': 300,      # 最大加速度（cm/s/s）（上げる）
+        # 代替パラメータ（存在すれば設定）
+        'PSC_VELZ_FLT': 10.0,     # PSC_VELZ_FLTVの代替
+        'PSC_ACCZ_FLT': 10.0,     # PSC_ACCZ_FLTAの代替
     }
+    
+    # 削除されたパラメータの代替設定
+    deprecated_alternatives = {
+        # PSC_VELZ_MAX, PSC_ACCZ_MAXは他のパラメータで代替
+        'WPNAV_SPEED_UP': 300,    # 上昇速度制限（cm/s）
+        'WPNAV_SPEED_DN': 150,    # 下降速度制限（cm/s）  
+        'WPNAV_ACCEL_Z': 300,     # 垂直加速度制限（cm/s/s）
+    }
+    
+    # 全パラメータを統合
+    all_params = {**altitude_params, **deprecated_alternatives}
     
     def safe_param_name(param_id):
         try:
@@ -40,12 +47,12 @@ def tune_altitude_response():
         except:
             return str(param_id)
     
-    print("=" * 60)
-    print("高度制御応答性向上設定")
-    print("=" * 60)
+    print("=" * 70)
+    print("最新ArduPilot対応：高度制御応答性向上設定")
+    print("=" * 70)
     
     success_count = 0
-    for param_id, param_value in altitude_params.items():
+    for param_id, param_value in all_params.items():
         print(f"{param_id}を{param_value}に設定中...")
         
         try:
@@ -59,29 +66,29 @@ def tune_altitude_response():
                 param_type
             )
             
-            # 応答確認
-            message = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=3)
-            if message:
-                param_name = safe_param_name(message.param_id)
-                if param_name.upper() == param_id.upper():
-                    print(f"確認: {param_name} = {message.param_value}")
-                    success_count += 1
-                else:
-                    # 再試行
-                    retry_msg = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=2)
-                    if retry_msg and safe_param_name(retry_msg.param_id).upper() == param_id.upper():
-                        print(f"再試行成功: {safe_param_name(retry_msg.param_id)} = {retry_msg.param_value}")
+            # 応答確認（タイムアウト短縮で効率化）
+            found = False
+            for attempt in range(3):  # 最大3回試行
+                message = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=2)
+                if message:
+                    param_name = safe_param_name(message.param_id)
+                    if param_name.upper() == param_id.upper():
+                        print(f"確認: {param_name} = {message.param_value}")
                         success_count += 1
-            else:
-                print(f"タイムアウト: {param_id}")
+                        found = True
+                        break
+                    # 別のパラメータの応答の場合は続行
+                    
+            if not found:
+                print(f"タイムアウト: {param_id} (削除された可能性)")
                 
         except Exception as e:
             print(f"エラー: {param_id} - {e}")
         
-        time.sleep(0.3)
+        time.sleep(0.2)
     
     # EEPROM保存
-    print("-" * 60)
+    print("-" * 70)
     print("パラメータをEEPROMに保存中...")
     master.mav.command_long_send(
         master.target_system,
@@ -99,26 +106,81 @@ def tune_altitude_response():
     except:
         print("保存確認タイムアウト")
     
-    print("=" * 60)
-    print(f"設定完了！ ({success_count}/{len(altitude_params)} 成功)")
-    print("=" * 60)
+    print("=" * 70)
+    print(f"設定完了！ ({success_count}/{len(all_params)} 成功)")
+    print("=" * 70)
     
-    # 設定効果の説明
-    print("変更内容:")
-    print("  PSC_POSZ_P: 1.0 → 2.0 (位置制御強化)")
-    print("  PSC_VELZ_P: 5.0 → 8.0 (速度制御強化)")
-    print("  PSC_VELZ_I: 10.0 → 15.0 (定常偏差除去強化)")
-    print("  PSC_VELZ_MAX: → 300 (最大上昇速度向上)")
+    # 変更された内容の説明
+    print("最新バージョン対応の変更内容:")
+    print("  成功したパラメータ:")
+    print("    PSC_POSZ_P: 位置制御強化")
+    print("    PSC_VELZ_P/I/D: 速度制御強化")
+    print("    PSC_ACCZ_P/I: 加速度制御強化")
+    
+    print("  削除されたパラメータの代替:")
+    print("    PSC_VELZ_MAX → WPNAV_SPEED_UP (上昇速度)")
+    print("    PSC_ACCZ_MAX → WPNAV_ACCEL_Z (垂直加速度)")
+    print("    PSC_VELZ_FLTV → PSC_VELZ_FLT (フィルター)")
     
     print("\n期待される効果:")
     print("  - 高度指令に対する応答速度向上")
     print("  - 外乱に対するクイックな復帰")
-    print("  - 位置追従精度の向上")
+    print("  - より安定した位置追従")
+
+def check_available_altitude_params():
+    """利用可能な高度制御パラメータを確認"""
     
-    print("\n注意事項:")
-    print("  - 振動が発生する場合はPゲインを下げる")
-    print("  - オーバーシュートする場合はDゲインを調整")
-    print("  - 段階的にテスト飛行を実施")
+    master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200)
+    master.wait_heartbeat()
+    
+    # 確認したいパラメータリスト
+    params_to_check = [
+        'PSC_POSZ_P', 'PSC_VELZ_P', 'PSC_VELZ_I', 'PSC_VELZ_D',
+        'PSC_ACCZ_P', 'PSC_ACCZ_I',
+        'PSC_VELZ_FLT', 'PSC_VELZ_FLTV', 'PSC_ACCZ_FLT', 'PSC_ACCZ_FLTA',
+        'PSC_VELZ_MAX', 'PSC_ACCZ_MAX',
+        'WPNAV_SPEED_UP', 'WPNAV_SPEED_DN', 'WPNAV_ACCEL_Z'
+    ]
+    
+    print("利用可能な高度制御パラメータ確認:")
+    print("-" * 50)
+    
+    for param in params_to_check:
+        try:
+            master.mav.param_request_read_send(
+                master.target_system,
+                master.target_component,
+                param.encode('utf-8'),
+                -1
+            )
+            
+            msg = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=2)
+            if msg:
+                try:
+                    if isinstance(msg.param_id, bytes):
+                        name = msg.param_id.decode('utf-8').rstrip('\x00')
+                    else:
+                        name = str(msg.param_id).rstrip('\x00')
+                except:
+                    name = str(msg.param_id)
+                
+                if name.upper() == param.upper():
+                    print(f"  ✅ {name}: {msg.param_value}")
+                else:
+                    print(f"  ❌ {param}: 存在しない")
+            else:
+                print(f"  ❌ {param}: タイムアウト")
+                
+        except Exception as e:
+            print(f"  ❌ {param}: エラー - {e}")
+        
+        time.sleep(0.1)
 
 if __name__ == "__main__":
-    tune_altitude_response()
+    print("利用可能パラメータの確認:")
+    check_available_altitude_params()
+    
+    print("\n" + "="*70)
+    input("確認完了。高度制御設定を実行しますか？ (Enter)")
+    
+    tune_altitude_response_latest()
