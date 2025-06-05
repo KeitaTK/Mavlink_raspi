@@ -30,7 +30,10 @@ parameters = {
     'FS_EKF_ACTION': 4,       # EKF失敗時はマニュアル
     
     # RTL高度設定（室内用）
-    'RTL_ALT': 100,           # 1m（100cm）
+    'RTL_ALT': 50,           # 50cm
+
+    'PSC_POSZ_P': 2,        # 高度位置制御のPゲインを2に設定
+
 }
 
 def safe_param_name(param_id):
