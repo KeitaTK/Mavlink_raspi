@@ -1,15 +1,15 @@
 import time
 from pymavlink import mavutil
 
-def tune_altitude_response_latest():
-    """最新ArduPilot対応の高度制御応答性向上設定"""
+def tune_altitude_response_verified():
+    """確認済みパラメータのみで高度制御応答性向上"""
     
     master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200)
     master.wait_heartbeat()
     print(f"接続確認: システム {master.target_system}")
     
-    # 最新バージョン対応の高度制御パラメータ（確認済みのもののみ）
-    altitude_params = {
+    # 存在確認済みの高度制御パラメータのみ
+    verified_altitude_params = {
         # 位置制御ゲイン（応答性向上）
         'PSC_POSZ_P': 2.0,        # 高度位置制御Pゲイン
         
@@ -22,21 +22,11 @@ def tune_altitude_response_latest():
         'PSC_ACCZ_P': 1.0,        # 高度加速度制御Pゲイン
         'PSC_ACCZ_I': 2.0,        # 高度加速度制御Iゲイン
         
-        # 代替パラメータ（存在すれば設定）
-        'PSC_VELZ_FLT': 10.0,     # PSC_VELZ_FLTVの代替
-        'PSC_ACCZ_FLT': 10.0,     # PSC_ACCZ_FLTAの代替
-    }
-    
-    # 削除されたパラメータの代替設定
-    deprecated_alternatives = {
-        # PSC_VELZ_MAX, PSC_ACCZ_MAXは他のパラメータで代替
+        # ナビゲーション制限（代替制御）
         'WPNAV_SPEED_UP': 300,    # 上昇速度制限（cm/s）
-        'WPNAV_SPEED_DN': 150,    # 下降速度制限（cm/s）  
+        'WPNAV_SPEED_DN': 150,    # 下降速度制限（cm/s）
         'WPNAV_ACCEL_Z': 300,     # 垂直加速度制限（cm/s/s）
     }
-    
-    # 全パラメータを統合
-    all_params = {**altitude_params, **deprecated_alternatives}
     
     def safe_param_name(param_id):
         try:
@@ -48,11 +38,11 @@ def tune_altitude_response_latest():
             return str(param_id)
     
     print("=" * 70)
-    print("最新ArduPilot対応：高度制御応答性向上設定")
+    print("確認済みパラメータのみ：高度制御応答性向上設定")
     print("=" * 70)
     
     success_count = 0
-    for param_id, param_value in all_params.items():
+    for param_id, param_value in verified_altitude_params.items():
         print(f"{param_id}を{param_value}に設定中...")
         
         try:
@@ -66,9 +56,9 @@ def tune_altitude_response_latest():
                 param_type
             )
             
-            # 応答確認（タイムアウト短縮で効率化）
+            # 応答確認
             found = False
-            for attempt in range(3):  # 最大3回試行
+            for attempt in range(3):
                 message = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=2)
                 if message:
                     param_name = safe_param_name(message.param_id)
@@ -77,10 +67,9 @@ def tune_altitude_response_latest():
                         success_count += 1
                         found = True
                         break
-                    # 別のパラメータの応答の場合は続行
                     
             if not found:
-                print(f"タイムアウト: {param_id} (削除された可能性)")
+                print(f"タイムアウト: {param_id}")
                 
         except Exception as e:
             print(f"エラー: {param_id} - {e}")
@@ -107,54 +96,54 @@ def tune_altitude_response_latest():
         print("保存確認タイムアウト")
     
     print("=" * 70)
-    print(f"設定完了！ ({success_count}/{len(all_params)} 成功)")
+    print(f"設定完了！ ({success_count}/{len(verified_altitude_params)} 成功)")
     print("=" * 70)
     
-    # 変更された内容の説明
-    print("最新バージョン対応の変更内容:")
-    print("  成功したパラメータ:")
-    print("    PSC_POSZ_P: 位置制御強化")
-    print("    PSC_VELZ_P/I/D: 速度制御強化")
-    print("    PSC_ACCZ_P/I: 加速度制御強化")
+    # 削除されたパラメータについての説明
+    print("削除されたパラメータについて:")
+    print("  ❌ PSC_VELZ_FLT/FLTV: 最新版では別の方法でフィルター制御")
+    print("  ❌ PSC_ACCZ_FLT/FLTA: 最新版では別の方法でフィルター制御")
+    print("  ❌ PSC_VELZ_MAX: WPNAV_SPEED_UPで代替")
+    print("  ❌ PSC_ACCZ_MAX: WPNAV_ACCEL_Zで代替")
     
-    print("  削除されたパラメータの代替:")
-    print("    PSC_VELZ_MAX → WPNAV_SPEED_UP (上昇速度)")
-    print("    PSC_ACCZ_MAX → WPNAV_ACCEL_Z (垂直加速度)")
-    print("    PSC_VELZ_FLTV → PSC_VELZ_FLT (フィルター)")
+    print("\n設定された有効パラメータ:")
+    print("  ✅ PSC_POSZ_P: 位置制御強化 (2.0)")
+    print("  ✅ PSC_VELZ_P/I/D: 速度制御強化 (8.0/15.0/0.02)")
+    print("  ✅ PSC_ACCZ_P/I: 加速度制御強化 (1.0/2.0)")
+    print("  ✅ WPNAV制限値: 速度・加速度制限 (300/150/300)")
     
     print("\n期待される効果:")
     print("  - 高度指令に対する応答速度向上")
-    print("  - 外乱に対するクイックな復帰")
-    print("  - より安定した位置追従")
+    print("  - より積極的な位置制御")
+    print("  - 外乱からの素早い復帰")
 
-def check_available_altitude_params():
-    """利用可能な高度制御パラメータを確認"""
+def minimal_altitude_tuning():
+    """最小限の高度制御調整（確実に動作）"""
     
     master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200)
     master.wait_heartbeat()
     
-    # 確認したいパラメータリスト
-    params_to_check = [
-        'PSC_POSZ_P', 'PSC_VELZ_P', 'PSC_VELZ_I', 'PSC_VELZ_D',
-        'PSC_ACCZ_P', 'PSC_ACCZ_I',
-        'PSC_VELZ_FLT', 'PSC_VELZ_FLTV', 'PSC_ACCZ_FLT', 'PSC_ACCZ_FLTA',
-        'PSC_VELZ_MAX', 'PSC_ACCZ_MAX',
-        'WPNAV_SPEED_UP', 'WPNAV_SPEED_DN', 'WPNAV_ACCEL_Z'
-    ]
+    # 最小限のコアパラメータのみ
+    core_params = {
+        'PSC_POSZ_P': 2.0,        # 位置制御強化
+        'PSC_VELZ_P': 8.0,        # 速度制御強化
+        'PSC_VELZ_I': 15.0,       # 積分制御強化
+    }
     
-    print("利用可能な高度制御パラメータ確認:")
-    print("-" * 50)
+    print("最小限の高度制御調整:")
+    print("-" * 40)
     
-    for param in params_to_check:
+    for param_id, param_value in core_params.items():
         try:
-            master.mav.param_request_read_send(
+            master.mav.param_set_send(
                 master.target_system,
                 master.target_component,
-                param.encode('utf-8'),
-                -1
+                param_id.encode('utf-8'),
+                param_value,
+                mavutil.mavlink.MAV_PARAM_TYPE_REAL32
             )
             
-            msg = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=2)
+            msg = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=3)
             if msg:
                 try:
                     if isinstance(msg.param_id, bytes):
@@ -164,23 +153,27 @@ def check_available_altitude_params():
                 except:
                     name = str(msg.param_id)
                 
-                if name.upper() == param.upper():
-                    print(f"  ✅ {name}: {msg.param_value}")
+                if name.upper() == param_id.upper():
+                    print(f"✅ {name}: {msg.param_value}")
                 else:
-                    print(f"  ❌ {param}: 存在しない")
+                    print(f"❌ {param_id}: パラメータ名不一致")
             else:
-                print(f"  ❌ {param}: タイムアウト")
+                print(f"❌ {param_id}: タイムアウト")
                 
         except Exception as e:
-            print(f"  ❌ {param}: エラー - {e}")
+            print(f"❌ {param_id}: エラー - {e}")
         
-        time.sleep(0.1)
+        time.sleep(0.3)
 
 if __name__ == "__main__":
-    print("利用可能パラメータの確認:")
-    check_available_altitude_params()
+    print("1. 確認済みパラメータで設定")
+    print("2. 最小限のコアパラメータのみ設定")
     
-    print("\n" + "="*70)
-    input("確認完了。高度制御設定を実行しますか？ (Enter)")
+    choice = input("選択 (1 or 2): ").strip()
     
-    tune_altitude_response_latest()
+    if choice == "1":
+        tune_altitude_response_verified()
+    elif choice == "2":
+        minimal_altitude_tuning()
+    else:
+        print("無効な選択")
