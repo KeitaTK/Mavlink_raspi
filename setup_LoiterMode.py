@@ -13,6 +13,7 @@ print(f"ハートビート受信: システム {master.target_system} コンポ�
 loiter_parameters = {
     # Radio10スイッチ設定（修正）
     'RC10_OPTION': 56,        # Radio10をLoiter Modeスイッチに設定（正しい名前・値）
+    'THR_DZ': 200,           # スロットルデッドバンド（±20%）
     
     # Loiter Mode設定（修正）
     'LOIT_SPEED': 50,         # Loiter最大速度 (cm/s) = 0.5m/s
