@@ -32,8 +32,6 @@ parameters = {
     # RTL高度設定（室内用）
     'RTL_ALT': 50,           # 50cm
 
-    'PSC_POSZ_P': 4,        # 高度位置制御のPゲインを2に設定
-
 }
 
 def safe_param_name(param_id):

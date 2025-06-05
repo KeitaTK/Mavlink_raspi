@@ -31,6 +31,7 @@ loiter_parameters = {
     'PSC_POSXY_P': 2.0,       # 水平位置制御ゲイン
     'PSC_VELXY_P': 1.5,       # 水平速度制御ゲイン
     'PSC_VELXY_I': 3.0,       # 水平速度積分ゲイン
+    'PSC_POSZ_P': 4,        # 高度位置制御のPゲインを2に設定
 }
 
 def safe_param_name(param_id):
