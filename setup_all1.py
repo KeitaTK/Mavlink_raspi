@@ -179,7 +179,7 @@ for param_name, param_value in params_to_set.items():
     # 確認メッセージを待機
     message = master.recv_match(type='PARAM_VALUE', blocking=True).to_dict()
     print(f'パラメータ設定: {param_name} = {message["param_value"]}')
-    time.sleep(0.5)
+    time.sleep(0.1)
 
 time.sleep(5)
 
@@ -216,6 +216,6 @@ for param_name in params_to_set.keys():
         print(f'確認: {param_name} = {message["param_value"]}')
     else:
         print(f'確認: {param_name} のデータを取得できませんでした')
-    time.sleep(0.5)
+    time.sleep(0.1)
 
 print("設定と保存の確認完了")
