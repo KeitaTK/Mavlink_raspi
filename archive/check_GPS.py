@@ -145,123 +145,236 @@
 # if __name__ == "__main__":
 #     main()
 
+#!/usr/bin/env python3
+"""
+GUIDED モード対応 完全診断ツール
+"""
 
 import time
+import sys
 from pymavlink import mavutil
 
-def check_guided_arm_readiness(master):
-    """GUIDEDモードでのアーム準備状況を詳細確認"""
-    print("\n=== GUIDED MODE ARM READINESS CHECK ===")
+CONNECTION_PORT = '/dev/ttyAMA0'
+BAUD_RATE = 115200
+
+def connect_to_vehicle(port, baud):
+    """機体に接続"""
+    print(f"Connecting to vehicle on: {port} at {baud} baud")
+    master = mavutil.mavlink_connection(port, baud=baud, wait_heartbeat=True)
+    print(f"✓ Connected! System {master.target_system} Component {master.target_component}")
+    return master
+
+def request_all_guided_messages(master):
+    """GUIDEDモードに必要な全メッセージを要求"""
+    print("Requesting all GUIDED mode messages...")
     
-    # 1. EKF状態の確認
-    print("1. Checking EKF status...")
-    ekf_msg = master.recv_match(type='EKF_STATUS_REPORT', blocking=True, timeout=5)
-    if ekf_msg:
-        print(f"   EKF flags: {bin(ekf_msg.flags)}")
-        print(f"   EKF velocity variance: {ekf_msg.velocity_variance}")
-        print(f"   EKF position variance: {ekf_msg.pos_horiz_variance}")
-        print(f"   EKF compass variance: {ekf_msg.compass_variance}")
-    else:
-        print("   ✗ No EKF status received")
+    # 重要なメッセージを全て要求
+    messages_to_request = [
+        (1, "SYS_STATUS"),               # システム状態
+        (24, "GPS_RAW_INT"),             # GPS生データ
+        (33, "GLOBAL_POSITION_INT"),     # 全体位置情報
+        (193, "EKF_STATUS_REPORT"),      # EKF状態レポート
+        (242, "HOME_POSITION"),          # ホームポジション
+        (253, "STATUSTEXT")              # ステータステキスト（エラーメッセージ）
+    ]
     
-    # 2. Global Position状態の確認
-    print("2. Checking Global Position...")
-    global_pos = master.recv_match(type='GLOBAL_POSITION_INT', blocking=True, timeout=5)
-    if global_pos:
-        print(f"   ✓ Global Position available")
-        print(f"   Lat: {global_pos.lat/1e7:.7f}")
-        print(f"   Lon: {global_pos.lon/1e7:.7f}")
-        print(f"   Relative Alt: {global_pos.relative_alt/1000.0:.2f}m")
-    else:
-        print("   ✗ No Global Position received")
-    
-    # 3. Home Position設定状況の確認
-    print("3. Checking Home Position...")
-    home_pos = master.recv_match(type='HOME_POSITION', blocking=True, timeout=5)
-    if home_pos:
-        print(f"   ✓ Home Position set")
-        print(f"   Home Lat: {home_pos.latitude/1e7:.7f}")
-        print(f"   Home Lon: {home_pos.longitude/1e7:.7f}")
-    else:
-        print("   ⚠ No Home Position message (requesting set...)")
-        # Home Position設定を明示的に要求
+    for msg_id, msg_name in messages_to_request:
+        print(f"  Requesting {msg_name} (ID: {msg_id})")
         master.mav.command_long_send(
             master.target_system, master.target_component,
-            mavutil.mavlink.MAV_CMD_DO_SET_HOME, 0,
-            1, 0, 0, 0, 0, 0, 0  # 1=現在位置をホームに設定
+            mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL, 0,
+            msg_id, 1000000, 0, 0, 0, 0, 0  # 1秒間隔
+        )
+        time.sleep(0.1)  # 要求間隔
+    
+    # データストリームも要求（互換性のため）
+    stream_requests = [
+        (mavutil.mavlink.MAV_DATA_STREAM_POSITION, "POSITION"),
+        (mavutil.mavlink.MAV_DATA_STREAM_RAW_SENSORS, "RAW_SENSORS"),
+        (mavutil.mavlink.MAV_DATA_STREAM_EXTENDED_STATUS, "EXTENDED_STATUS")
+    ]
+    
+    for stream_id, stream_name in stream_requests:
+        print(f"  Requesting {stream_name} stream")
+        master.mav.request_data_stream_send(
+            master.target_system, master.target_component,
+            stream_id, 2, 1  # 2Hz, start
         )
     
-    # 4. システム状態の確認
-    print("4. Checking System Status...")
-    sys_status = master.recv_match(type='SYS_STATUS', blocking=True, timeout=5)
-    if sys_status:
-        sensors = sys_status.onboard_control_sensors_health
-        gps_ok = bool(sensors & mavutil.mavlink.MAV_SYS_STATUS_SENSOR_GPS)
-        ahrs_ok = bool(sensors & mavutil.mavlink.MAV_SYS_STATUS_SENSOR_3D_GYRO)
-        print(f"   GPS Health: {'✓' if gps_ok else '✗'}")
-        print(f"   AHRS Health: {'✓' if ahrs_ok else '✗'}")
-    
-    # 5. Pre-arm状態の確認（Mission Plannerメッセージ形式で表示）
-    print("5. Waiting for any pre-arm messages...")
-    for i in range(10):  # 10秒間メッセージを監視
-        msg = master.recv_match(type='STATUSTEXT', blocking=False)
-        if msg:
-            text = msg.text.decode('utf-8') if isinstance(msg.text, bytes) else msg.text
-            if 'PreArm' in text or 'prearm' in text:
-                print(f"   ⚠ {text}")
-        time.sleep(1)
+    print("✓ All message requests sent")
 
-def wait_for_ekf_and_position_ready(master, timeout=120):
-    """EKFとPosition準備完了まで待機"""
-    print(f"\nWaiting for EKF and Position initialization (timeout: {timeout}s)...")
+def set_home_position_explicitly(master):
+    """ホームポジション明示的設定"""
+    print("Setting home position explicitly...")
     
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        # Home Position設定の確認
-        home_pos = master.recv_match(type='HOME_POSITION', blocking=False)
-        global_pos = master.recv_match(type='GLOBAL_POSITION_INT', blocking=False)
-        
-        if home_pos and global_pos:
-            print("✓ Both Home Position and Global Position are available")
-            
-            # EKFの状態も確認
-            ekf_msg = master.recv_match(type='EKF_STATUS_REPORT', blocking=True, timeout=2)
-            if ekf_msg:
-                # EKFの主要な分散値をチェック
-                pos_variance = ekf_msg.pos_horiz_variance
-                vel_variance = ekf_msg.velocity_variance
-                
-                print(f"EKF Position Variance: {pos_variance:.3f}")
-                print(f"EKF Velocity Variance: {vel_variance:.3f}")
-                
-                # 分散値が十分小さければOK（通常は1.0以下が望ましい）
-                if pos_variance < 1.0 and vel_variance < 1.0:
-                    print("✓ EKF converged! Ready for GUIDED mode arming.")
-                    return True
-            
-            print("△ Positions available but EKF still converging...")
-        
-        time.sleep(2)
-        
-        # 30秒ごとに詳細状況を表示
-        if int(time.time() - start_time) % 30 == 0:
-            check_guided_arm_readiness(master)
+    # 現在位置をホームに設定
+    master.mav.command_long_send(
+        master.target_system, master.target_component,
+        mavutil.mavlink.MAV_CMD_DO_SET_HOME, 0,
+        1, 0, 0, 0, 0, 0, 0  # 1=現在位置をホームに設定
+    )
     
-    print("✗ EKF/Position initialization timeout")
-    return False
-
-# 使用例
-def main():
-    master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200, wait_heartbeat=True)
-    
-    # 詳細診断
-    check_guided_arm_readiness(master)
-    
-    # EKF準備完了まで待機
-    if wait_for_ekf_and_position_ready(master):
-        print("🎯 Ready for GUIDED mode arming!")
+    # コマンド実行確認
+    ack_msg = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=5)
+    if ack_msg and ack_msg.command == mavutil.mavlink.MAV_CMD_DO_SET_HOME:
+        if ack_msg.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
+            print("✓ Home position set command accepted")
+        else:
+            print(f"⚠ Home position set command result: {ack_msg.result}")
     else:
-        print("❌ Not ready for GUIDED mode arming")
+        print("⚠ No acknowledgment for home position set command")
+
+def check_guided_arm_readiness_complete(master):
+    """完全なGUIDEDモードアーム準備状況確認"""
+    print(f"\n{'='*50}")
+    print("COMPLETE GUIDED MODE ARM READINESS CHECK")
+    print(f"{'='*50}")
+    
+    all_ready = True
+    
+    # 1. EKF状態の詳細確認
+    print("1. EKF Status Check:")
+    ekf_msg = master.recv_match(type='EKF_STATUS_REPORT', blocking=True, timeout=5)
+    if ekf_msg:
+        # EKFフラグの詳細解析
+        flags = ekf_msg.flags
+        print(f"   EKF Flags: {bin(flags)} ({flags})")
+        
+        # 主要フラグの確認
+        attitude_ok = bool(flags & (1 << 0))   # Attitude estimate OK
+        velocity_ok = bool(flags & (1 << 1))   # Velocity estimate OK  
+        position_ok = bool(flags & (1 << 2))   # Position estimate OK
+        
+        print(f"   Attitude OK: {attitude_ok}")
+        print(f"   Velocity OK: {velocity_ok}")
+        print(f"   Position OK: {position_ok}")
+        
+        # 分散値の確認
+        print(f"   Position Variance: {ekf_msg.pos_horiz_variance:.3f}")
+        print(f"   Velocity Variance: {ekf_msg.velocity_variance:.3f}")
+        print(f"   Compass Variance: {ekf_msg.compass_variance:.3f}")
+        
+        if not (attitude_ok and velocity_ok and position_ok):
+            print("   ✗ EKF not fully initialized")
+            all_ready = False
+        elif ekf_msg.pos_horiz_variance > 1.0:
+            print("   ⚠ Position variance too high")
+            all_ready = False
+        else:
+            print("   ✓ EKF OK")
+    else:
+        print("   ✗ No EKF status received")
+        all_ready = False
+    
+    # 2. Home Position確認
+    print("2. Home Position Check:")
+    home_msg = master.recv_match(type='HOME_POSITION', blocking=True, timeout=5)
+    if home_msg:
+        print(f"   ✓ Home Position set")
+        print(f"   Lat: {home_msg.latitude/1e7:.7f}")
+        print(f"   Lon: {home_msg.longitude/1e7:.7f}")
+        print(f"   Alt: {home_msg.altitude/1000.0:.2f}m")
+    else:
+        print("   ✗ No Home Position received")
+        print("   Attempting to set home position...")
+        set_home_position_explicitly(master)
+        all_ready = False
+    
+    # 3. GPS詳細確認
+    print("3. GPS Status Check:")
+    gps_msg = master.recv_match(type='GPS_RAW_INT', blocking=True, timeout=5)
+    if gps_msg:
+        fix_types = {0: "No GPS", 1: "No Fix", 2: "2D", 3: "3D", 4: "DGPS", 5: "RTK Float", 6: "RTK Fixed"}
+        fix_name = fix_types.get(gps_msg.fix_type, f"Unknown({gps_msg.fix_type})")
+        print(f"   GPS Fix: {fix_name}")
+        print(f"   Satellites: {gps_msg.satellites_visible}")
+        print(f"   HDOP: {gps_msg.eph/100.0:.2f}")
+        
+        if gps_msg.fix_type < 3:
+            print("   ✗ GPS Fix insufficient for GUIDED mode")
+            all_ready = False
+        else:
+            print("   ✓ GPS OK")
+    else:
+        print("   ✗ No GPS data received")
+        all_ready = False
+    
+    # 4. システム状態確認
+    print("4. System Status Check:")
+    sys_msg = master.recv_match(type='SYS_STATUS', blocking=True, timeout=5)
+    if sys_msg:
+        # センサー健全性の確認
+        sensors = sys_msg.onboard_control_sensors_health
+        gps_healthy = bool(sensors & mavutil.mavlink.MAV_SYS_STATUS_SENSOR_GPS)
+        gyro_healthy = bool(sensors & mavutil.mavlink.MAV_SYS_STATUS_SENSOR_3D_GYRO)
+        accel_healthy = bool(sensors & mavutil.mavlink.MAV_SYS_STATUS_SENSOR_3D_ACCEL)
+        mag_healthy = bool(sensors & mavutil.mavlink.MAV_SYS_STATUS_SENSOR_3D_MAG)
+        
+        print(f"   GPS Health: {'✓' if gps_healthy else '✗'}")
+        print(f"   Gyroscope Health: {'✓' if gyro_healthy else '✗'}")
+        print(f"   Accelerometer Health: {'✓' if accel_healthy else '✗'}")
+        print(f"   Magnetometer Health: {'✓' if mag_healthy else '✗'}")
+        
+        # バッテリー状態
+        voltage = sys_msg.voltage_battery / 1000.0
+        print(f"   Battery Voltage: {voltage:.2f}V")
+        
+        if not all([gps_healthy, gyro_healthy, accel_healthy]):
+            print("   ✗ Critical sensors unhealthy")
+            all_ready = False
+        else:
+            print("   ✓ All critical sensors healthy")
+    else:
+        print("   ✗ No System Status received")
+        all_ready = False
+    
+    # 5. Pre-arm エラーチェック
+    print("5. Pre-arm Error Check:")
+    print("   Monitoring for 5 seconds...")
+    prearm_errors = []
+    
+    for i in range(50):  # 5秒間監視（100ms間隔）
+        status_msg = master.recv_match(type='STATUSTEXT', blocking=False)
+        if status_msg:
+            text = status_msg.text.decode('utf-8') if isinstance(status_msg.text, bytes) else status_msg.text
+            if 'PreArm' in text or 'prearm' in text:
+                prearm_errors.append(text)
+                print(f"   ⚠ {text}")
+        time.sleep(0.1)
+    
+    if not prearm_errors:
+        print("   ✓ No pre-arm errors detected")
+    else:
+        print(f"   ✗ {len(prearm_errors)} pre-arm error(s) found")
+        all_ready = False
+    
+    print(f"\n{'='*50}")
+    if all_ready:
+        print("🎯 READY FOR GUIDED MODE ARMING!")
+    else:
+        print("❌ NOT READY - Fix issues above before arming")
+    print(f"{'='*50}")
+    
+    return all_ready
+
+def main():
+    """メイン診断実行"""
+    master = connect_to_vehicle(CONNECTION_PORT, BAUD_RATE)
+    
+    # 全メッセージ要求
+    request_all_guided_messages(master)
+    
+    # メッセージが届くまで少し待機
+    print("\nWaiting for messages to be established...")
+    time.sleep(5)
+    
+    # 完全診断実行
+    ready = check_guided_arm_readiness_complete(master)
+    
+    if not ready:
+        print("\nRetrying in 10 seconds...")
+        time.sleep(10)
+        check_guided_arm_readiness_complete(master)
 
 if __name__ == "__main__":
     main()
