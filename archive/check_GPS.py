@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-GPS診断ツール - ArduPilot GPS接続とメッセージ受信の詳細診断
+GPS診断ツール - ArduPilot GPS接続とメッセージ受信の詳細診断（修正版）
 """
 
 import time
@@ -11,6 +11,15 @@ from pymavlink import mavutil
 CONNECTION_PORT = '/dev/ttyAMA0'
 BAUD_RATE = 115200
 DIAGNOSTIC_TIME = 30  # 診断実行時間（秒）
+
+def safe_decode_param_id(param_id):
+    """param_idを安全にデコードする関数"""
+    if isinstance(param_id, bytes):
+        return param_id.decode('utf-8').strip()
+    elif isinstance(param_id, str):
+        return param_id.strip()
+    else:
+        return str(param_id).strip()
 
 def connect_to_vehicle(port, baud):
     """機体に接続"""
@@ -70,14 +79,14 @@ def request_gps_streams(master):
     print("✓ Stream requests sent")
 
 def check_gps_parameters(master):
-    """GPS関連パラメータの確認"""
+    """GPS関連パラメータの確認（修正版）"""
     print("\nChecking GPS parameters...")
     
     # 重要なGPSパラメータをリクエスト
     gps_params = ['GPS_TYPE', 'GPS_AUTO_CONFIG', 'GPS_AUTO_SWITCH', 'GPS_BLEND_MASK']
     
     for param_name in gps_params:
-        # パラメータリクエスト
+        # パラメータリクエスト（bytesで送信）
         master.mav.param_request_read_send(
             master.target_system,
             master.target_component,
@@ -86,11 +95,16 @@ def check_gps_parameters(master):
         )
         
         # レスポンス待機
-        param_msg = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=2)
-        if param_msg and param_msg.param_id.decode('utf-8').strip() == param_name:
-            print(f"  {param_name}: {param_msg.param_value}")
+        param_msg = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=3)
+        if param_msg:
+            # param_idを安全にデコード
+            received_param_name = safe_decode_param_id(param_msg.param_id)
+            if received_param_name == param_name:
+                print(f"  {param_name}: {param_msg.param_value}")
+            else:
+                print(f"  {param_name}: Received {received_param_name} instead (value: {param_msg.param_value})")
         else:
-            print(f"  {param_name}: No response")
+            print(f"  {param_name}: No response (timeout)")
 
 def diagnose_gps(master):
     """GPS詳細診断"""
@@ -104,6 +118,10 @@ def diagnose_gps(master):
     # データストリーム要求
     request_gps_streams(master)
     
+    # 短い待機時間をおく
+    print("\nWaiting 3 seconds for stream setup...")
+    time.sleep(3)
+    
     # 診断統計
     stats = {
         'heartbeat_count': 0,
@@ -116,7 +134,7 @@ def diagnose_gps(master):
     
     print(f"\nMonitoring messages for {DIAGNOSTIC_TIME} seconds...")
     print("Time | Message Type | Content")
-    print("-" * 60)
+    print("-" * 70)
     
     start_time = time.time()
     
@@ -136,7 +154,8 @@ def diagnose_gps(master):
                 stats['gps_raw_count'] += 1
                 fix_types = {0: "No GPS", 1: "No Fix", 2: "2D", 3: "3D", 4: "DGPS", 5: "RTK_Float", 6: "RTK_Fixed"}
                 fix_type = fix_types.get(msg.fix_type, f"Unknown({msg.fix_type})")
-                print(f"{current_time:5.1f}s | GPS_RAW_INT  | Fix:{fix_type}, Sats:{msg.satellites_visible}, HDOP:{msg.eph/100:.1f}")
+                hdop = msg.eph / 100.0 if msg.eph != 65535 else "N/A"
+                print(f"{current_time:5.1f}s | GPS_RAW_INT  | Fix:{fix_type}, Sats:{msg.satellites_visible}, HDOP:{hdop}")
                 
             elif msg_type == 'GLOBAL_POSITION_INT':
                 stats['global_pos_count'] += 1
@@ -154,11 +173,14 @@ def diagnose_gps(master):
                 # センサーヘルス確認（GPS関連）
                 sensors = msg.onboard_control_sensors_health
                 gps_healthy = bool(sensors & mavutil.mavlink.MAV_SYS_STATUS_SENSOR_GPS)
-                if stats['sys_status_count'] % 5 == 1:  # 5回に1回表示
+                if stats['sys_status_count'] % 10 == 1:  # 10回に1回表示
                     print(f"{current_time:5.1f}s | SYS_STATUS   | GPS Health: {'OK' if gps_healthy else 'FAIL'}")
                     
             else:
                 stats['other_msg_count'] += 1
+                # 珍しいメッセージは表示
+                if msg_type in ['GPS2_RAW', 'GPS2_RTK', 'GPS_RTK', 'GPS_INJECT_DATA']:
+                    print(f"{current_time:5.1f}s | {msg_type:12} | Additional GPS data")
                 
         time.sleep(0.1)
     
@@ -180,13 +202,14 @@ def diagnose_gps(master):
         print("🚨 CRITICAL: No GPS messages received at all")
         print("   Possible causes:")
         print("   1. GPS module not connected to Pixhawk")
-        print("   2. Wrong GPS port (check SERIAL1_PROTOCOL, SERIAL2_PROTOCOL)")
+        print("   2. Wrong GPS port configuration")
         print("   3. GPS_TYPE parameter set to 0 (disabled)")
-        print("   4. Faulty GPS module")
+        print("   4. Faulty GPS module or antenna")
         print("\n   Recommended actions:")
+        print("   → Check Mission Planner GPS status")
+        print("   → Verify GPS_TYPE parameter (should be 1 for auto)")
         print("   → Check physical GPS connections")
-        print("   → Verify GPS_TYPE parameter (should be 1 for auto-detect)")
-        print("   → Test with Mission Planner GPS status")
+        print("   → Test GPS module LED status")
         
     elif stats['gps_raw_count'] > 0:
         print("✓ GPS module is connected and communicating")
@@ -194,16 +217,17 @@ def diagnose_gps(master):
             print("⚠  WARNING: GPS raw data OK, but no position fix")
             print("   → Move to outdoor area with clear sky view")
             print("   → Wait longer for satellite acquisition")
+            print("   → Check antenna placement")
         else:
             print("✓ GPS is working correctly!")
             
     else:
-        print("❓ Partial GPS data received - investigate further")
+        print("❓ Partial GPS data - check connections and parameters")
 
 def main():
     """メイン実行関数"""
-    print("ArduPilot GPS Diagnostic Tool")
-    print("=" * 40)
+    print("ArduPilot GPS Diagnostic Tool (Fixed Version)")
+    print("=" * 45)
     
     # 接続
     master = connect_to_vehicle(CONNECTION_PORT, BAUD_RATE)
@@ -218,6 +242,8 @@ def main():
         print("\n\nDiagnostic interrupted by user")
     except Exception as e:
         print(f"\nDiagnostic error: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         print("\nDiagnostic completed.")
 
