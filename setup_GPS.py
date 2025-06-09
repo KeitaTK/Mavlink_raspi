@@ -33,43 +33,40 @@ parameters = {
     # 'RTL_ALT': 50,           # 50cm
 
     # --- GPS基本設定 ---
-    'GPS1_TYPE': 14,          # MAVLink GPS Input（モーションキャプチャ用）
+    'GPS1_TYPE': 14,          # MAVLink GPS Input
     'GPS_AUTO_SWITCH': 0,     # GPS自動切替無効
     
-    # --- EKF3設定（最新版準拠） ---
+    # --- EKF3設定 ---
     'AHRS_EKF_TYPE': 3,       # EKF3使用
     
-    # EKF3ソース設定（最新のEK3_SRC方式）
-    'EK3_SRC1_POSXY': 3,      # 水平位置ソース: GPS[6]
-    'EK3_SRC1_VELXY': 3,      # 水平速度ソース: GPS[6]
-    'EK3_SRC1_POSZ': 3,       # 垂直位置ソース: GPS（あなたの要求）[6]
-    'EK3_SRC1_VELZ': 3,       # 垂直速度ソース: GPS[6]
-    'EK3_SRC1_YAW': 2,        # ヨーソース: GPS（あなたの設定）
+    # EKF3ソース設定
+    'EK3_SRC1_POSXY': 3,      # 水平位置ソース: GPS
+    'EK3_SRC1_VELXY': 3,      # 水平速度ソース: GPS
+    'EK3_SRC1_POSZ': 3,       # 垂直位置ソース: GPS
+    'EK3_SRC1_VELZ': 3,       # 垂直速度ソース: GPS
+    'EK3_SRC1_YAW': 2,        # ヨーソース: GPS
     
-    # GPS精度設定（モーションキャプチャの高精度に対応）
+    # GPS精度設定（最新パラメータ名）
     'EK3_GPS_CHECK': 1,       # 最小限チェック
-    'EK3_POSNE_M_NSE': 0.01,  # 水平位置ノイズ: 1cm（あなたの設定）[4]
-    'EK3_YAW_M_NSE': 0.1,     # ヨー角ノイズ（あなたの設定）
-    
-    # 他センサーのノイズ増大（GPS最優先化）
-    'EK3_ALT_M_NSE': 100.0,   # 気圧センサーノイズ極大
-    'EK3_ACC_NOISE': 1.0,     # 加速度計ノイズ増大
-    
-    # 垂直位置精度の追加設定
+    'EK3_POSNE_M_NSE': 0.01,  # 水平位置ノイズ: 1cm
     'EK3_VELNE_M_NSE': 0.01,  # 水平速度ノイズ: 1cm/s[4]
     'EK3_VELD_M_NSE': 0.01,   # 垂直速度ノイズ: 1cm/s[4]
+    'EK3_YAW_M_NSE': 0.1,     # ヨー角ノイズ
+    
+    # 他センサーのノイズ増大（GPS最優先化）
+    'EK3_ALT_M_NSE': 100.0,   # 気圧センサーノイズ極大[4]
+    'EK3_ACC_P_NSE': 1.0,     # 加速度計ノイズ増大（修正版）[4]
     
     # --- センサー無効化 ---
     'COMPASS_ENABLE': 0,      # コンパス無効化
     
     # --- 安全・フェイルセーフ設定 ---
     'FS_EKF_ACTION': 4,       # EKF失敗時はマニュアル
-    'RTL_ALT': 50,           # RTL高度: 50cm（室内用）
+    'RTL_ALT': 50,           # RTL高度: 50cm
     
     # --- 精密制御用追加設定 ---
-    'EK3_PRIMARY': 0,         # プライマリEKF3インスタンス[6]
+    'EK3_PRIMARY': 0,         # プライマリEKF3インスタンス
     'GPS_PRIMARY': 0,         # プライマリGPS
-
 }
 
 def safe_param_name(param_id):
