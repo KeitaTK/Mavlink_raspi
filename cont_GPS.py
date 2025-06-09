@@ -9,7 +9,7 @@ from pymavlink import mavutil
 # --- 設定項目 ---
 CONNECTION_PORT = '/dev/ttyAMA0'
 BAUD_RATE = 115200
-TAKEOFF_ALTITUDE = 0.5
+TAKEOFF_ALTITUDE = 0.1
 MOVE_DISTANCE = 0.02
 
 def get_key():
