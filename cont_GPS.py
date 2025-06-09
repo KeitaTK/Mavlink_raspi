@@ -13,7 +13,7 @@ TAKEOFF_ALTITUDE = 0.5
 MOVE_DISTANCE = 0.02
 
 def get_key():
-    """ターミナルから1文字のキー入力を取得する関数"""
+    """キー入力取得"""
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
     try:
@@ -38,29 +38,119 @@ def connect_to_vehicle(port, baud):
     print(f"✓ Connected! System {master.target_system} Component {master.target_component}")
     return master
 
-def request_gps_messages(master):
-    """GPSメッセージを要求（統合版）"""
-    print("Requesting GPS messages...")
+def request_all_messages(master):
+    """必要なメッセージを全て要求"""
+    print("Requesting all necessary messages...")
     
-    # GPS_RAW_INT (Message ID: 24) を1秒間隔で要求
+    # GPS関連メッセージ
     master.mav.command_long_send(
         master.target_system, master.target_component,
         mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL, 0,
         24, 1000000, 0, 0, 0, 0, 0  # GPS_RAW_INT, 1秒間隔
     )
     
-    # GLOBAL_POSITION_INT (Message ID: 33) を1秒間隔で要求
     master.mav.command_long_send(
         master.target_system, master.target_component,
         mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL, 0,
         33, 1000000, 0, 0, 0, 0, 0  # GLOBAL_POSITION_INT, 1秒間隔
     )
     
-    # 互換性のためのストリーム要求も追加
+    # システム状態メッセージ
+    master.mav.command_long_send(
+        master.target_system, master.target_component,
+        mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL, 0,
+        0, 1000000, 0, 0, 0, 0, 0   # HEARTBEAT, 1秒間隔
+    )
+    
+    # 互換性のためのストリーム要求
     master.mav.request_data_stream_send(
         master.target_system, master.target_component,
         mavutil.mavlink.MAV_DATA_STREAM_POSITION, 2, 1
     )
+    
+    print("✓ Message requests sent")
+
+def check_arm_status_detailed(master):
+    """詳細なアーム状態確認"""
+    print("\n=== DETAILED ARM STATUS CHECK ===")
+    
+    # HEARTBEATメッセージから状態確認
+    heartbeat_msg = master.recv_match(type='HEARTBEAT', blocking=True, timeout=5)
+    if heartbeat_msg:
+        # アーム状態の確認（複数の方法）
+        armed_flag = bool(heartbeat_msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
+        custom_mode = heartbeat_msg.custom_mode
+        system_status = heartbeat_msg.system_status
+        
+        print(f"Base Mode Armed Flag: {armed_flag}")
+        print(f"master.motors_armed(): {master.motors_armed()}")
+        print(f"Custom Mode: {custom_mode}")
+        print(f"System Status: {system_status}")
+        
+        # システム状態の詳細
+        status_names = {
+            0: "BOOT", 1: "CALIBRATING", 2: "STANDBY", 3: "ACTIVE",
+            4: "CRITICAL", 5: "EMERGENCY", 6: "POWEROFF", 7: "FLIGHT_TERMINATION"
+        }
+        status_name = status_names.get(system_status, f"Unknown({system_status})")
+        print(f"System Status Name: {status_name}")
+        
+        return armed_flag
+    else:
+        print("✗ No HEARTBEAT message received")
+        return False
+
+def wait_for_arm_with_details(master, timeout=60):
+    """詳細情報付きアーム待機"""
+    print(f"\nWaiting for vehicle to be armed (timeout: {timeout}s)...")
+    print("Please arm the vehicle using your transmitter:")
+    print("  1. Throttle to minimum position")
+    print("  2. Yaw stick to full right")  
+    print("  3. Hold for 5 seconds")
+    print("---")
+    
+    start_time = time.time()
+    last_check_time = 0
+    
+    while time.time() - start_time < timeout:
+        current_time = time.time()
+        
+        # 5秒ごとに詳細な状態確認
+        if current_time - last_check_time >= 5:
+            armed = check_arm_status_detailed(master)
+            last_check_time = current_time
+            
+            if armed:
+                print("✓ Vehicle is ARMED!")
+                return True
+            else:
+                print("△ Vehicle still DISARMED, retrying...")
+        
+        # 高頻度でのアーム状態確認
+        heartbeat_msg = master.recv_match(type='HEARTBEAT', blocking=False)
+        if heartbeat_msg:
+            armed = bool(heartbeat_msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
+            if armed:
+                print("✓ Vehicle is ARMED!")
+                return True
+        
+        time.sleep(0.5)
+    
+    print("✗ Arm timeout. Please check:")
+    print("  - Pre-arm safety checks in Mission Planner")
+    print("  - Transmitter stick positions")
+    print("  - Battery voltage")
+    return False
+
+def wait_for_guided_mode(master):
+    """GUIDEDモードになるまで待機"""
+    print("Waiting for GUIDED mode...")
+    while True:
+        msg = master.recv_match(type='HEARTBEAT', blocking=True)
+        if msg.custom_mode == 4:  # ArduCopterのGUIDEDモード
+            print("Vehicle is in GUIDED mode.")
+            break
+        time.sleep(0.5)
 
 def wait_for_gps_and_get_home(master):
     """GPS Fix待機とホームポジション取得"""
@@ -86,38 +176,34 @@ def wait_for_gps_and_get_home(master):
     
     return None
 
-def wait_for_guided_mode(master):
-    """GUIDEDモードになるまで待機"""
-    print("Waiting for GUIDED mode...")
-    while True:
-        msg = master.recv_match(type='HEARTBEAT', blocking=True)
-        if msg.custom_mode == 4:  # ArduCopterのGUIDEDモード
-            print("Vehicle is in GUIDED mode.")
-            break
-        time.sleep(0.5)
-
 def arm_and_takeoff(master, altitude):
     """アーム確認と離陸"""
-    print("Waiting for vehicle to be armed...")
-    while not master.motors_armed():
-        time.sleep(1)
-    print("Vehicle is armed.")
+    # 改良されたアーム待機
+    if not wait_for_arm_with_details(master):
+        print("✗ Arming failed. Cannot proceed with takeoff.")
+        return False
 
-    print(f"Taking off to {altitude}m...")
+    print(f"\n🚀 Taking off to {altitude}m...")
     master.mav.command_long_send(
         master.target_system, master.target_component,
         mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0,
         0, 0, 0, 0, 0, 0, altitude
     )
 
+    print("Monitoring takeoff progress...")
     while True:
-        msg = master.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
-        relative_alt_m = msg.relative_alt / 1000.0
-        print(f"Current altitude: {relative_alt_m:.2f}m")
-        if relative_alt_m >= altitude * 0.95:
-            print("Target altitude reached.")
-            break
+        msg = master.recv_match(type='GLOBAL_POSITION_INT', blocking=True, timeout=5)
+        if msg:
+            relative_alt_m = msg.relative_alt / 1000.0
+            print(f"Current altitude: {relative_alt_m:.2f}m")
+            if relative_alt_m >= altitude * 0.95:
+                print("✓ Target altitude reached.")
+                break
+        else:
+            print("⚠ No altitude data received")
         time.sleep(1)
+    
+    return True
 
 def move_global_gps(master, lat_int, lon_int, altitude):
     """目標GPS座標へ移動"""
@@ -141,8 +227,8 @@ if __name__ == "__main__":
 
     master = connect_to_vehicle(CONNECTION_PORT, BAUD_RATE)
     
-    # GPS情報要求
-    request_gps_messages(master)
+    # 全メッセージ要求
+    request_all_messages(master)
     time.sleep(2)  # メッセージ設定の待機
     
     print("\n--- 操作手順 ---")
@@ -151,7 +237,7 @@ if __name__ == "__main__":
     
     wait_for_guided_mode(master)
 
-    # GPS取得（成功実績のある方法）
+    # GPS取得
     home_position = wait_for_gps_and_get_home(master)
     if not home_position:
         print("GPS acquisition failed. Exiting for safety.")
@@ -161,7 +247,10 @@ if __name__ == "__main__":
     lon0_deg = home_position.lon / 1e7
     alt0_msl = home_position.alt / 1000.0
 
-    arm_and_takeoff(master, TAKEOFF_ALTITUDE)
+    # 改良されたアーム確認と離陸
+    if not arm_and_takeoff(master, TAKEOFF_ALTITUDE):
+        print("Takeoff failed. Exiting.")
+        sys.exit(1)
 
     # pyned2lla初期化
     wgs84 = pyned2lla.wgs84()
