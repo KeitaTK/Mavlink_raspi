@@ -12,25 +12,63 @@ print(f"ハートビート受信: システム {master.target_system} コンポ�
 # Motiveモーションキャプチャ→GPS室内飛行用パラメータ
 # 正しいパラメータ設定
 parameters = {
-    # GPS設定
-    'GPS1_TYPE': 14,
-    'GPS_AUTO_SWITCH': 0,
+    # # GPS設定
+    # 'GPS1_TYPE': 14,
+    # 'GPS_AUTO_SWITCH': 0,
     
-    # EKF3設定（GPS_INPUT対応、全てMotiveデータ由来）
-    'EK3_SRC1_YAW': 2,        # GPS（GPS_INPUTのyawフィールド）
-    'EK3_SRC1_POSZ': 0,       # GPS（GPS_INPUTの高精度高度データ）
+    # # EKF3設定（GPS_INPUT対応、全てMotiveデータ由来）
+    # 'EK3_SRC1_YAW': 2,        # GPS（GPS_INPUTのyawフィールド）
+    # 'EK3_SRC1_POSZ': 0,       # GPS（GPS_INPUTの高精度高度データ）
+    # 'EK3_GPS_CHECK': 1,       # 最小限チェック
+    # 'EK3_POSNE_M_NSE': 0.01,  # 1cm精度
+    # 'EK3_YAW_M_NSE': 0.1,     # ヨー角ノイズ
+    
+    # # コンパス無効化
+    # 'COMPASS_ENABLE': 0,
+    
+    # # フェイルセーフ設定
+    # 'FS_EKF_ACTION': 4,       # EKF失敗時はマニュアル
+    
+    # # RTL高度設定（室内用）
+    # 'RTL_ALT': 50,           # 50cm
+
+    # --- GPS基本設定 ---
+    'GPS1_TYPE': 14,          # MAVLink GPS Input（モーションキャプチャ用）
+    'GPS_AUTO_SWITCH': 0,     # GPS自動切替無効
+    
+    # --- EKF3設定（最新版準拠） ---
+    'AHRS_EKF_TYPE': 3,       # EKF3使用
+    
+    # EKF3ソース設定（最新のEK3_SRC方式）
+    'EK3_SRC1_POSXY': 3,      # 水平位置ソース: GPS[6]
+    'EK3_SRC1_VELXY': 3,      # 水平速度ソース: GPS[6]
+    'EK3_SRC1_POSZ': 3,       # 垂直位置ソース: GPS（あなたの要求）[6]
+    'EK3_SRC1_VELZ': 3,       # 垂直速度ソース: GPS[6]
+    'EK3_SRC1_YAW': 2,        # ヨーソース: GPS（あなたの設定）
+    
+    # GPS精度設定（モーションキャプチャの高精度に対応）
     'EK3_GPS_CHECK': 1,       # 最小限チェック
-    'EK3_POSNE_M_NSE': 0.01,  # 1cm精度
-    'EK3_YAW_M_NSE': 0.1,     # ヨー角ノイズ
+    'EK3_POSNE_M_NSE': 0.01,  # 水平位置ノイズ: 1cm（あなたの設定）[4]
+    'EK3_YAW_M_NSE': 0.1,     # ヨー角ノイズ（あなたの設定）
     
-    # コンパス無効化
-    'COMPASS_ENABLE': 0,
+    # 他センサーのノイズ増大（GPS最優先化）
+    'EK3_ALT_M_NSE': 100.0,   # 気圧センサーノイズ極大
+    'EK3_ACC_NOISE': 1.0,     # 加速度計ノイズ増大
     
-    # フェイルセーフ設定
+    # 垂直位置精度の追加設定
+    'EK3_VELNE_M_NSE': 0.01,  # 水平速度ノイズ: 1cm/s[4]
+    'EK3_VELD_M_NSE': 0.01,   # 垂直速度ノイズ: 1cm/s[4]
+    
+    # --- センサー無効化 ---
+    'COMPASS_ENABLE': 0,      # コンパス無効化
+    
+    # --- 安全・フェイルセーフ設定 ---
     'FS_EKF_ACTION': 4,       # EKF失敗時はマニュアル
+    'RTL_ALT': 50,           # RTL高度: 50cm（室内用）
     
-    # RTL高度設定（室内用）
-    'RTL_ALT': 50,           # 50cm
+    # --- 精密制御用追加設定 ---
+    'EK3_PRIMARY': 0,         # プライマリEKF3インスタンス[6]
+    'GPS_PRIMARY': 0,         # プライマリGPS
 
 }
 
