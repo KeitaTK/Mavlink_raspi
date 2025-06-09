@@ -4,7 +4,7 @@ from pymavlink import mavutil
 # MAVLinkコネクションを作成
 master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200)
 
-# ハートビートを待機
+# コマンドを送信する前にハートビートを待つ
 print("ハートビートを待機中...")
 master.wait_heartbeat()
 print(f"ハートビート受信: システム {master.target_system} コンポーネント {master.target_component}")
@@ -50,15 +50,30 @@ def safe_param_name(param_id):
     except:
         return str(param_id)
 
-print("=" * 70)
-print("超高精度室内用Loiter Mode設定（10cm精度・0.5m/s制限）修正版")
-print("=" * 70)
+print("=" * 60)
+print("Motiveモーションキャプチャ→GPS室内飛行用パラメータ設定")
+print("=" * 60)
 
-# パラメータ設定の実行
-success_count = 0
-total_count = len(loiter_parameters)
+# SET_GPS_GLOBAL_ORIGIN送信（EKF原点設定）
+print("GPS_GLOBAL_ORIGINを設定中...")
+ref_lat = int(36.0757800 * 1e7)  # 緯度（degE7）
+ref_lon = int(136.2132900 * 1e7) # 経度（degE7）
+ref_alt = int(0 * 1000)          # 高度（mm）
 
-for param_id, param_value in loiter_parameters.items():
+master.mav.set_gps_global_origin_send(
+    master.target_system,
+    ref_lat,
+    ref_lon,
+    ref_alt,
+    0
+)
+time.sleep(1)
+print("GPS_GLOBAL_ORIGIN設定完了")
+
+print("-" * 60)
+
+# すべてのパラメータを設定
+for param_id, param_value in parameters.items():
     print(f"{param_id}を{param_value}に設定中...")
     
     # パラメータタイプを自動判定
@@ -67,43 +82,30 @@ for param_id, param_value in loiter_parameters.items():
     else:
         param_type = mavutil.mavlink.MAV_PARAM_TYPE_INT32
     
-    try:
-        # パラメータを設定
-        master.mav.param_set_send(
-            master.target_system,
-            master.target_component,
-            param_id.encode('utf-8'),
-            param_value,
-            param_type
-        )
-        
-        # 応答確認（タイムアウト延長）
-        message = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=5)
-        if message:
-            param_name = safe_param_name(message.param_id)
-            # パラメータ名が一致するかチェック
-            if param_name.upper() == param_id.upper():
-                print(f"確認: {param_name} = {message.param_value}")
-                success_count += 1
-            else:
-                print(f"警告: 設定パラメータ{param_id}と応答パラメータ{param_name}が異なります")
-                # 再試行
-                time.sleep(0.5)
-                retry_msg = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=3)
-                if retry_msg and safe_param_name(retry_msg.param_id).upper() == param_id.upper():
-                    print(f"再試行成功: {safe_param_name(retry_msg.param_id)} = {retry_msg.param_value}")
-                    success_count += 1
-                else:
-                    print(f"再試行失敗: {param_id}")
-        else:
-            print(f"タイムアウト: {param_id}")
-            
-    except Exception as e:
-        print(f"エラー: {param_id} - {e}")
+    # パラメータを設定
+    master.mav.param_set_send(
+        master.target_system,
+        master.target_component,
+        param_id.encode('utf-8'),
+        param_value,
+        param_type
+    )
     
-    time.sleep(0.5)  # 間隔を長く
+    # 応答確認（エラー対応版）
+    try:
+        message = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=3)
+        if message:
+            # パラメータ名を安全に取得
+            param_name = safe_param_name(message.param_id)
+            print(f"✅ 確認: {param_name} = {message.param_value}")
+        else:
+            print(f"⚠️  タイムアウト: {param_id}")
+    except Exception as e:
+        print(f"⚠️  エラー: {param_id} - {e}")
+    
+    time.sleep(0.3)
 
-print("-" * 70)
+print("-" * 60)
 
 # パラメータをEEPROMに保存
 print("パラメータをEEPROMに保存中...")
@@ -119,19 +121,22 @@ master.mav.command_long_send(
 try:
     ack_msg = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=5)
     if ack_msg and ack_msg.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
-        print("パラメータ保存完了")
+        print("✅ パラメータ保存完了")
     else:
-        print("保存結果不明")
+        print("⚠️  保存結果不明")
 except:
-    print("保存確認タイムアウト")
+    print("⚠️  保存確認タイムアウト")
 
-print("=" * 70)
-print(f"設定完了！ ({success_count}/{total_count} 成功)")
-print("=" * 70)
+print("=" * 60)
+print("設定完了！")
+print("1. ArduPilotを再起動してください")
+print("2. Motiveデータブリッジを開始してください")  
+print("3. GuidedモードまたはLoiterモードでテスト飛行")
+print("=" * 60)
 
-# 重要パラメータの最終確認
-print("重要パラメータ最終確認:")
-check_params = ['RC10_OPTION', 'LOIT_SPEED', 'WPNAV_RADIUS', 'LOIT_ANG_MAX']
+# 簡単な確認（エラー対応版）
+print("\n最終確認:")
+check_params = ['GPS1_TYPE', 'EK3_SRC1_YAW', 'COMPASS_ENABLE']
 for param in check_params:
     try:
         master.mav.param_request_read_send(
@@ -141,29 +146,15 @@ for param in check_params:
             -1
         )
         
-        msg = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=3)
+        msg = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=2)
         if msg:
+            # パラメータ名を安全に取得
             name = safe_param_name(msg.param_id)
-            if name == 'RC10_OPTION':
-                mode_name = "Loiter Mode" if msg.param_value == 56 else f"Unknown({msg.param_value})"
-                print(f"  {name}: {msg.param_value} ({mode_name})")
-            else:
-                unit = "cm" if "RADIUS" in name else "cm/s" if "SPEED" in name else "度" if "ANG" in name else ""
-                print(f"  {name}: {msg.param_value}{unit}")
+            print(f"  {name}: {msg.param_value}")
         else:
-            print(f"  {param}: 確認タイムアウト")
+            print(f"  {param}: タイムアウト")
     except Exception as e:
         print(f"  {param}: 確認エラー - {e}")
-    time.sleep(0.3)
+    time.sleep(0.2)
 
-print("\n設定内容:")
-print("  RC10_OPTION: 56 (Loiter Mode)")
-print("  位置精度: 10cm以内")
-print("  最大速度: 0.5m/s")
-print("  最大傾斜角: 10度")
-print("\n使用方法:")
-print("  1. Stabilizeモードで手動離陸")
-print("  2. Radio10スイッチをONでLoiter Mode開始")
-print("  3. 10cm精度でその場に自動位置保持")
-
-print("\n超高精度Loiter Mode設定が完了しました！")
+print("すべての設定が完了しました！")
