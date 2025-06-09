@@ -42,8 +42,6 @@ parameters = {
     'THR_DZ': 200,
 }
 
-}
-
 
 def safe_param_name(param_id):
     """パラメータ名を安全に文字列化"""
