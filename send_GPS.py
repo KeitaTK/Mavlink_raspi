@@ -213,6 +213,8 @@ def motive_to_ardupilot_bridge():
                 alt = received_data.get('altitude', 0.0)
                 yaw = received_data.get('yaw_degrees', 0.0)
                 data_no = received_data.get('data_no', 'N/A')
+
+                print("高度情報のRAWデータ",alt)
                 
                 # ArduPilotに送信
                 if ardupilot.send_gps_input(lat, lon, alt, yaw):
