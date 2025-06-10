@@ -162,44 +162,33 @@ params_to_set = {
     # 'MOT_BAT_VOLT_MAX': 21.0, # 最大電圧
     # 'MOT_BAT_VOLT_MIN': 13.5, # 最小電圧
 
-
     # --- EKF3基本設定 ---
     'AHRS_EKF_TYPE': 3.0,
     'EK3_ENABLE': 1.0,
     'EK3_IMU_MASK': 1.0,
     
     # --- 修正：GPS位置+ヨー角のみ、速度はIMU推定 ---
-    'EK3_SRC1_POSXY': 3,     # GPS (水平位置) - 維持
-    'EK3_SRC1_VELXY': 0,     # None (水平速度をIMUから推定) ← 変更
-    'EK3_SRC1_POSZ': 3,      # GPS (垂直位置) - 維持
-    'EK3_SRC1_VELZ': 0,      # None (垂直速度をIMUから推定) ← 変更
-    'EK3_SRC1_YAW': 2,       # GPS (ヨー角) - 維持
+    'EK3_SRC1_POSXY': 3,     # GPS (水平位置)
+    'EK3_SRC1_VELXY': 0,     # None (水平速度をIMUから推定)
+    'EK3_SRC1_POSZ': 3,      # GPS (垂直位置)
+    'EK3_SRC1_VELZ': 0,      # None (垂直速度をIMUから推定)
+    'EK3_SRC1_YAW': 2,       # GPS (ヨー角)
     
-    # --- 姿勢推定をIMUに依存（元に戻す部分） ---
-    'EK3_SRC1_GYRO': 0,      # IMU (ジャイロ) - デフォルト設定に戻す
-    'EK3_SRC1_ACC': 0,       # IMU (加速度計) - デフォルト設定に戻す
-    
-    # --- EKF3精度設定（現状維持） ---
+    # --- EKF3精度設定 ---
     'EK3_GPS_CHECK': 0,      # GPS健全性チェック完全無効化
     'EK3_POS_I_GATE': 15.0,  # 位置ゲート大幅緩和
-    'EK3_VEL_I_GATE': 8.0,   # 速度ゲート（15→8に戻す：IMU推定精度向上）
+    'EK3_VEL_I_GATE': 8.0,   # 速度ゲート（IMU推定精度向上）
     'EK3_HGT_I_GATE': 15.0,  # 高度ゲート大幅緩和
     
     # --- ノイズパラメータ（現状維持） ---
-    'EK3_POSNE_M_NSE': 0.5,  # 水平位置ノイズ: 50cm - 維持
-    'EK3_VELNE_M_NSE': 0.5,  # 水平速度ノイズ: 50cm/s - 維持
-    'EK3_VELD_M_NSE': 0.5,   # 垂直速度ノイズ: 50cm/s - 維持
-    'EK3_YAW_M_NSE': 1.0,    # ヨー角ノイズ - 維持
+    'EK3_POSNE_M_NSE': 0.5,  # 水平位置ノイズ: 50cm
+    'EK3_VELNE_M_NSE': 0.5,  # 水平速度ノイズ: 50cm/s
+    'EK3_VELD_M_NSE': 0.5,   # 垂直速度ノイズ: 50cm/s
+    'EK3_YAW_M_NSE': 1.0,    # ヨー角ノイズ
     
-    # --- センサーノイズ調整（IMU重視に変更） ---
-    'EK3_ALT_M_NSE': 10.0,   # 気圧センサーノイズ - 維持
-    'EK3_ACC_P_NSE': 0.25,   # 加速度計ノイズ削減（0.5→0.25：IMU精度向上）
-    'EK3_GYR_P_NSE': 0.02,   # ジャイロノイズ削減（0.03→0.02：IMU精度向上）
-    
-    # --- IMU速度推定の改善設定 ---
-    'EK3_DRAG_NOISE': 0.2,   # ドラッグモデルノイズ（速度推定精度向上）
-    'EK3_MAGB_P_NSE': 0.0001, # 磁気バイアスノイズ（ヨー推定向上）
-    'EK3_MAGE_P_NSE': 0.001,  # 磁気地球ノイズ（ヨー推定向上）
+    # --- センサーノイズ調整（存在するパラメータのみ） ---
+    'EK3_ALT_M_NSE': 10.0,   # 気圧センサーノイズ
+    'EK3_GYR_P_NSE': 0.02,   # ジャイロプロセスノイズ（存在確認済み）
     
     # --- EKF安定化追加設定 ---
     'EK3_GLITCH_RAD': 25,    # GPS Glitch検出半径緩和
@@ -211,46 +200,46 @@ params_to_set = {
     'GPS_AUTO_CONFIG': 0,    # 自動設定無効
     'GPS_PRIMARY': 0,
     
-    # --- 超低速設定（EKF負荷軽減）---
-    'WPNAV_SPEED_UP': 20,    # 上昇速度緩和（0.2m/s）
-    'WPNAV_SPEED_DN': 100,   # 下降速度緩和（1.0m/s）
-    'WPNAV_ACCEL_Z': 25,     # 加速度緩和（0.25m/s²）
-    'WPNAV_SPEED': 50,       # 水平速度緩和（0.5m/s）
-    'WPNAV_RADIUS': 30,      # 到達半径緩和（30cm）
+    # --- 超低速設定 ---
+    'WPNAV_SPEED_UP': 20,    # 上昇速度: 0.2m/s
+    'WPNAV_SPEED_DN': 100,   # 下降速度: 1.0m/s
+    'WPNAV_ACCEL_Z': 25,     # 加速度: 0.25m/s²
+    'WPNAV_SPEED': 50,       # 水平速度: 0.5m/s
+    'WPNAV_RADIUS': 30,      # 到達半径: 30cm
     
     # --- パイロット制御速度 ---
     'PILOT_SPEED_UP': 250,   # パイロット上昇: 2.5m/s
     'PILOT_SPEED_DN': 150,   # パイロット下降: 1.5m/s
     'PILOT_ACCEL_Z': 250,    # パイロット加速度: 2.5m/s²
     
-    # --- 安定化PID（IMU推定対応） ---
-    'PSC_POSZ_P': 1.0,       # 高度位置制御P - 維持
-    'PSC_VELZ_P': 4.0,       # 垂直速度制御P（3.0→4.0：IMU推定精度向上）
-    'PSC_VELZ_I': 8.0,       # 垂直速度制御I（6.0→8.0：積分強化）
-    'PSC_VELZ_D': 0.01,      # 垂直速度制御D - 維持
-    'PSC_ACCZ_P': 0.3,       # 垂直加速度制御P - 維持
-    'PSC_ACCZ_I': 1.0,       # 垂直加速度制御I - 維持
+    # --- 安定化PID ---
+    'PSC_POSZ_P': 1.0,       # 高度位置制御P
+    'PSC_VELZ_P': 4.0,       # 垂直速度制御P（IMU推定対応）
+    'PSC_VELZ_I': 8.0,       # 垂直速度制御I
+    'PSC_VELZ_D': 0.01,      # 垂直速度制御D
+    'PSC_ACCZ_P': 0.3,       # 垂直加速度制御P
+    'PSC_ACCZ_I': 1.0,       # 垂直加速度制御I
     
-    # --- 水平制御PID（IMU推定対応） ---
-    'PSC_POSXY_P': 1.5,      # 水平位置制御P - 維持
-    'PSC_VELXY_P': 1.2,      # 水平速度制御P（1.0→1.2：IMU推定対応）
-    'PSC_VELXY_I': 2.5,      # 水平速度制御I（2.0→2.5：積分強化）
+    # --- 水平制御PID ---
+    'PSC_POSXY_P': 1.5,      # 水平位置制御P
+    'PSC_VELXY_P': 1.2,      # 水平速度制御P（IMU推定対応）
+    'PSC_VELXY_I': 2.5,      # 水平速度制御I
     
-    # --- 姿勢制御PID（IMU重視に最適化） ---
-    'ATC_RAT_RLL_P': 0.1,    # Roll P（0.08→0.1：IMU応答性向上）
-    'ATC_RAT_RLL_I': 0.1,    # Roll I（0.08→0.1）
-    'ATC_RAT_RLL_D': 0.003,  # Roll D（0.002→0.003：安定性向上）
-    'ATC_RAT_PIT_P': 0.1,    # Pitch P（0.08→0.1：IMU応答性向上）
-    'ATC_RAT_PIT_I': 0.1,    # Pitch I（0.08→0.1）
-    'ATC_RAT_PIT_D': 0.003,  # Pitch D（0.002→0.003：安定性向上）
-    'ATC_RAT_YAW_P': 0.2,    # Yaw P（0.15→0.2：GPS ヨー補強）
-    'ATC_RAT_YAW_I': 0.02,   # Yaw I - 維持
+    # --- 姿勢制御PID ---
+    'ATC_RAT_RLL_P': 0.1,    # Roll P
+    'ATC_RAT_RLL_I': 0.1,    # Roll I
+    'ATC_RAT_RLL_D': 0.003,  # Roll D
+    'ATC_RAT_PIT_P': 0.1,    # Pitch P
+    'ATC_RAT_PIT_I': 0.1,    # Pitch I
+    'ATC_RAT_PIT_D': 0.003,  # Pitch D
+    'ATC_RAT_YAW_P': 0.2,    # Yaw P（GPS ヨー補強）
+    'ATC_RAT_YAW_I': 0.02,   # Yaw I
     
-    # --- IMUフィルタ（精度重視に調整） ---
-    'INS_GYRO_FILTER': 30,   # ジャイロフィルタ（40→30：応答性とノイズのバランス）
-    'INS_ACCEL_FILTER': 30,  # 加速度フィルタ（40→30：応答性とノイズのバランス）
+    # --- IMUフィルタ ---
+    'INS_GYRO_FILTER': 30,   # ジャイロフィルタ
+    'INS_ACCEL_FILTER': 30,  # 加速度フィルタ
     
-    # --- フェイルセーフ設定（緩和維持） ---
+    # --- フェイルセーフ設定 ---
     'FS_EKF_ACTION': 2,      # EKF失敗時Stabilizeモード
     'FS_EKF_THRESH': 1.0,    # EKF信頼度閾値最大緩和
     'FS_THR_ENABLE': 3,      # 送信機喪失時着陸
