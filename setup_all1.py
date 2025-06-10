@@ -363,7 +363,7 @@ for param_name in params_to_set.keys():
         -1  # -1はインデックスではなく名前でパラメータを取得
     )
     
-    message = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=2).to_dict()
+    message = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=10).to_dict()
     if message:
         print(f'確認: {param_name} = {message["param_value"]}')
     else:
