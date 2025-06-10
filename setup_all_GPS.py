@@ -84,15 +84,15 @@ params_to_set = {
     'PSC_ACCZ_I': 1.0,       # 垂直加速度制御I
     
     # --- 水平制御PID ---
-    'PSC_POSXY_P': 1.5,      # 水平位置制御P
+    'PSC_POSXY_P': 1.0,      # 水平位置制御P
     'PSC_VELXY_P': 1.2,      # 水平速度制御P（IMU推定対応）
     'PSC_VELXY_I': 2.5,      # 水平速度制御I
     
     # --- 姿勢制御PID ---
-    'ATC_RAT_RLL_P': 0.1,    # Roll P
+    'ATC_RAT_RLL_P': 0.05,    # Roll P
     'ATC_RAT_RLL_I': 0.1,    # Roll I
     'ATC_RAT_RLL_D': 0.003,  # Roll D
-    'ATC_RAT_PIT_P': 0.1,    # Pitch P
+    'ATC_RAT_PIT_P': 0.05,    # Pitch P
     'ATC_RAT_PIT_I': 0.1,    # Pitch I
     'ATC_RAT_PIT_D': 0.003,  # Pitch D
     'ATC_RAT_YAW_P': 0.2,    # Yaw P（GPS ヨー対応）
