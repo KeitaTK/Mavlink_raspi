@@ -84,10 +84,10 @@ params_to_set = {
     'PSC_ACCZ_I': 1.0,       # 垂直加速度制御I
     
     # --- 水平制御PID（適正化） ---
-    'PSC_POSXY_P': 1.0,      # 水平位置制御P（1.0→1.5に増加）
-    'PSC_VELXY_P': 1.5,      # 水平速度制御P（1.2→2.0に増加）
-    'PSC_VELXY_I': 0.5,      # 水平速度制御I（2.5→1.0に削減）
-    'PSC_VELXY_D': 0.2,      # 水平速度制御D（追加）
+    'PSC_POSXY_P': 0.5,      # 水平位置制御P（1.0→1.5に増加）
+    'PSC_VELXY_P': 0.75,      # 水平速度制御P（1.2→2.0に増加）
+    'PSC_VELXY_I': 0.25,      # 水平速度制御I（2.5→1.0に削減）
+    'PSC_VELXY_D': 0.1,      # 水平速度制御D（追加）
     
     # --- 姿勢制御PID ---
     'ATC_RAT_RLL_P': 0.05,  # Roll P（0.05→0.135、標準値）
@@ -209,7 +209,7 @@ master.mav.command_long_send(
 )
 
 # コマンドACKを待機
-ack = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=20)
+ack = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=5)
 if ack and ack.command == mavutil.mavlink.MAV_CMD_PREFLIGHT_STORAGE and ack.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
     print("EEPROMへの保存成功")
 else:
