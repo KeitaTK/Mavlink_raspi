@@ -90,18 +90,18 @@ params_to_set = {
     'PSC_VELXY_D': 0.5,      # 水平速度制御D（追加）
     
     # --- 姿勢制御PID（標準値に正常化） ---
-    'ATC_RAT_RLL_P': 0.135,  # Roll P（0.05→0.135、標準値）
+    'ATC_RAT_RLL_P': 0.08,  # Roll P（0.05→0.135、標準値）
     'ATC_RAT_RLL_I': 0.135,  # Roll I（0.05→0.135、標準値）
     'ATC_RAT_RLL_D': 0.002, # Roll D（0.001→0.0036、標準値）
-    'ATC_RAT_PIT_P': 0.135,  # Pitch P（0.05→0.135、標準値）
+    'ATC_RAT_PIT_P': 0.08,  # Pitch P（0.05→0.135、標準値）
     'ATC_RAT_PIT_I': 0.135,  # Pitch I（0.05→0.135、標準値）
     'ATC_RAT_PIT_D': 0.002, # Pitch D（0.001→0.0036、標準値）
     'ATC_RAT_YAW_P': 0.2,    # Yaw P（ハイブリッドヨー対応）
     'ATC_RAT_YAW_I': 0.02,   # Yaw I
     
     # --- IMUフィルタ（応答性向上） ---
-    'INS_GYRO_FILTER': 30,   # ジャイロフィルタ（30→20、応答性向上）
-    'INS_ACCEL_FILTER': 30,  # 加速度フィルタ（30→20、応答性向上）
+    'INS_GYRO_FILTER': 20,   # ジャイロフィルタ（30→20、応答性向上）
+    'INS_ACCEL_FILTER': 20,  # 加速度フィルタ（30→20、応答性向上）
     
     # --- フェイルセーフ設定（適正化） ---
     'FS_EKF_ACTION': 2,      # EKF失敗時Stabilizeモード
