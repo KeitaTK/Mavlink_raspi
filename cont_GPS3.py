@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-ArduPilot精密制御システム - 高度制御対応版
-GPS_INPUT使用、3次元精密制御、2cm精度制御
+ArduPilot精密制御システム - 機首角度維持版
+GPS_INPUT使用、3次元精密制御、ヨー角固定、2cm精度制御
 """
 
 import time
@@ -150,14 +150,23 @@ def takeoff(master, altitude):
                 break
         time.sleep(0.5)
 
-def move_to_position_with_altitude(master, lat_int, lon_int, altitude):
-    """指定GPS座標・高度へ移動"""
+def get_current_yaw(master):
+    """現在のヨー角取得"""
+    att_msg = master.recv_match(type='ATTITUDE', blocking=True, timeout=2)
+    if att_msg:
+        return math.degrees(att_msg.yaw)
+    return 0
+
+def move_to_position_with_fixed_yaw(master, lat_int, lon_int, altitude, yaw_deg):
+    """ヨー角固定での位置移動"""
+    yaw_rad = math.radians(yaw_deg)
+    
     master.mav.set_position_target_global_int_send(
         0, master.target_system, master.target_component,
         mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
-        0b0000111111111000,
+        0b0000111111000000,  # ヨー角制御を有効化
         lat_int, lon_int, altitude,
-        0, 0, 0, 0, 0, 0, 0, 0
+        0, 0, 0, 0, 0, 0, yaw_rad, 0
     )
 
 def get_current_status(master):
@@ -180,10 +189,10 @@ def get_current_status(master):
     
     return status
 
-def precision_control_with_altitude(master, start_position):
-    """精密制御ループ（高度制御対応）"""
+def precision_control_with_fixed_yaw(master, start_position):
+    """精密制御ループ（ヨー角固定対応）"""
     print("\n" + "="*60)
-    print("PRECISION CONTROL MODE - WITH ALTITUDE CONTROL")
+    print("PRECISION CONTROL MODE - WITH FIXED YAW ANGLE")
     print("="*60)
     print("Controls:")
     print("  ↑ : South (-2cm)     | ↓ : North (+2cm)")
@@ -193,8 +202,8 @@ def precision_control_with_altitude(master, start_position):
     print("  s : Status           | h : Hold position")
     print("  r : Return origin    | q : Quit")
     print("Movement distance: 2cm per key press")
+    print("Yaw angle: FIXED (maintains current heading)")
     print("="*60)
-    print("Ready for control...")
     
     # 初期化
     wgs84 = pyned2lla.wgs84()
@@ -208,6 +217,11 @@ def precision_control_with_altitude(master, start_position):
     total_north = 0.0
     total_east = 0.0
     current_altitude = TAKEOFF_ALTITUDE  # 現在の目標高度
+    
+    # 初期ヨー角を記録
+    initial_yaw = get_current_yaw(master)
+    print(f"Initial yaw angle: {initial_yaw:.1f}° (FIXED)")
+    print("Ready for control...")
     
     while True:
         key = get_key()
@@ -223,6 +237,7 @@ def precision_control_with_altitude(master, start_position):
             status = get_current_status(master)
             print(f"Position: N={total_north*100:+.0f}cm, E={total_east*100:+.0f}cm")
             print(f"Target Altitude: {current_altitude:.3f}m")
+            print(f"Fixed Yaw Angle: {initial_yaw:.1f}°")
             if 'lat' in status:
                 print(f"GPS: {status['lat']:.7f}, {status['lon']:.7f}")
             if 'altitude' in status:
@@ -231,6 +246,10 @@ def precision_control_with_altitude(master, start_position):
                 print(f"Altitude Error: {alt_error*100:.1f}cm")
             if 'roll' in status:
                 print(f"Attitude: Roll={status['roll']:+.1f}°, Pitch={status['pitch']:+.1f}°, Yaw={status['yaw']:+.1f}°")
+                yaw_error = abs(status['yaw'] - initial_yaw)
+                if yaw_error > 180:
+                    yaw_error = 360 - yaw_error
+                print(f"Yaw Error: {yaw_error:.1f}°")
             print("--- END ---\n")
             continue
         elif key == 'h':
@@ -289,8 +308,9 @@ def precision_control_with_altitude(master, start_position):
             target_lat_int = int(math.degrees(target_lat_rad) * 1e7)
             target_lon_int = int(math.degrees(target_lon_rad) * 1e7)
             
-            # 移動コマンド送信（高度含む）
-            move_to_position_with_altitude(master, target_lat_int, target_lon_int, current_altitude)
+            # ヨー角固定で移動コマンド送信
+            move_to_position_with_fixed_yaw(master, target_lat_int, target_lon_int, 
+                                          current_altitude, initial_yaw)
             
             if altitude_changed:
                 print(f"  Target altitude set to: {current_altitude:.3f}m")
@@ -299,7 +319,7 @@ def precision_control_with_altitude(master, start_position):
 
 def main():
     """メイン処理"""
-    print("ArduPilot Precision Control System - 3D Control Version")
+    print("ArduPilot Precision Control System - Fixed Yaw Version")
     print("=" * 60)
     
     try:
@@ -319,7 +339,7 @@ def main():
     print("1. Switch to GUIDED mode on transmitter")
     print("2. Wait for GPS fix and initialization")
     print("3. Arm the vehicle")
-    print("4. Automatic takeoff and 3D precision control")
+    print("4. Automatic takeoff and 3D precision control with fixed yaw")
     
     # 3. GUIDEDモード待機
     wait_for_guided_mode(master)
@@ -338,8 +358,8 @@ def main():
     # 6. 離陸
     takeoff(master, TAKEOFF_ALTITUDE)
     
-    # 7. 3次元精密制御開始
-    precision_control_with_altitude(master, start_position)
+    # 7. ヨー角固定3次元精密制御開始
+    precision_control_with_fixed_yaw(master, start_position)
     
     print("Program completed successfully")
 
