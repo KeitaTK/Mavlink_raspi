@@ -16,7 +16,7 @@ params_to_set = {
     # --- EKF3基本設定 ---
     'AHRS_EKF_TYPE': 3.0,
     'EK3_ENABLE': 1.0,
-    'EK3_IMU_MASK': 1.0,
+    'EK3_IMU_MASK': 3,
     
     # --- ハイブリッド設定：GPS位置+コンパスヨー角（GPS補助）、速度はIMU推定 ---
     'EK3_SRC1_POSXY': 3,     # GPS (水平位置)
@@ -27,11 +27,11 @@ params_to_set = {
     
     # --- EKF3精度設定（適正化） ---
     'EK3_GPS_CHECK': 0,      # GPS健全性チェック完全無効化
-    'EK3_POS_I_GATE': 15.0,  # 位置ゲート大幅緩和
+    'EK3_POS_I_GATE': 10.0,  # 位置ゲート(デフォルト5)
     'EK3_VEL_I_GATE': 8.0,   # 速度ゲート（IMU推定精度向上）
-    'EK3_HGT_I_GATE': 15.0,  # 高度ゲート大幅緩和
+    'EK3_HGT_I_GATE': 10.0,  # 高度ゲート
     
-    # --- ノイズパラメータ（ハイブリッド用調整） ---
+    # --- ノイズパラメータ（ハイブリッド用調整） --- これを小さくするとGPS情報をより信用
     'EK3_POSNE_M_NSE': 0.5,  # 水平位置ノイズ: 50cm
     'EK3_VELNE_M_NSE': 0.5,  # 水平速度ノイズ: 50cm/s
     'EK3_VELD_M_NSE': 0.5,   # 垂直速度ノイズ: 50cm/s
@@ -56,7 +56,7 @@ params_to_set = {
     # --- EKF安定化設定（適正化） ---
     'EK3_GLITCH_RAD': 25,    # GPS Glitch検出半径緩和
     'EK3_CHECK_SCALE': 100,  # EKFチェックスケール（200→100に適正化）
-    'EK3_PRIMARY': 0,
+    'EK3_PRIMARY': 0, # 自動切り替え無効
     
     # --- GPS設定 ---
     'GPS1_TYPE': 14,         # MAVLink GPS Input
