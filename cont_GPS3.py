@@ -1,76 +1,82 @@
 #!/usr/bin/env python3
-"""
-ArduPilot 精密制御システム  ─  シンプル 2 行表示 + WASD/矢印 + ヨー制御
-  • 矢印↑↓→← : 2 cm 単位で  南 / 北 / 西 / 東 へ水平移動
-  • w / z     : 2 cm 単位で  上昇 / 下降
-  • a / d     : Yaw 目標角を −5° / ＋5°（0-360°ラップ）
-  • s         : 状態表示　h : ホールド　r : 原点へ戻る　q : 終了
-"""
+# ──────────────────────────────────────────────────────────────
+# ArduPilot Precision Controller  ‑  simple 2-line GPS display +
+#    key echo  +  arrow/WZ/AD yaw   (初期ヨー=南向き)
+#
+#   ↑ ↓ → ← : 2 cm  南 / 北 / 西 / 東
+#   w / z   : 2 cm  上昇 / 下降
+#   a / d   : 目標ヨー角 −5° / ＋5°   (0-360° wrap)
+#   s       : 状態ダンプ      h : hold   r : origin   q : quit
+#
+#   キーを押すと   "KEY : xxx"  を 1 行出力し、
+#   その下から 5 Hz で
+#         GPS:    <現在値>
+#         TARGET: <目標値>
+#   の 2 行が更新され続ける。
+# ──────────────────────────────────────────────────────────────
 
 import sys, select, time, math, threading, termios, tty
 import pyned2lla
 from pymavlink import mavutil
 
-# ─────────────────────────────────────  ユーザー設定
-PORT              = '/dev/ttyAMA0'
-BAUD              = 115200
-TAKEOFF_ALT       = 0.10       # 10 cm
-STEP              = 0.02       # 2 cm
-GPS_HZ            = 5
-TYPE_MASK_POS_YAW = 0x05F8     # 速度・加速度・YawRate 無視、Yaw 有効
-# ─────────────────────────────────────────────────────
+# ───────── 設定値 ─────────
+PORT        = '/dev/ttyAMA0'
+BAUD        = 115200
+TAKEOFF_ALT = 0.10          # 10 cm
+STEP        = 0.02          # 2 cm
+GPS_HZ      = 5
+MASK        = 0x05F8        # 位置+Yaw 以外を無視
 
-current_target = {'lat': 0, 'lon': 0, 'alt': 0}
-current_gps    = {'lat': 0, 'lon': 0, 'alt': 0}
-yaw_target_deg = 0.0
+# ───────── グローバル共有 ─────────
+gps_now   = {'lat': 0, 'lon': 0, 'alt': 0}
+target    = {'lat': 0, 'lon': 0, 'alt': 0}
+yaw_t_deg = 180.0           # ★ 初期ヨー角＝南
+mon_flag  = False
+io_lock   = threading.Lock()
 
-lock = threading.Lock()
-monitoring = False
-
-# ─────────────────────────────  キーボード入力（ノンブロッキング）
+# ──────────── キー取得（非ブロック）────────────
 def get_key():
-    if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
-        ch = sys.stdin.read(1)
-        if ch == '\x1b':                                  # ─ 矢印
-            if select.select([sys.stdin], [], [], 0.05)[0]:
-                if sys.stdin.read(1) == '[':
-                    k = sys.stdin.read(1)
-                    return {'A': 'up', 'B': 'down',
-                            'C': 'right', 'D': 'left'}.get(k)
-        return ch                                         # 単独キー
+    if select.select([sys.stdin], [], [], 0)[0]:
+        c = sys.stdin.read(1)
+        if c == '\x1b':                               # ← 矢印開始
+            if select.select([sys.stdin], [], [], 0)[0] and sys.stdin.read(1) == '[':
+                k = sys.stdin.read(1)
+                return {'A':'up', 'B':'down', 'C':'right', 'D':'left'}.get(k)
+        return c
     return None
 
-# ─────────────────────────────  MAVLink 接続 & 初期化
+# ──────────── MAVLink 接続 ────────────
 def connect():
-    print(f'Connecting {PORT} …')
-    m = mavutil.mavlink_connection(PORT, baud=BAUD, wait_heartbeat=True)
-    print('✓ heartbeat OK')
-    return m
+    print(f'Connecting {PORT} …'); m = mavutil.mavlink_connection(PORT, baud=BAUD,
+                                                                   wait_heartbeat=True)
+    print('✓ Heartbeat'); return m
 
-def set_msg_rate(m):
-    for mid, us in [(24,200000), (33,200000), (30,500000)]:     # GPS / GLOBAL_POS / ATT
+def req_rates(m):
+    for mid, us in [(24,200000), (33,200000), (30,500000)]:
         m.mav.command_long_send(m.target_system, m.target_component,
-            mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
-            0, mid, us, 0,0,0,0,0)
+            mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL, 0, mid, us, 0,0,0,0,0)
 
-# ─────────────────────────────  GPS モニタ（２ 行表示のみ）
-def gps_thread(master):
-    global monitoring
-    while monitoring:
-        msg = master.recv_match(type='GLOBAL_POSITION_INT',
-                                blocking=False, timeout=0.1)
-        if msg:
-            with lock:
-                current_gps['lat'] = msg.lat / 1e7
-                current_gps['lon'] = msg.lon / 1e7
-                current_gps['alt'] = msg.relative_alt / 1000.0
-            if current_target['lat']:
-                l1 = f"GPS:    {current_gps['lat']:.7f}, {current_gps['lon']:.7f}, Alt: {current_gps['alt']:.3f}m"
-                l2 = f"TARGET: {current_target['lat']:.7f}, {current_target['lon']:.7f}, Alt: {current_target['alt']:.3f}m"
-                print(f"\r{l1}\n{l2}", end='\r', flush=True)
+# ──────────── 表示部 (GPS更新スレッド) ────────────
+def gps_monitor(m):
+    global mon_flag
+    while mon_flag:
+        pos = m.recv_match(type='GLOBAL_POSITION_INT', blocking=False, timeout=0.1)
+        if pos:
+            with io_lock:
+                gps_now['lat'] = pos.lat/1e7
+                gps_now['lon'] = pos.lon/1e7
+                gps_now['alt'] = pos.relative_alt/1000.0
+
+                if target['lat']:  # 目標が設定されたら 2 行表示
+                    line1 = f"GPS:    {gps_now['lat']:.7f}, {gps_now['lon']:.7f}, Alt: {gps_now['alt']:.3f}m"
+                    line2 = f"TARGET: {target['lat']:.7f}, {target['lon']:.7f}, Alt: {target['alt']:.3f}m"
+                    # \x1b[2K = 行クリア, \r = 行頭復帰
+                    sys.stdout.write("\x1b[2K\r" + line1 + "\n")
+                    sys.stdout.write("\x1b[2K"   + line2 + "\r")
+                    sys.stdout.flush()
         time.sleep(1/GPS_HZ)
 
-# ─────────────────────────────  基本ユーティリティ
+# ──────────── ユーティリティ ────────────
 def wait_fix(m):
     print('Waiting GPS-fix …')
     while True:
@@ -79,91 +85,83 @@ def wait_fix(m):
             pos = m.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
             if pos: return pos
 
-def wait_mode_guided(m):
-    while True:
-        if m.recv_match(type='HEARTBEAT', blocking=True).custom_mode == 4:
-            return
+def wait_mode(m):                     # GUIDED(4) 待機
+    while m.recv_match(type='HEARTBEAT', blocking=True).custom_mode != 4: pass
 
-def wait_arm(m):
-    while True:
-        hb = m.recv_match(type='HEARTBEAT', blocking=True)
-        if hb.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED:
-            return
+def wait_arm(m):                      # ARM 待機
+    while not (m.recv_match(type='HEARTBEAT', blocking=True)
+                 .base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED): pass
 
 def takeoff(m, alt):
     m.mav.command_long_send(m.target_system, m.target_component,
         mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0,0,0,0,0,0,0, alt)
     while True:
         if (m.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
-                .relative_alt / 1000.0) >= alt*0.95:
-            return
+                .relative_alt/1000.0) >= alt*0.95: break
 
-# ─────────────────────────────  位置・ヨー目標送信
 def send_setpoint(m, lat_i, lon_i, alt, yaw_deg):
-    with lock:
-        current_target['lat'] = lat_i/1e7
-        current_target['lon'] = lon_i/1e7
-        current_target['alt'] = alt
+    with io_lock:
+        target['lat'] = lat_i/1e7; target['lon'] = lon_i/1e7; target['alt'] = alt
     m.mav.set_position_target_global_int_send(
         0, m.target_system, m.target_component,
         mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
-        TYPE_MASK_POS_YAW,
-        lat_i, lon_i, alt,
-        0,0,0, 0,0,0,
-        math.radians(yaw_deg), 0)
+        MASK, lat_i, lon_i, alt,
+        0,0,0, 0,0,0, math.radians(yaw_deg), 0)
 
-# ─────────────────────────────  主制御ループ
-def precision_control(m, origin):
-    global monitoring, yaw_target_deg
-    wgs84   = pyned2lla.wgs84()
-    lat0_d  = origin.lat/1e7; lon0_d = origin.lon/1e7
-    lat0_r  = math.radians(lat0_d); lon0_r = math.radians(lon0_d)
-    alt0    = origin.alt/1000.0
+# ──────────── メイン制御ループ ────────────
+def control_loop(m, origin):
+    global mon_flag, yaw_t_deg
+    wgs = pyned2lla.wgs84()
+    lat0 = origin.lat/1e7; lon0 = origin.lon/1e7
+    lat0r, lon0r = map(math.radians, (lat0, lon0)); alt0 = origin.alt/1000.0
 
-    n_tot = e_tot = 0.0
-    alt   = TAKEOFF_ALT
-
-    # コンソール準備
+    n_off = e_off = 0.0; alt = TAKEOFF_ALT
+    # 端末 RAW
     fd = sys.stdin.fileno(); old = termios.tcgetattr(fd); tty.setraw(fd)
 
-    monitoring = True
-    threading.Thread(target=gps_thread, args=(m,), daemon=True).start()
-    print("\nControls: ↑↓→← move 2 cm | w/z ±2 cm alt | a/d ±5° yaw | q quit\n")
+    mon_flag = True
+    threading.Thread(target=gps_monitor, args=(m,), daemon=True).start()
+    print("\nControls: arrows/w z / a d | q quit\n")
 
     try:
         while True:
             k = get_key()
             moved = False
-            if k == 'q': break
-            elif k == 'up'   : n_tot -= STEP; moved = True        # 南
-            elif k == 'down' : n_tot += STEP; moved = True        # 北
-            elif k == 'right': e_tot -= STEP; moved = True        # 西
-            elif k == 'left' : e_tot += STEP; moved = True        # 東
-            elif k == 'w'    : alt   += STEP; moved = True
+            if   k == 'q' : break
+            elif k == 'up'   : n_off -= STEP; moved = True; echo="UP(S)"
+            elif k == 'down' : n_off += STEP; moved = True; echo="DOWN(N)"
+            elif k == 'right': e_off -= STEP; moved = True; echo="RIGHT(W)"
+            elif k == 'left' : e_off += STEP; moved = True; echo="LEFT(E)"
+            elif k == 'w'    : alt   += STEP; moved = True; echo="w +Alt"
             elif k == 'z'    : 
-                if alt-STEP >= 0.05: alt -= STEP; moved = True
-            elif k == 'a'    : yaw_target_deg = (yaw_target_deg-5)%360; moved = True
-            elif k == 'd'    : yaw_target_deg = (yaw_target_deg+5)%360; moved = True
+                if alt-STEP >= 0.05: alt -= STEP; moved = True; echo="z -Alt"
+            elif k == 'a'    : yaw_t_deg = (yaw_t_deg-5)%360; moved = True; echo="a -Yaw"
+            elif k == 'd'    : yaw_t_deg = (yaw_t_deg+5)%360; moved = True; echo="d +Yaw"
+            else:             echo=None
+
+            if echo:                   # キーを受け取ったら 1 行表示
+                sys.stdout.write("\x1b[2K\rKEY : " + echo + "\n")  # 行クリア→表示→改行
+                sys.stdout.flush()
 
             if moved:
-                lat_r, lon_r, _ = pyned2lla.ned2lla(
-                    lat0_r, lon0_r, alt0, n_tot, e_tot, 0, wgs84)
+                latr, lonr, _ = pyned2lla.ned2lla(lat0r, lon0r, alt0,
+                                                  n_off, e_off, 0, wgs)
                 send_setpoint(m,
-                    int(math.degrees(lat_r)*1e7),
-                    int(math.degrees(lon_r)*1e7),
-                    alt, yaw_target_deg)
+                    int(math.degrees(latr)*1e7),
+                    int(math.degrees(lonr)*1e7),
+                    alt, yaw_t_deg)
             time.sleep(0.05)
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
-        monitoring = False
+        mon_flag = False
         print('\nExit.')
 
-# ─────────────────────────────  エントリポイント
+# ──────────── エントリポイント ────────────
 def main():
-    master = connect(); set_msg_rate(master)
-    wait_mode_guided(master); pos0 = wait_fix(master)
-    wait_arm(master); takeoff(master, TAKEOFF_ALT)
-    precision_control(master, pos0)
+    master = connect(); req_rates(master)
+    wait_mode(master); pos0 = wait_fix(master)
+    wait_arm(master);  takeoff(master, TAKEOFF_ALT)
+    control_loop(master, pos0)
 
 if __name__ == '__main__':
     main()
