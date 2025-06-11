@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-ArduPilot精密制御システム - ヨー角制御無効版 + GPS誤差監視
-GPS_INPUT使用、3次元精密制御、ヨー角制御なし、2cm精度制御、リアルタイム誤差表示
+ArduPilot精密制御システム - シンプル表示版
+GPS_INPUT使用、3次元精密制御、ヨー角制御なし、2cm精度制御、シンプル2行表示
 """
 
 import time
@@ -89,10 +89,8 @@ def setup_minimal_messages(master):
     print("✓ Message setup complete")
 
 def gps_monitoring_thread(master):
-    """GPS情報監視スレッド（5Hz）"""
+    """GPS情報監視スレッド（シンプル表示）"""
     global current_gps, current_target, monitoring_active
-    
-    print("GPS monitoring thread started")
     
     while monitoring_active:
         try:
@@ -106,25 +104,18 @@ def gps_monitoring_thread(master):
                     current_gps['alt'] = pos_msg.relative_alt / 1000.0
                     current_gps['timestamp'] = time.time()
                 
-                # 誤差計算と表示
+                # シンプルな2行表示
                 if current_target['lat'] != 0:  # 目標が設定されている場合
-                    lat_error = (current_gps['lat'] - current_target['lat']) * 111319.9  # 緯度差をメートルに変換
-                    lon_error = (current_gps['lon'] - current_target['lon']) * 111319.9 * math.cos(math.radians(current_gps['lat']))
-                    alt_error = current_gps['alt'] - current_target['alt']
+                    # カーソルを行頭に戻して2行表示
+                    line1 = f"GPS:    {current_gps['lat']:.7f}, {current_gps['lon']:.7f}, Alt: {current_gps['alt']:.3f}m"
+                    line2 = f"TARGET: {current_target['lat']:.7f}, {current_target['lon']:.7f}, Alt: {current_target['alt']:.3f}m"
                     
-                    total_error = math.sqrt(lat_error**2 + lon_error**2 + alt_error**2)
-                    
-                    # 誤差表示（上書き形式）
-                    error_line = (f"\r[GPS] Error: H={math.sqrt(lat_error**2 + lon_error**2)*100:.1f}cm, "
-                                f"V={alt_error*100:+.1f}cm, Total={total_error*100:.1f}cm | "
-                                f"GPS: {current_gps['lat']:.7f}, {current_gps['lon']:.7f}, {current_gps['alt']:.3f}m")
-                    
-                    print(error_line, end='', flush=True)
+                    # 前の表示をクリアして新しい表示
+                    print(f"\r{line1}\n{line2}", end='\r', flush=True)
             
             time.sleep(1.0 / GPS_UPDATE_RATE)  # 5Hz
             
         except Exception as e:
-            print(f"\nGPS monitoring error: {e}")
             time.sleep(0.5)
 
 def wait_for_gps_fix(master):
@@ -197,17 +188,14 @@ def takeoff(master, altitude):
         time.sleep(0.5)
 
 def move_to_position(master, lat_int, lon_int, altitude):
-    """指定GPS座標へ移動（ヨー角制御なし）"""
+    """指定GPS座標へ移動（シンプル表示）"""
     global current_target
     
-    # 目標位置更新
+    # 目標位置更新（表示はGPS監視スレッドで行う）
     with lock:
         current_target['lat'] = lat_int / 1e7
         current_target['lon'] = lon_int / 1e7
         current_target['alt'] = altitude
-    
-    # 目標位置表示
-    print(f"\n[TARGET] Lat: {current_target['lat']:.7f}, Lon: {current_target['lon']:.7f}, Alt: {current_target['alt']:.3f}m")
     
     master.mav.set_position_target_global_int_send(
         0, master.target_system, master.target_component,
@@ -236,11 +224,11 @@ def get_current_status(master):
     return status
 
 def precision_control(master, start_position):
-    """精密制御ループ（ヨー角制御なし + リアルタイム誤差表示）"""
+    """精密制御ループ（シンプル表示版）"""
     global monitoring_active, current_target
     
     print("\n" + "="*80)
-    print("PRECISION CONTROL MODE - NO YAW CONTROL + GPS ERROR MONITORING")
+    print("PRECISION CONTROL MODE - SIMPLE DISPLAY")
     print("="*80)
     print("Controls:")
     print("  ↑ : South (-2cm)     | ↓ : North (+2cm)")
@@ -249,7 +237,6 @@ def precision_control(master, start_position):
     print("  w : Up (+2cm)        | x : Down (-2cm)")
     print("  s : Status           | h : Hold position")
     print("  r : Return origin    | q : Quit")
-    print("Movement: 2cm per key | Yaw: DISABLED | GPS Error: 5Hz update")
     print("="*80)
     
     # 初期化
@@ -270,14 +257,14 @@ def precision_control(master, start_position):
         current_target['lon'] = lon0_deg
         current_target['alt'] = current_altitude
     
-    print(f"Initial position: {lat0_deg:.7f}, {lon0_deg:.7f}")
-    
     # GPS監視スレッド開始
     monitoring_active = True
     gps_thread = threading.Thread(target=gps_monitoring_thread, args=(master,), daemon=True)
     gps_thread.start()
     
-    print("Ready for precision control... (GPS error monitoring active)")
+    print("Ready for control... Use keys above. GPS display will appear below:")
+    print()  # GPS表示用の空行を確保
+    print()  # TARGET表示用の空行を確保
     
     # 端末設定（ノンブロッキング用）
     import termios, tty
@@ -290,65 +277,50 @@ def precision_control(master, start_position):
             key = get_non_blocking_key()
             
             if key is None:
-                time.sleep(0.05)  # CPU負荷軽減
+                time.sleep(0.05)
                 continue
             
             moved = False
-            altitude_changed = False
             
             if key == 'q':
-                print("\nExiting precision control")
+                print("\n\nExiting...")
                 break
             elif key == 's':
                 print(f"\n\n--- STATUS ---")
-                print(f"Position: N={total_north*100:+.0f}cm, E={total_east*100:+.0f}cm")
-                print(f"Target Altitude: {current_altitude:.3f}m")
-                with lock:
-                    print(f"Target GPS: {current_target['lat']:.7f}, {current_target['lon']:.7f}")
-                    print(f"Current GPS: {current_gps['lat']:.7f}, {current_gps['lon']:.7f}")
-                print("--- END ---\n")
+                print(f"Position offset: N={total_north*100:+.0f}cm, E={total_east*100:+.0f}cm")
+                print(f"Altitude: {current_altitude:.3f}m")
+                print("--- END ---")
+                print()  # GPS表示用の空行
+                print()  # TARGET表示用の空行
                 continue
             elif key == 'h':
-                print("\n→ Holding current position and altitude")
                 moved = True
             elif key == 'r':
-                print("\n→ Returning to origin")
                 total_north = 0.0
                 total_east = 0.0
                 current_altitude = TAKEOFF_ALTITUDE
                 moved = True
-                altitude_changed = True
             
-            # 移動コマンド処理
+            # 移動コマンド処理（表示なし）
             elif key == 'up':
                 total_north -= MOVE_DISTANCE
                 moved = True
-                print(f"\n↓ South +{MOVE_DISTANCE*100:.0f}cm (total: {total_north*100:+.0f}cm)")
             elif key == 'down':
                 total_north += MOVE_DISTANCE
                 moved = True
-                print(f"\n↑ North +{MOVE_DISTANCE*100:.0f}cm (total: {total_north*100:+.0f}cm)")
             elif key == 'right':
                 total_east -= MOVE_DISTANCE
                 moved = True
-                print(f"\n→ West +{MOVE_DISTANCE*100:.0f}cm (total: {total_east*100:+.0f}cm)")
             elif key == 'left':
                 total_east += MOVE_DISTANCE
                 moved = True
-                print(f"\n← East +{MOVE_DISTANCE*100:.0f}cm (total: {total_east*100:+.0f}cm)")
             elif key == 'ctrl_up' or key == 'w':
                 current_altitude += MOVE_DISTANCE
-                altitude_changed = True
                 moved = True
-                print(f"\n↑ Up +{MOVE_DISTANCE*100:.0f}cm (altitude: {current_altitude:.3f}m)")
             elif key == 'ctrl_down' or key == 'x':
                 if current_altitude - MOVE_DISTANCE >= 0.05:
                     current_altitude -= MOVE_DISTANCE
-                    altitude_changed = True
                     moved = True
-                    print(f"\n↓ Down -{MOVE_DISTANCE*100:.0f}cm (altitude: {current_altitude:.3f}m)")
-                else:
-                    print("\n⚠ Minimum altitude limit (5cm)")
             
             if moved:
                 # NED座標からGPS座標に変換
@@ -360,12 +332,8 @@ def precision_control(master, start_position):
                 target_lat_int = int(math.degrees(target_lat_rad) * 1e7)
                 target_lon_int = int(math.degrees(target_lon_rad) * 1e7)
                 
-                # 移動コマンド送信
+                # 移動コマンド送信（表示はGPS監視スレッドで行う）
                 move_to_position(master, target_lat_int, target_lon_int, current_altitude)
-                
-                if altitude_changed:
-                    print(f"  Target altitude set to: {current_altitude:.3f}m")
-                
                 time.sleep(0.1)
     
     finally:
@@ -377,7 +345,7 @@ def main():
     """メイン処理"""
     global monitoring_active
     
-    print("ArduPilot Precision Control System - Enhanced GPS Monitoring Version")
+    print("ArduPilot Precision Control System - Simple Display Version")
     print("=" * 80)
     
     try:
@@ -398,7 +366,7 @@ def main():
         print("1. Switch to GUIDED mode on transmitter")
         print("2. Wait for GPS fix and initialization")
         print("3. Arm the vehicle")
-        print("4. Automatic takeoff and precision control with GPS monitoring")
+        print("4. Automatic takeoff and precision control with simple GPS display")
         
         # 起動シーケンス
         wait_for_guided_mode(master)
