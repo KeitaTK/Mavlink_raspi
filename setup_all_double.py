@@ -100,8 +100,8 @@ params_to_set = {
     'ATC_RAT_YAW_I': 0.02,   # Yaw I
     
     # --- IMUフィルタ（応答性向上） ---
-    'INS_GYRO_FILTER': 20,   # ジャイロフィルタ（30→20、応答性向上）
-    'INS_ACCEL_FILTER': 20,  # 加速度フィルタ（30→20、応答性向上）
+    'INS_GYRO_FILTER': 30,   # ジャイロフィルタ（30→20、応答性向上）
+    'INS_ACCEL_FILTER': 30,  # 加速度フィルタ（30→20、応答性向上）
     
     # --- フェイルセーフ設定（適正化） ---
     'FS_EKF_ACTION': 2,      # EKF失敗時Stabilizeモード
