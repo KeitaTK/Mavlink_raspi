@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-ArduPilot精密制御システム - 高精度2cm移動版
-GPS_INPUT使用、正確な2cm移動、ヨー角固定、誤差監視機能
+ArduPilot精密制御システム - ヨー角制御無効版
+GPS_INPUT使用、3次元精密制御、ヨー角制御なし、2cm精度制御
 """
 
 import time
@@ -16,7 +16,7 @@ from pymavlink import mavutil
 CONNECTION_PORT = '/dev/ttyAMA0'
 BAUD_RATE = 115200
 TAKEOFF_ALTITUDE = 0.1  # 10cm離陸
-MOVE_DISTANCE = 0.02    # 正確に2cm移動
+MOVE_DISTANCE = 0.02    # 2cm移動
 
 def get_key():
     """キー入力取得（高度制御対応）"""
@@ -150,23 +150,14 @@ def takeoff(master, altitude):
                 break
         time.sleep(0.5)
 
-def get_current_yaw(master):
-    """現在のヨー角取得"""
-    att_msg = master.recv_match(type='ATTITUDE', blocking=True, timeout=2)
-    if att_msg:
-        return math.degrees(att_msg.yaw)
-    return 0
-
-def move_to_position_with_fixed_yaw(master, lat_int, lon_int, altitude, yaw_deg):
-    """ヨー角固定での位置移動"""
-    yaw_rad = math.radians(yaw_deg)
-    
+def move_to_position(master, lat_int, lon_int, altitude):
+    """指定GPS座標へ移動（ヨー角制御なし）"""
     master.mav.set_position_target_global_int_send(
         0, master.target_system, master.target_component,
         mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
-        0b0000111111000000,  # ヨー角制御を有効化
+        0b0000111111111000,  # ヨー角制御無効
         lat_int, lon_int, altitude,
-        0, 0, 0, 0, 0, 0, yaw_rad, 0
+        0, 0, 0, 0, 0, 0, 0, 0
     )
 
 def get_current_status(master):
@@ -189,50 +180,37 @@ def get_current_status(master):
     
     return status
 
-def simple_ned_to_gps(lat0_deg, lon0_deg, north_m, east_m):
-    """シンプルで正確なNED→GPS変換"""
-    # WGS84楕円体での1度あたりの距離（より正確）
-    lat_m_per_deg = 111132.92 - 559.82 * math.cos(2 * math.radians(lat0_deg)) + 1.175 * math.cos(4 * math.radians(lat0_deg))
-    lon_m_per_deg = 111412.84 * math.cos(math.radians(lat0_deg)) - 93.5 * math.cos(3 * math.radians(lat0_deg))
-    
-    # 緯度経度変化計算
-    lat_change = north_m / lat_m_per_deg
-    lon_change = east_m / lon_m_per_deg
-    
-    new_lat = lat0_deg + lat_change
-    new_lon = lon0_deg + lon_change
-    
-    return new_lat, new_lon
-
-def precision_control_accurate_2cm(master, start_position):
-    """高精度2cm移動制御"""
+def precision_control(master, start_position):
+    """精密制御ループ（ヨー角制御なし）"""
     print("\n" + "="*60)
-    print("HIGH PRECISION 2CM CONTROL MODE")
+    print("PRECISION CONTROL MODE - NO YAW CONTROL")
     print("="*60)
     print("Controls:")
     print("  ↑ : South (-2cm)     | ↓ : North (+2cm)")
     print("  ← : East (+2cm)      | → : West (-2cm)")
-    print("  w : Up (+2cm)        | x : Down (-2cm)")
+    print("  Ctrl+↑ : Up (+2cm)   | Ctrl+↓ : Down (-2cm)")
+    print("  w : Up (+2cm)        | x : Down (-2cm)")  # 代替キー
     print("  s : Status           | h : Hold position")
     print("  r : Return origin    | q : Quit")
-    print("EXACT movement distance: 2.00cm per key press")
+    print("Movement distance: 2cm per key press")
+    print("Yaw control: DISABLED")
     print("="*60)
     
     # 初期化
+    wgs84 = pyned2lla.wgs84()
     lat0_deg = start_position.lat / 1e7
     lon0_deg = start_position.lon / 1e7
     alt0_msl = start_position.alt / 1000.0
+    lat0_rad = math.radians(lat0_deg)
+    lon0_rad = math.radians(lon0_deg)
     
-    # 累積移動量（メートル単位）
+    # 累積移動量
     total_north = 0.0
     total_east = 0.0
-    current_altitude = TAKEOFF_ALTITUDE
+    current_altitude = TAKEOFF_ALTITUDE  # 現在の目標高度
     
-    # 初期ヨー角記録
-    initial_yaw = get_current_yaw(master)
     print(f"Initial position: {lat0_deg:.7f}, {lon0_deg:.7f}")
-    print(f"Initial yaw angle: {initial_yaw:.1f}° (FIXED)")
-    print("Ready for EXACT 2cm control...")
+    print("Ready for precision control...")
     
     while True:
         key = get_key()
@@ -243,115 +221,89 @@ def precision_control_accurate_2cm(master, start_position):
             print("Exiting precision control")
             break
         elif key == 's':
-            # 詳細状態表示
-            print("\n--- DETAILED STATUS ---")
+            # 状態表示
+            print("\n--- STATUS ---")
             status = get_current_status(master)
-            
-            # 現在の理論位置
-            current_lat, current_lon = simple_ned_to_gps(lat0_deg, lon0_deg, total_north, total_east)
-            
-            print(f"Theoretical Position:")
-            print(f"  North offset: {total_north*100:+.1f}cm")
-            print(f"  East offset:  {total_east*100:+.1f}cm")
-            print(f"  Target GPS:   {current_lat:.7f}, {current_lon:.7f}")
-            
+            print(f"Position: N={total_north*100:+.0f}cm, E={total_east*100:+.0f}cm")
+            print(f"Target Altitude: {current_altitude:.3f}m")
             if 'lat' in status:
-                print(f"Actual GPS:     {status['lat']:.7f}, {status['lon']:.7f}")
-                
-                # 実際の移動距離計算
-                actual_north = (status['lat'] - lat0_deg) * 111111.0
-                actual_east = (status['lon'] - lon0_deg) * 111111.0 * math.cos(math.radians(lat0_deg))
-                
-                print(f"Actual Position:")
-                print(f"  North offset: {actual_north*100:+.1f}cm")
-                print(f"  East offset:  {actual_east*100:+.1f}cm")
-                
-                # 誤差計算
-                north_error = abs(actual_north - total_north) * 100
-                east_error = abs(actual_east - total_east) * 100
-                print(f"Position Error: N={north_error:.1f}cm, E={east_error:.1f}cm")
-            
+                print(f"GPS: {status['lat']:.7f}, {status['lon']:.7f}")
             if 'altitude' in status:
-                print(f"Target Altitude: {current_altitude:.3f}m")
                 print(f"Actual Altitude: {status['altitude']:.3f}m")
-                alt_error = abs(status['altitude'] - current_altitude) * 100
-                print(f"Altitude Error:  {alt_error:.1f}cm")
-            
-            if 'yaw' in status:
-                yaw_error = abs(status['yaw'] - initial_yaw)
-                if yaw_error > 180:
-                    yaw_error = 360 - yaw_error
-                print(f"Yaw Error:       {yaw_error:.1f}°")
-            
+                alt_error = abs(status['altitude'] - current_altitude)
+                print(f"Altitude Error: {alt_error*100:.1f}cm")
+            if 'roll' in status:
+                print(f"Attitude: Roll={status['roll']:+.1f}°, Pitch={status['pitch']:+.1f}°, Yaw={status['yaw']:+.1f}°")
             print("--- END ---\n")
             continue
         elif key == 'h':
-            print("→ Holding current position")
+            print("→ Holding current position and altitude")
             moved = True
         elif key == 'r':
             print("→ Returning to origin")
             total_north = 0.0
             total_east = 0.0
-            current_altitude = TAKEOFF_ALTITUDE
+            current_altitude = TAKEOFF_ALTITUDE  # 高度も初期値に戻す
             moved = True
             altitude_changed = True
         
-        # 水平移動（EXACT 2cm）
+        # 水平移動
         elif key == 'up':  # 南へ移動
-            total_north -= 0.02  # EXACTLY 2cm
+            total_north -= MOVE_DISTANCE
             moved = True
-            print(f"↓ South EXACTLY 2.0cm (total: {total_north*100:+.1f}cm)")
+            print(f"↓ South +{MOVE_DISTANCE*100:.0f}cm (total: {total_north*100:+.0f}cm)")
         elif key == 'down':  # 北へ移動
-            total_north += 0.02  # EXACTLY 2cm
+            total_north += MOVE_DISTANCE
             moved = True
-            print(f"↑ North EXACTLY 2.0cm (total: {total_north*100:+.1f}cm)")
+            print(f"↑ North +{MOVE_DISTANCE*100:.0f}cm (total: {total_north*100:+.0f}cm)")
         elif key == 'right':  # 西へ移動
-            total_east -= 0.02  # EXACTLY 2cm
+            total_east -= MOVE_DISTANCE
             moved = True
-            print(f"→ West EXACTLY 2.0cm (total: {total_east*100:+.1f}cm)")
+            print(f"→ West +{MOVE_DISTANCE*100:.0f}cm (total: {total_east*100:+.0f}cm)")
         elif key == 'left':  # 東へ移動
-            total_east += 0.02  # EXACTLY 2cm
+            total_east += MOVE_DISTANCE
             moved = True
-            print(f"← East EXACTLY 2.0cm (total: {total_east*100:+.1f}cm)")
+            print(f"← East +{MOVE_DISTANCE*100:.0f}cm (total: {total_east*100:+.0f}cm)")
         
         # 高度制御
-        elif key == 'w':  # 上昇
-            current_altitude += 0.02  # EXACTLY 2cm
+        elif key == 'ctrl_up' or key == 'w':  # 上昇
+            current_altitude += MOVE_DISTANCE
             altitude_changed = True
             moved = True
-            print(f"↑ Up EXACTLY 2.0cm (altitude: {current_altitude:.3f}m)")
-        elif key == 'x':  # 下降
-            if current_altitude - 0.02 >= 0.05:
-                current_altitude -= 0.02  # EXACTLY 2cm
+            print(f"↑ Up +{MOVE_DISTANCE*100:.0f}cm (altitude: {current_altitude:.3f}m)")
+        elif key == 'ctrl_down' or key == 'x':  # 下降
+            # 安全な最低高度チェック
+            if current_altitude - MOVE_DISTANCE >= 0.05:  # 5cm以上を維持
+                current_altitude -= MOVE_DISTANCE
                 altitude_changed = True
                 moved = True
-                print(f"↓ Down EXACTLY 2.0cm (altitude: {current_altitude:.3f}m)")
+                print(f"↓ Down -{MOVE_DISTANCE*100:.0f}cm (altitude: {current_altitude:.3f}m)")
             else:
                 print("⚠ Minimum altitude limit (5cm)")
         
         if moved:
-            # 高精度GPS座標計算
-            target_lat, target_lon = simple_ned_to_gps(lat0_deg, lon0_deg, total_north, total_east)
+            # NED座標からGPS座標に変換
+            (target_lat_rad, target_lon_rad, _) = pyned2lla.ned2lla(
+                lat0_rad, lon0_rad, alt0_msl, 
+                total_north, total_east, 0, wgs84
+            )
             
-            # degE7形式に変換（精度保持）
-            target_lat_int = int(round(target_lat * 1e7))
-            target_lon_int = int(round(target_lon * 1e7))
+            # 整数値に変換して送信
+            target_lat_int = int(math.degrees(target_lat_rad) * 1e7)
+            target_lon_int = int(math.degrees(target_lon_rad) * 1e7)
             
-            print(f"  Target GPS: {target_lat:.7f}, {target_lon:.7f}")
-            
-            # 移動コマンド送信
-            move_to_position_with_fixed_yaw(master, target_lat_int, target_lon_int, 
-                                          current_altitude, initial_yaw)
+            # 移動コマンド送信（ヨー角制御なし）
+            move_to_position(master, target_lat_int, target_lon_int, current_altitude)
             
             if altitude_changed:
-                print(f"  Target altitude: {current_altitude:.3f}m")
+                print(f"  Target altitude set to: {current_altitude:.3f}m")
             
-            time.sleep(0.1)
+            time.sleep(0.1)  # コマンド処理時間
 
 def main():
     """メイン処理"""
-    print("ArduPilot Precision Control System - High Precision 2cm Version")
-    print("=" * 70)
+    print("ArduPilot Precision Control System - No Yaw Control Version")
+    print("=" * 60)
     
     try:
         import pyned2lla
@@ -370,7 +322,7 @@ def main():
     print("1. Switch to GUIDED mode on transmitter")
     print("2. Wait for GPS fix and initialization")
     print("3. Arm the vehicle")
-    print("4. Automatic takeoff and HIGH PRECISION 2cm control")
+    print("4. Automatic takeoff and precision control without yaw")
     
     # 3. GUIDEDモード待機
     wait_for_guided_mode(master)
@@ -389,8 +341,8 @@ def main():
     # 6. 離陸
     takeoff(master, TAKEOFF_ALTITUDE)
     
-    # 7. 高精度2cm制御開始
-    precision_control_accurate_2cm(master, start_position)
+    # 7. 精密制御開始
+    precision_control(master, start_position)
     
     print("Program completed successfully")
 
