@@ -89,12 +89,20 @@ params_to_set = {
     'PSC_VELXY_I': 2.5,      # 水平速度制御I
     
     # --- 姿勢制御PID ---
-    'ATC_RAT_RLL_P': 0.05,    # Roll P
-    'ATC_RAT_RLL_I': 0.1,    # Roll I
-    'ATC_RAT_RLL_D': 0.003,  # Roll D
-    'ATC_RAT_PIT_P': 0.05,    # Pitch P
-    'ATC_RAT_PIT_I': 0.1,    # Pitch I
-    'ATC_RAT_PIT_D': 0.003,  # Pitch D
+    # 'ATC_RAT_RLL_P': 0.05,    # Roll P
+    # 'ATC_RAT_RLL_I': 0.1,    # Roll I
+    # 'ATC_RAT_RLL_D': 0.003,  # Roll D
+    # 'ATC_RAT_PIT_P': 0.05,    # Pitch P
+    # 'ATC_RAT_PIT_I': 0.1,    # Pitch I
+    # 'ATC_RAT_PIT_D': 0.003,  # Pitch D
+    
+    'ATC_RAT_RLL_P': 0.05,   # Roll P（0.1→0.05、半減）
+    'ATC_RAT_RLL_I': 0.05,   # Roll I（0.1→0.05、半減）
+    'ATC_RAT_RLL_D': 0.001,  # Roll D（0.003→0.001、削減）
+    'ATC_RAT_PIT_P': 0.05,   # Pitch P（0.1→0.05、半減）
+    'ATC_RAT_PIT_I': 0.05,   # Pitch I（0.1→0.05、半減）
+    'ATC_RAT_PIT_D': 0.001,  # Pitch D（0.003→0.001、削減）
+
     'ATC_RAT_YAW_P': 0.2,    # Yaw P（GPS ヨー対応）
     'ATC_RAT_YAW_I': 0.02,   # Yaw I
     
