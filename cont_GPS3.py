@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-ArduPilot精密制御システム - ヨー角制御無効版
-GPS_INPUT使用、3次元精密制御、ヨー角制御なし、2cm精度制御
+ArduPilot精密制御システム - ヨー角制御無効版 + GPS誤差監視
+GPS_INPUT使用、3次元精密制御、ヨー角制御なし、2cm精度制御、リアルタイム誤差表示
 """
 
 import time
 import sys
-import tty
-import termios
+import select
 import math
+import threading
 import pyned2lla
 from pymavlink import mavutil
 
@@ -17,35 +17,44 @@ CONNECTION_PORT = '/dev/ttyAMA0'
 BAUD_RATE = 115200
 TAKEOFF_ALTITUDE = 0.1  # 10cm離陸
 MOVE_DISTANCE = 0.02    # 2cm移動
+GPS_UPDATE_RATE = 5     # Hz
 
-def get_key():
-    """キー入力取得（高度制御対応）"""
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
-    try:
-        tty.setraw(sys.stdin.fileno())
+# グローバル変数
+current_target = {'lat': 0, 'lon': 0, 'alt': 0}
+current_gps = {'lat': 0, 'lon': 0, 'alt': 0, 'timestamp': 0}
+monitoring_active = False
+lock = threading.Lock()
+
+def get_non_blocking_key():
+    """ノンブロッキングキー入力取得"""
+    if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
         ch = sys.stdin.read(1)
         
-        # 通常のキー処理
+        # エスケープシーケンス処理
         if ch == '\x1b':
-            ch2 = sys.stdin.read(1)
-            ch3 = sys.stdin.read(1)
-            if ch2 == '[':
-                if ch3 == 'A': return 'up'
-                if ch3 == 'B': return 'down'
-                if ch3 == 'C': return 'right'
-                if ch3 == 'D': return 'left'
-                # Ctrl+矢印キーの検出
-                elif ch3 == '1':
-                    ch4 = sys.stdin.read(1)
-                    ch5 = sys.stdin.read(1)
-                    if ch4 == ';' and ch5 == '5':
-                        ch6 = sys.stdin.read(1)
-                        if ch6 == 'A': return 'ctrl_up'
-                        if ch6 == 'B': return 'ctrl_down'
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-    return ch
+            if select.select([sys.stdin], [], [], 0.1) == ([sys.stdin], [], []):
+                ch2 = sys.stdin.read(1)
+                if ch2 == '[':
+                    if select.select([sys.stdin], [], [], 0.1) == ([sys.stdin], [], []):
+                        ch3 = sys.stdin.read(1)
+                        if ch3 == 'A': return 'up'
+                        if ch3 == 'B': return 'down'
+                        if ch3 == 'C': return 'right'
+                        if ch3 == 'D': return 'left'
+                        # Ctrl+矢印キー検出
+                        elif ch3 == '1':
+                            if select.select([sys.stdin], [], [], 0.1) == ([sys.stdin], [], []):
+                                ch4 = sys.stdin.read(1)
+                                if ch4 == ';':
+                                    if select.select([sys.stdin], [], [], 0.1) == ([sys.stdin], [], []):
+                                        ch5 = sys.stdin.read(1)
+                                        if ch5 == '5':
+                                            if select.select([sys.stdin], [], [], 0.1) == ([sys.stdin], [], []):
+                                                ch6 = sys.stdin.read(1)
+                                                if ch6 == 'A': return 'ctrl_up'
+                                                if ch6 == 'B': return 'ctrl_down'
+        return ch
+    return None
 
 def connect_to_vehicle(port, baud):
     """機体に接続"""
@@ -58,16 +67,17 @@ def setup_minimal_messages(master):
     """最小限のメッセージ要求"""
     print("Setting up essential messages...")
     
+    # GPS情報を高頻度で要求（200ms間隔 = 5Hz）
     master.mav.command_long_send(
         master.target_system, master.target_component,
         mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL, 0,
-        24, 1000000, 0, 0, 0, 0, 0  # GPS_RAW_INT, 1秒間隔
+        24, 200000, 0, 0, 0, 0, 0  # GPS_RAW_INT, 200ms間隔
     )
     
     master.mav.command_long_send(
         master.target_system, master.target_component,
         mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL, 0,
-        33, 1000000, 0, 0, 0, 0, 0  # GLOBAL_POSITION_INT, 1秒間隔
+        33, 200000, 0, 0, 0, 0, 0  # GLOBAL_POSITION_INT, 200ms間隔
     )
     
     master.mav.command_long_send(
@@ -78,17 +88,55 @@ def setup_minimal_messages(master):
     
     print("✓ Message setup complete")
 
+def gps_monitoring_thread(master):
+    """GPS情報監視スレッド（5Hz）"""
+    global current_gps, current_target, monitoring_active
+    
+    print("GPS monitoring thread started")
+    
+    while monitoring_active:
+        try:
+            # GPS情報取得
+            pos_msg = master.recv_match(type='GLOBAL_POSITION_INT', blocking=False, timeout=0.1)
+            
+            if pos_msg:
+                with lock:
+                    current_gps['lat'] = pos_msg.lat / 1e7
+                    current_gps['lon'] = pos_msg.lon / 1e7
+                    current_gps['alt'] = pos_msg.relative_alt / 1000.0
+                    current_gps['timestamp'] = time.time()
+                
+                # 誤差計算と表示
+                if current_target['lat'] != 0:  # 目標が設定されている場合
+                    lat_error = (current_gps['lat'] - current_target['lat']) * 111319.9  # 緯度差をメートルに変換
+                    lon_error = (current_gps['lon'] - current_target['lon']) * 111319.9 * math.cos(math.radians(current_gps['lat']))
+                    alt_error = current_gps['alt'] - current_target['alt']
+                    
+                    total_error = math.sqrt(lat_error**2 + lon_error**2 + alt_error**2)
+                    
+                    # 誤差表示（上書き形式）
+                    error_line = (f"\r[GPS] Error: H={math.sqrt(lat_error**2 + lon_error**2)*100:.1f}cm, "
+                                f"V={alt_error*100:+.1f}cm, Total={total_error*100:.1f}cm | "
+                                f"GPS: {current_gps['lat']:.7f}, {current_gps['lon']:.7f}, {current_gps['alt']:.3f}m")
+                    
+                    print(error_line, end='', flush=True)
+            
+            time.sleep(1.0 / GPS_UPDATE_RATE)  # 5Hz
+            
+        except Exception as e:
+            print(f"\nGPS monitoring error: {e}")
+            time.sleep(0.5)
+
 def wait_for_gps_fix(master):
     """GPS Fix待機（EKF原点自動設定）"""
     print("Waiting for GPS fix (EKF origin will be set automatically)...")
     
-    for attempt in range(60):  # 60秒間待機
+    for attempt in range(60):
         gps_msg = master.recv_match(type='GPS_RAW_INT', blocking=True, timeout=2)
         if gps_msg and gps_msg.fix_type >= 3:
             print(f"✓ GPS Fix: {gps_msg.fix_type}, Satellites: {gps_msg.satellites_visible}")
             print("✓ EKF origin automatically set")
             
-            # 位置データ確認
             pos_msg = master.recv_match(type='GLOBAL_POSITION_INT', blocking=True, timeout=3)
             if pos_msg and pos_msg.lat != 0:
                 lat_deg = pos_msg.lat / 1e7
@@ -107,13 +155,13 @@ def wait_for_guided_mode(master):
     print("Waiting for GUIDED mode...")
     while True:
         msg = master.recv_match(type='HEARTBEAT', blocking=True)
-        if msg.custom_mode == 4:  # ArduCopterのGUIDEDモード
+        if msg.custom_mode == 4:
             print("✓ GUIDED mode active")
             break
         time.sleep(0.5)
 
 def wait_for_arm(master):
-    """アーム待機（ホームポジション自動設定）"""
+    """アーム待機"""
     print("Waiting for vehicle to be armed...")
     print("Please arm using transmitter: Throttle down + Yaw right for 5 seconds")
     
@@ -131,14 +179,12 @@ def takeoff(master, altitude):
     """離陸"""
     print(f"Taking off to {altitude}m...")
     
-    # 離陸コマンド送信
     master.mav.command_long_send(
         master.target_system, master.target_component,
         mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0,
         0, 0, 0, 0, 0, 0, altitude
     )
     
-    # 高度監視
     while True:
         msg = master.recv_match(type='GLOBAL_POSITION_INT', blocking=True, timeout=3)
         if msg:
@@ -152,6 +198,17 @@ def takeoff(master, altitude):
 
 def move_to_position(master, lat_int, lon_int, altitude):
     """指定GPS座標へ移動（ヨー角制御なし）"""
+    global current_target
+    
+    # 目標位置更新
+    with lock:
+        current_target['lat'] = lat_int / 1e7
+        current_target['lon'] = lon_int / 1e7
+        current_target['alt'] = altitude
+    
+    # 目標位置表示
+    print(f"\n[TARGET] Lat: {current_target['lat']:.7f}, Lon: {current_target['lon']:.7f}, Alt: {current_target['alt']:.3f}m")
+    
     master.mav.set_position_target_global_int_send(
         0, master.target_system, master.target_component,
         mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
@@ -164,14 +221,12 @@ def get_current_status(master):
     """現在の状態取得"""
     status = {}
     
-    # 位置情報
     pos_msg = master.recv_match(type='GLOBAL_POSITION_INT', blocking=True, timeout=2)
     if pos_msg:
         status['lat'] = pos_msg.lat / 1e7
         status['lon'] = pos_msg.lon / 1e7
         status['altitude'] = pos_msg.relative_alt / 1000.0
     
-    # 姿勢情報
     att_msg = master.recv_match(type='ATTITUDE', blocking=True, timeout=2)
     if att_msg:
         status['roll'] = math.degrees(att_msg.roll)
@@ -181,20 +236,21 @@ def get_current_status(master):
     return status
 
 def precision_control(master, start_position):
-    """精密制御ループ（ヨー角制御なし）"""
-    print("\n" + "="*60)
-    print("PRECISION CONTROL MODE - NO YAW CONTROL")
-    print("="*60)
+    """精密制御ループ（ヨー角制御なし + リアルタイム誤差表示）"""
+    global monitoring_active, current_target
+    
+    print("\n" + "="*80)
+    print("PRECISION CONTROL MODE - NO YAW CONTROL + GPS ERROR MONITORING")
+    print("="*80)
     print("Controls:")
     print("  ↑ : South (-2cm)     | ↓ : North (+2cm)")
     print("  ← : East (+2cm)      | → : West (-2cm)")
     print("  Ctrl+↑ : Up (+2cm)   | Ctrl+↓ : Down (-2cm)")
-    print("  w : Up (+2cm)        | x : Down (-2cm)")  # 代替キー
+    print("  w : Up (+2cm)        | x : Down (-2cm)")
     print("  s : Status           | h : Hold position")
     print("  r : Return origin    | q : Quit")
-    print("Movement distance: 2cm per key press")
-    print("Yaw control: DISABLED")
-    print("="*60)
+    print("Movement: 2cm per key | Yaw: DISABLED | GPS Error: 5Hz update")
+    print("="*80)
     
     # 初期化
     wgs84 = pyned2lla.wgs84()
@@ -204,106 +260,125 @@ def precision_control(master, start_position):
     lat0_rad = math.radians(lat0_deg)
     lon0_rad = math.radians(lon0_deg)
     
-    # 累積移動量
     total_north = 0.0
     total_east = 0.0
-    current_altitude = TAKEOFF_ALTITUDE  # 現在の目標高度
+    current_altitude = TAKEOFF_ALTITUDE
+    
+    # 初期目標位置設定
+    with lock:
+        current_target['lat'] = lat0_deg
+        current_target['lon'] = lon0_deg
+        current_target['alt'] = current_altitude
     
     print(f"Initial position: {lat0_deg:.7f}, {lon0_deg:.7f}")
-    print("Ready for precision control...")
     
-    while True:
-        key = get_key()
-        moved = False
-        altitude_changed = False
-        
-        if key == 'q':
-            print("Exiting precision control")
-            break
-        elif key == 's':
-            # 状態表示
-            print("\n--- STATUS ---")
-            status = get_current_status(master)
-            print(f"Position: N={total_north*100:+.0f}cm, E={total_east*100:+.0f}cm")
-            print(f"Target Altitude: {current_altitude:.3f}m")
-            if 'lat' in status:
-                print(f"GPS: {status['lat']:.7f}, {status['lon']:.7f}")
-            if 'altitude' in status:
-                print(f"Actual Altitude: {status['altitude']:.3f}m")
-                alt_error = abs(status['altitude'] - current_altitude)
-                print(f"Altitude Error: {alt_error*100:.1f}cm")
-            if 'roll' in status:
-                print(f"Attitude: Roll={status['roll']:+.1f}°, Pitch={status['pitch']:+.1f}°, Yaw={status['yaw']:+.1f}°")
-            print("--- END ---\n")
-            continue
-        elif key == 'h':
-            print("→ Holding current position and altitude")
-            moved = True
-        elif key == 'r':
-            print("→ Returning to origin")
-            total_north = 0.0
-            total_east = 0.0
-            current_altitude = TAKEOFF_ALTITUDE  # 高度も初期値に戻す
-            moved = True
-            altitude_changed = True
-        
-        # 水平移動
-        elif key == 'up':  # 南へ移動
-            total_north -= MOVE_DISTANCE
-            moved = True
-            print(f"↓ South +{MOVE_DISTANCE*100:.0f}cm (total: {total_north*100:+.0f}cm)")
-        elif key == 'down':  # 北へ移動
-            total_north += MOVE_DISTANCE
-            moved = True
-            print(f"↑ North +{MOVE_DISTANCE*100:.0f}cm (total: {total_north*100:+.0f}cm)")
-        elif key == 'right':  # 西へ移動
-            total_east -= MOVE_DISTANCE
-            moved = True
-            print(f"→ West +{MOVE_DISTANCE*100:.0f}cm (total: {total_east*100:+.0f}cm)")
-        elif key == 'left':  # 東へ移動
-            total_east += MOVE_DISTANCE
-            moved = True
-            print(f"← East +{MOVE_DISTANCE*100:.0f}cm (total: {total_east*100:+.0f}cm)")
-        
-        # 高度制御
-        elif key == 'ctrl_up' or key == 'w':  # 上昇
-            current_altitude += MOVE_DISTANCE
-            altitude_changed = True
-            moved = True
-            print(f"↑ Up +{MOVE_DISTANCE*100:.0f}cm (altitude: {current_altitude:.3f}m)")
-        elif key == 'ctrl_down' or key == 'x':  # 下降
-            # 安全な最低高度チェック
-            if current_altitude - MOVE_DISTANCE >= 0.05:  # 5cm以上を維持
-                current_altitude -= MOVE_DISTANCE
+    # GPS監視スレッド開始
+    monitoring_active = True
+    gps_thread = threading.Thread(target=gps_monitoring_thread, args=(master,), daemon=True)
+    gps_thread.start()
+    
+    print("Ready for precision control... (GPS error monitoring active)")
+    
+    # 端末設定（ノンブロッキング用）
+    import termios, tty
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    tty.setraw(sys.stdin.fileno())
+    
+    try:
+        while True:
+            key = get_non_blocking_key()
+            
+            if key is None:
+                time.sleep(0.05)  # CPU負荷軽減
+                continue
+            
+            moved = False
+            altitude_changed = False
+            
+            if key == 'q':
+                print("\nExiting precision control")
+                break
+            elif key == 's':
+                print(f"\n\n--- STATUS ---")
+                print(f"Position: N={total_north*100:+.0f}cm, E={total_east*100:+.0f}cm")
+                print(f"Target Altitude: {current_altitude:.3f}m")
+                with lock:
+                    print(f"Target GPS: {current_target['lat']:.7f}, {current_target['lon']:.7f}")
+                    print(f"Current GPS: {current_gps['lat']:.7f}, {current_gps['lon']:.7f}")
+                print("--- END ---\n")
+                continue
+            elif key == 'h':
+                print("\n→ Holding current position and altitude")
+                moved = True
+            elif key == 'r':
+                print("\n→ Returning to origin")
+                total_north = 0.0
+                total_east = 0.0
+                current_altitude = TAKEOFF_ALTITUDE
+                moved = True
+                altitude_changed = True
+            
+            # 移動コマンド処理
+            elif key == 'up':
+                total_north -= MOVE_DISTANCE
+                moved = True
+                print(f"\n↓ South +{MOVE_DISTANCE*100:.0f}cm (total: {total_north*100:+.0f}cm)")
+            elif key == 'down':
+                total_north += MOVE_DISTANCE
+                moved = True
+                print(f"\n↑ North +{MOVE_DISTANCE*100:.0f}cm (total: {total_north*100:+.0f}cm)")
+            elif key == 'right':
+                total_east -= MOVE_DISTANCE
+                moved = True
+                print(f"\n→ West +{MOVE_DISTANCE*100:.0f}cm (total: {total_east*100:+.0f}cm)")
+            elif key == 'left':
+                total_east += MOVE_DISTANCE
+                moved = True
+                print(f"\n← East +{MOVE_DISTANCE*100:.0f}cm (total: {total_east*100:+.0f}cm)")
+            elif key == 'ctrl_up' or key == 'w':
+                current_altitude += MOVE_DISTANCE
                 altitude_changed = True
                 moved = True
-                print(f"↓ Down -{MOVE_DISTANCE*100:.0f}cm (altitude: {current_altitude:.3f}m)")
-            else:
-                print("⚠ Minimum altitude limit (5cm)")
-        
-        if moved:
-            # NED座標からGPS座標に変換
-            (target_lat_rad, target_lon_rad, _) = pyned2lla.ned2lla(
-                lat0_rad, lon0_rad, alt0_msl, 
-                total_north, total_east, 0, wgs84
-            )
+                print(f"\n↑ Up +{MOVE_DISTANCE*100:.0f}cm (altitude: {current_altitude:.3f}m)")
+            elif key == 'ctrl_down' or key == 'x':
+                if current_altitude - MOVE_DISTANCE >= 0.05:
+                    current_altitude -= MOVE_DISTANCE
+                    altitude_changed = True
+                    moved = True
+                    print(f"\n↓ Down -{MOVE_DISTANCE*100:.0f}cm (altitude: {current_altitude:.3f}m)")
+                else:
+                    print("\n⚠ Minimum altitude limit (5cm)")
             
-            # 整数値に変換して送信
-            target_lat_int = int(math.degrees(target_lat_rad) * 1e7)
-            target_lon_int = int(math.degrees(target_lon_rad) * 1e7)
-            
-            # 移動コマンド送信（ヨー角制御なし）
-            move_to_position(master, target_lat_int, target_lon_int, current_altitude)
-            
-            if altitude_changed:
-                print(f"  Target altitude set to: {current_altitude:.3f}m")
-            
-            time.sleep(0.1)  # コマンド処理時間
+            if moved:
+                # NED座標からGPS座標に変換
+                (target_lat_rad, target_lon_rad, _) = pyned2lla.ned2lla(
+                    lat0_rad, lon0_rad, alt0_msl, 
+                    total_north, total_east, 0, wgs84
+                )
+                
+                target_lat_int = int(math.degrees(target_lat_rad) * 1e7)
+                target_lon_int = int(math.degrees(target_lon_rad) * 1e7)
+                
+                # 移動コマンド送信
+                move_to_position(master, target_lat_int, target_lon_int, current_altitude)
+                
+                if altitude_changed:
+                    print(f"  Target altitude set to: {current_altitude:.3f}m")
+                
+                time.sleep(0.1)
+    
+    finally:
+        # 端末設定復元
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        monitoring_active = False
 
 def main():
     """メイン処理"""
-    print("ArduPilot Precision Control System - No Yaw Control Version")
-    print("=" * 60)
+    global monitoring_active
+    
+    print("ArduPilot Precision Control System - Enhanced GPS Monitoring Version")
+    print("=" * 80)
     
     try:
         import pyned2lla
@@ -311,47 +386,44 @@ def main():
         print("Error: pyned2lla not found. Install with: pip install pyned2lla")
         sys.exit(1)
     
-    # 1. 接続
-    master = connect_to_vehicle(CONNECTION_PORT, BAUD_RATE)
-    
-    # 2. メッセージ設定
-    setup_minimal_messages(master)
-    time.sleep(2)
-    
-    print("\n=== STARTUP SEQUENCE ===")
-    print("1. Switch to GUIDED mode on transmitter")
-    print("2. Wait for GPS fix and initialization")
-    print("3. Arm the vehicle")
-    print("4. Automatic takeoff and precision control without yaw")
-    
-    # 3. GUIDEDモード待機
-    wait_for_guided_mode(master)
-    
-    # 4. GPS Fix待機（EKF原点自動設定）
-    start_position = wait_for_gps_fix(master)
-    if not start_position:
-        print("Failed to get GPS fix. Exiting.")
-        sys.exit(1)
-    
-    # 5. アーム待機（ホームポジション自動設定）
-    if not wait_for_arm(master):
-        print("Failed to arm. Exiting.")
-        sys.exit(1)
-    
-    # 6. 離陸
-    takeoff(master, TAKEOFF_ALTITUDE)
-    
-    # 7. 精密制御開始
-    precision_control(master, start_position)
-    
-    print("Program completed successfully")
-
-if __name__ == "__main__":
     try:
-        main()
+        # 接続
+        master = connect_to_vehicle(CONNECTION_PORT, BAUD_RATE)
+        
+        # メッセージ設定
+        setup_minimal_messages(master)
+        time.sleep(2)
+        
+        print("\n=== STARTUP SEQUENCE ===")
+        print("1. Switch to GUIDED mode on transmitter")
+        print("2. Wait for GPS fix and initialization")
+        print("3. Arm the vehicle")
+        print("4. Automatic takeoff and precision control with GPS monitoring")
+        
+        # 起動シーケンス
+        wait_for_guided_mode(master)
+        start_position = wait_for_gps_fix(master)
+        if not start_position:
+            print("Failed to get GPS fix. Exiting.")
+            sys.exit(1)
+        
+        if not wait_for_arm(master):
+            print("Failed to arm. Exiting.")
+            sys.exit(1)
+        
+        takeoff(master, TAKEOFF_ALTITUDE)
+        precision_control(master, start_position)
+        
+        print("Program completed successfully")
+    
     except KeyboardInterrupt:
         print("\nProgram interrupted by user")
+        monitoring_active = False
     except Exception as e:
         print(f"\nError occurred: {e}")
+        monitoring_active = False
         import traceback
         traceback.print_exc()
+
+if __name__ == "__main__":
+    main()
