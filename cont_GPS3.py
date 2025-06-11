@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ArduPilot精密制御システム - 機首角度維持版
+ArduPilot精密制御システム - 移動方向修正版
 GPS_INPUT使用、3次元精密制御、ヨー角固定、2cm精度制御
 """
 
@@ -263,15 +263,15 @@ def precision_control_with_fixed_yaw(master, start_position):
             moved = True
             altitude_changed = True
         
-        # 水平移動
+        # 水平移動（修正版）[1]
         elif key == 'up':  # 南へ移動
             total_north -= MOVE_DISTANCE
             moved = True
-            print(f"→ South +{MOVE_DISTANCE*100:.0f}cm (total: {total_north*100:+.0f}cm)")
+            print(f"↓ South +{MOVE_DISTANCE*100:.0f}cm (total: {total_north*100:+.0f}cm)")
         elif key == 'down':  # 北へ移動
             total_north += MOVE_DISTANCE
             moved = True
-            print(f"→ North +{MOVE_DISTANCE*100:.0f}cm (total: {total_north*100:+.0f}cm)")
+            print(f"↑ North +{MOVE_DISTANCE*100:.0f}cm (total: {total_north*100:+.0f}cm)")
         elif key == 'right':  # 西へ移動
             total_east -= MOVE_DISTANCE
             moved = True
@@ -279,21 +279,21 @@ def precision_control_with_fixed_yaw(master, start_position):
         elif key == 'left':  # 東へ移動
             total_east += MOVE_DISTANCE
             moved = True
-            print(f"→ East +{MOVE_DISTANCE*100:.0f}cm (total: {total_east*100:+.0f}cm)")
+            print(f"← East +{MOVE_DISTANCE*100:.0f}cm (total: {total_east*100:+.0f}cm)")
         
         # 高度制御
         elif key == 'ctrl_up' or key == 'w':  # 上昇
             current_altitude += MOVE_DISTANCE
             altitude_changed = True
             moved = True
-            print(f"→ Up +{MOVE_DISTANCE*100:.0f}cm (altitude: {current_altitude:.3f}m)")
+            print(f"↑ Up +{MOVE_DISTANCE*100:.0f}cm (altitude: {current_altitude:.3f}m)")
         elif key == 'ctrl_down' or key == 'x':  # 下降
             # 安全な最低高度チェック
             if current_altitude - MOVE_DISTANCE >= 0.05:  # 5cm以上を維持
                 current_altitude -= MOVE_DISTANCE
                 altitude_changed = True
                 moved = True
-                print(f"→ Down -{MOVE_DISTANCE*100:.0f}cm (altitude: {current_altitude:.3f}m)")
+                print(f"↓ Down -{MOVE_DISTANCE*100:.0f}cm (altitude: {current_altitude:.3f}m)")
             else:
                 print("⚠ Minimum altitude limit (5cm)")
         
@@ -319,8 +319,8 @@ def precision_control_with_fixed_yaw(master, start_position):
 
 def main():
     """メイン処理"""
-    print("ArduPilot Precision Control System - Fixed Yaw Version")
-    print("=" * 60)
+    print("ArduPilot Precision Control System - Corrected Direction Version")
+    print("=" * 70)
     
     try:
         import pyned2lla
