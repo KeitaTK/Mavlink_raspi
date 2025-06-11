@@ -92,10 +92,10 @@ params_to_set = {
     # --- 姿勢制御PID（標準値に正常化） ---
     'ATC_RAT_RLL_P': 0.05,  # Roll P（0.05→0.135、標準値）
     'ATC_RAT_RLL_I': 0.05,  # Roll I（0.05→0.135、標準値）
-    'ATC_RAT_RLL_D': 0.002, # Roll D（0.001→0.0036、標準値）
+    'ATC_RAT_RLL_D': 0.003, # Roll D（0.001→0.0036、標準値）
     'ATC_RAT_PIT_P': 0.05,  # Pitch P（0.05→0.135、標準値）
     'ATC_RAT_PIT_I': 0.05,  # Pitch I（0.05→0.135、標準値）
-    'ATC_RAT_PIT_D': 0.002, # Pitch D（0.001→0.0036、標準値）
+    'ATC_RAT_PIT_D': 0.003, # Pitch D（0.001→0.0036、標準値）
     'ATC_RAT_YAW_P': 0.2,    # Yaw P（ハイブリッドヨー対応）
     'ATC_RAT_YAW_I': 0.02,   # Yaw I
     
@@ -193,7 +193,7 @@ for param_name, param_value in params_to_set.items():
     # 確認メッセージを待機
     message = master.recv_match(type='PARAM_VALUE', blocking=True).to_dict()
     print(f'パラメータ設定: {param_name} = {message["param_value"]}')
-    time.sleep(0.1)
+    # time.sleep(0.1)
 
 time.sleep(5)
 
@@ -230,6 +230,6 @@ for param_name in params_to_set.keys():
         print(f'確認: {param_name} = {message["param_value"]}')
     else:
         print(f'確認: {param_name} のデータを取得できませんでした')
-    time.sleep(0.1)
+    # time.sleep(0.1)
 
 print("設定と保存の確認完了")
