@@ -92,10 +92,10 @@ params_to_set = {
     # --- 姿勢制御PID（標準値に正常化） ---
     'ATC_RAT_RLL_P': 0.135,  # Roll P（0.05→0.135、標準値）
     'ATC_RAT_RLL_I': 0.135,  # Roll I（0.05→0.135、標準値）
-    'ATC_RAT_RLL_D': 0.0036, # Roll D（0.001→0.0036、標準値）
+    'ATC_RAT_RLL_D': 0.002, # Roll D（0.001→0.0036、標準値）
     'ATC_RAT_PIT_P': 0.135,  # Pitch P（0.05→0.135、標準値）
     'ATC_RAT_PIT_I': 0.135,  # Pitch I（0.05→0.135、標準値）
-    'ATC_RAT_PIT_D': 0.0036, # Pitch D（0.001→0.0036、標準値）
+    'ATC_RAT_PIT_D': 0.002, # Pitch D（0.001→0.0036、標準値）
     'ATC_RAT_YAW_P': 0.2,    # Yaw P（ハイブリッドヨー対応）
     'ATC_RAT_YAW_I': 0.02,   # Yaw I
     
