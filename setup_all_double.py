@@ -89,13 +89,13 @@ params_to_set = {
     'PSC_VELXY_I': 1.0,      # 水平速度制御I（2.5→1.0に削減）
     'PSC_VELXY_D': 0.5,      # 水平速度制御D（追加）
     
-    # --- 姿勢制御PID（標準値に正常化） ---
+    # --- 姿勢制御PID ---
     'ATC_RAT_RLL_P': 0.05,  # Roll P（0.05→0.135、標準値）
     'ATC_RAT_RLL_I': 0.05,  # Roll I（0.05→0.135、標準値）
-    'ATC_RAT_RLL_D': 0.003, # Roll D（0.001→0.0036、標準値）
+    'ATC_RAT_RLL_D': 0.002, # Roll D（0.001→0.0036、標準値）
     'ATC_RAT_PIT_P': 0.05,  # Pitch P（0.05→0.135、標準値）
     'ATC_RAT_PIT_I': 0.05,  # Pitch I（0.05→0.135、標準値）
-    'ATC_RAT_PIT_D': 0.003, # Pitch D（0.001→0.0036、標準値）
+    'ATC_RAT_PIT_D': 0.002, # Pitch D（0.001→0.0036、標準値）
     'ATC_RAT_YAW_P': 0.2,    # Yaw P（ハイブリッドヨー対応）
     'ATC_RAT_YAW_I': 0.02,   # Yaw I
     
