@@ -27,12 +27,12 @@ params_to_set = {
     
     # --- EKF3精度設定（適正化） ---
     'EK3_GPS_CHECK': 0,      # GPS健全性チェック完全無効化
-    'EK3_POS_I_GATE': 10.0,  # 位置ゲート(デフォルト5)
+    'EK3_POS_I_GATE': 8.0,  # 位置ゲート(デフォルト5)
     'EK3_VEL_I_GATE': 8.0,   # 速度ゲート（IMU推定精度向上）
     'EK3_HGT_I_GATE': 10.0,  # 高度ゲート
     
     # --- ノイズパラメータ（ハイブリッド用調整） --- これを小さくするとGPS情報をより信用
-    'EK3_POSNE_M_NSE': 0.1,  # 水平位置ノイズ:
+    'EK3_POSNE_M_NSE': 0.3,  # 水平位置ノイズ:
     'EK3_VELNE_M_NSE': 0.5,  # 水平速度ノイズ: 50cm/s
     'EK3_VELD_M_NSE': 0.5,   # 垂直速度ノイズ: 50cm/s
     'EK3_YAW_M_NSE': 0.5,    # ヨー角ノイズ（ハイブリッド用に緩和）
@@ -54,9 +54,9 @@ params_to_set = {
     'EK3_SRC_OPTIONS': 1,    # Fuse all velocity sources[1]
     
     # --- EKF安定化設定（適正化） ---
-    'EK3_GLITCH_RAD': 25,    # GPS Glitch検出半径緩和
+    'EK3_GLITCH_RAD': 5,    # GPS Glitch検出半径緩和
     'EK3_CHECK_SCALE': 100,  # EKFチェックスケール（200→100に適正化）
-    'EK3_PRIMARY': 0, # 自動切り替え無効
+    'EK3_PRIMARY': -1, # 自動切り替え無効
     
     # --- GPS設定 ---
     'GPS1_TYPE': 14,         # MAVLink GPS Input
@@ -68,7 +68,7 @@ params_to_set = {
     'WPNAV_SPEED_DN': 20,   # 下降速度: 1.0m/s
     'WPNAV_ACCEL_Z': 30,     # 加速度: 0.25m/s²
     'WPNAV_SPEED': 150,       # 水平速度:
-    'WPNAV_ACCEL':  200,    # 水平加速度
+    'WPNAV_ACCEL':  250,    # 水平加速度
     'WPNAV_RADIUS': 20,      # 到達半径: 30cm
 
     # --- Loiterモード設定 ---
@@ -93,7 +93,7 @@ params_to_set = {
     'PSC_ACCZ_I': 1.0,       # 垂直加速度制御I
     
     # --- 水平制御PID ---
-    'PSC_POSXY_P': 2.0,      # 水平位置制御P（1.0→1.5に増加）
+    'PSC_POSXY_P': 1.5,      # 水平位置制御P（1.0→1.5に増加）
     'PSC_VELXY_P': 1.1,      # 水平速度制御P（1.2→2.0に増加）
     'PSC_VELXY_I': 0.2,      # 水平速度制御I（2.5→1.0に削減）
     'PSC_VELXY_D': 0.25,      # 水平速度制御D（追加）
