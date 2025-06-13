@@ -63,12 +63,20 @@ params_to_set = {
     'GPS_AUTO_CONFIG': 0,    # 自動設定無効
     'GPS_PRIMARY': 0,
     
-    # --- 超低速設定 ---
+    # --- Guidedモード設定 ---
     'WPNAV_SPEED_UP': 20,    # 上昇速度: 0.2m/s
-    'WPNAV_SPEED_DN': 100,   # 下降速度: 1.0m/s
+    'WPNAV_SPEED_DN': 20,   # 下降速度: 1.0m/s
     'WPNAV_ACCEL_Z': 25,     # 加速度: 0.25m/s²
-    'WPNAV_SPEED': 50,       # 水平速度: 0.5m/s
-    'WPNAV_RADIUS': 30,      # 到達半径: 30cm
+    'WPNAV_SPEED': 100,       # 水平速度:
+    'WPNAV_RADIUS': 20,      # 到達半径: 30cm
+
+    # --- Loiterモード設定 ---
+    'LOIT_SPEED': 50,
+    'LOIT_ACC_MAX': 50,
+    'LOIT_BRK_ACCEL': 50,
+    'LOIT_BRK_DELAY': 0.3,
+    'LOIT_BRK_JERK': 300,
+    'LOIT_ANG_MAX': 10,
     
     # --- パイロット制御速度 ---
     'PILOT_SPEED_UP': 250,   # パイロット上昇: 2.5m/s
@@ -83,7 +91,7 @@ params_to_set = {
     'PSC_ACCZ_P': 0.3,       # 垂直加速度制御P
     'PSC_ACCZ_I': 1.0,       # 垂直加速度制御I
     
-    # --- 水平制御PID（適正化） ---
+    # --- 水平制御PID ---
     'PSC_POSXY_P': 2.0,      # 水平位置制御P（1.0→1.5に増加）
     'PSC_VELXY_P': 0.8,      # 水平速度制御P（1.2→2.0に増加）
     'PSC_VELXY_I': 0.2,      # 水平速度制御I（2.5→1.0に削減）
@@ -128,13 +136,7 @@ params_to_set = {
     'RSSI_TYPE': 3,
     'RC9_OPTION': 153,
     
-    # --- Loiterモード設定 ---
-    'LOIT_SPEED': 50,
-    'LOIT_ACC_MAX': 50,
-    'LOIT_BRK_ACCEL': 50,
-    'LOIT_BRK_DELAY': 0.3,
-    'LOIT_BRK_JERK': 300,
-    'LOIT_ANG_MAX': 10,
+
     
     # --- GUIDEDモード設定 ---
     'GUID_TIMEOUT': 3,
