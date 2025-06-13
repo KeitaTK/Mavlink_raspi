@@ -68,7 +68,7 @@ params_to_set = {
     'WPNAV_SPEED_DN': 20,   # 下降速度: 1.0m/s
     'WPNAV_ACCEL_Z': 30,     # 加速度: 0.25m/s²
     'WPNAV_SPEED': 150,       # 水平速度:
-    'WPNAV_ACCEL':   150,    # 水平加速度
+    'WPNAV_ACCEL':  200,    # 水平加速度
     'WPNAV_RADIUS': 20,      # 到達半径: 30cm
 
     # --- Loiterモード設定 ---
