@@ -2,7 +2,7 @@
 from pymavlink import mavutil
 
 # ----- 接続設定 -----
-PORT = '/dev/ttyACM0'      # 例：UART
+PORT = '/dev/ttyAMA0'      # 例：UART
 BAUD = 115200
 
 # ----- MAVLink 接続 -----

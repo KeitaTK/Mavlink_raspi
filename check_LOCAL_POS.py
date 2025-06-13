@@ -2,7 +2,7 @@ from pymavlink import mavutil
 import time
 
 # シリアル接続を確立
-master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)
+master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200)
 
 # ハートビートを待ってシステムIDとコンポーネントIDを設定
 master.wait_heartbeat()
