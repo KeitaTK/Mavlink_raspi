@@ -8,7 +8,7 @@ from pymavlink import mavutil
 
 # TELEM1で接続するとき（ハードウェアフロー制御有効）
 print("TELEM1通信接続（ハードウェアフロー制御有効）")
-master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200, rtscts=True)
+master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=921600, rtscts=True)
 
 # 2. heartbeat 受信待ち
 #    これにより target_system, target_component が設定される
