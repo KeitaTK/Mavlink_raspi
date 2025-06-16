@@ -1,13 +1,12 @@
 from pymavlink import mavutil
 
-# 1. シリアル接続の確立
-#    接続先ポートと baudrate を設定
-# USB接続の場合
+
 # print("USB接続通信")
 # master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)
 # telem1で接続するとき
 print("tekem1通信接続")
-master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200)
+# master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200)
+master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=921600, rtscts=True)
 
 # 2. heartbeat 受信待ち
 #    これにより target_system, target_component が設定される
