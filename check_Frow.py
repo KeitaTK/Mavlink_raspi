@@ -1,3 +1,5 @@
+from pymavlink import mavutil
+
 # より高速な通信速度を試してみる
 baud_test = [921600, 1000000, 1500000]
 
