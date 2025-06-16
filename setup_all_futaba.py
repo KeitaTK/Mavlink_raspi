@@ -23,16 +23,22 @@ params_to_set = {
     'EK3_SRC1_VELXY': 0,     # None (水平速度をIMUから推定)
     'EK3_SRC1_POSZ': 3,      # GPS (垂直位置)
     'EK3_SRC1_VELZ': 0,      # None (垂直速度をIMUから推定)
-    'EK3_SRC1_YAW': 3,       # GPS with compass fallback（ハイブリッド）[1]
+    'EK3_SRC1_YAW': 3,       # GPS with compass fallback（ハイブリッド）
     
     # --- EKF3精度設定（適正化） ---
     'EK3_GPS_CHECK': 0,      # GPS健全性チェック完全無効化
-    'EK3_POS_I_GATE': 8.0,  # 位置ゲート(デフォルト5)
+    'EK3_POS_I_GATE': 8.0,   # 位置ゲート(デフォルト5)
     'EK3_VEL_I_GATE': 8.0,   # 速度ゲート（IMU推定精度向上）
     'EK3_HGT_I_GATE': 10.0,  # 高度ゲート
     
-    # --- ノイズパラメータ（ハイブリッド用調整） --- これを小さくするとGPS情報をより信用
-    'EK3_POSNE_M_NSE': 0.3,  # 水平位置ノイズ:
+    # --- EKF3高度精度設定（追加） ---
+    'EK3_GPS_DELAY': 220,    # GPS遅延補正 (220ms)
+    'EK3_MAG_DELAY': 0,      # 磁気センサー遅延
+    'EK3_BARO_DELAY': 0,     # 気圧センサー遅延
+    'EK3_BETA_MASK': 127,    # すべてのセンサーでbeta調整
+    
+    # --- ノイズパラメータ（ハイブリッド用調整） ---
+    'EK3_POSNE_M_NSE': 0.3,  # 水平位置ノイズ
     'EK3_VELNE_M_NSE': 0.5,  # 水平速度ノイズ: 50cm/s
     'EK3_VELD_M_NSE': 0.5,   # 垂直速度ノイズ: 50cm/s
     'EK3_YAW_M_NSE': 0.2,    # ヨー角ノイズ（ハイブリッド用に緩和）
@@ -42,34 +48,58 @@ params_to_set = {
     'EK3_GYRO_P_NSE': 0.02,  # ジャイロプロセスノイズ
     
     # --- コンパス設定（ハイブリッド用有効化） ---
-    'COMPASS_ENABLE': 1,     # コンパス有効化[1]
-    'COMPASS_USE': 1.0,      # 内蔵コンパス使用[1]
+    'COMPASS_ENABLE': 1,     # コンパス有効化
+    'COMPASS_USE': 1.0,      # 内蔵コンパス使用
     'COMPASS_USE2': 0.0,     # 外付コンパス2無効
     'COMPASS_USE3': 0.0,     # 外付コンパス3無効
-    'COMPASS_AUTODEC': 1,    # 自動磁気偏角有効[1]
-    'COMPASS_LEARN': 1,      # コンパス学習有効[1]
+    'COMPASS_AUTODEC': 1,    # 自動磁気偏角有効
+    'COMPASS_LEARN': 1,      # コンパス学習有効
     
-    # --- ハイブリッド設定（重要）[4] ---
-    'EK3_MAG_CAL': 3,        # 地上でheading fusion、空中で3-axis fusion[4]
-    'EK3_SRC_OPTIONS': 1,    # Fuse all velocity sources[1]
+    # --- ハイブリッド設定（重要） ---
+    'EK3_MAG_CAL': 3,        # 地上でheading fusion、空中で3-axis fusion
+    'EK3_SRC_OPTIONS': 1,    # Fuse all velocity sources
     
     # --- EKF安定化設定（適正化） ---
-    'EK3_GLITCH_RAD': 5,    # GPS Glitch検出半径緩和
+    'EK3_GLITCH_RAD': 5,     # GPS Glitch検出半径緩和
     'EK3_CHECK_SCALE': 100,  # EKFチェックスケール（200→100に適正化）
-    'EK3_PRIMARY': -1, # 自動切り替え無効
+    'EK3_PRIMARY': -1,       # 自動切り替え無効
     
     # --- GPS設定 ---
     'GPS1_TYPE': 14,         # MAVLink GPS Input
     'GPS_AUTO_CONFIG': 0,    # 自動設定無効
     'GPS_PRIMARY': 0,
     
+    # --- TELEMポート詳細設定（ハードウェアフロー制御対応）【更新】 ---
+    'SERIAL1_PROTOCOL': 2,   # MAVLink2
+    'SERIAL1_BAUD': 921600,  # 高速通信（115200→921600に更新）
+    'BRD_SER1_RTSCTS': 2,    # ハードウェアフロー制御有効（0→2に更新）
+    'SERIAL2_PROTOCOL': 23,  # ELRSレシーバー
+    # 'SERIAL2_PROTOCOL': 2,  # 双葉レシーバー
+    
+    # --- MAVLink設定最適化（追加） ---
+    'SR1_EXTRA1': 4,         # ATTITUDE 4Hz
+    'SR1_EXTRA2': 4,         # VFR_HUD 4Hz  
+    'SR1_EXTRA3': 2,         # AHRS, HWSTATUS 2Hz
+    'SR1_EXT_STAT': 2,       # Extended status 2Hz
+    'SR1_POSITION': 20,      # GLOBAL_POSITION_INT 20Hz
+    'SR1_RAW_CTRL': 0,       # Raw control（不要なので無効）
+    'SR1_RAW_SENS': 0,       # Raw sensors（不要なので無効）
+    'SR1_RC_CHAN': 2,        # RC channels 2Hz
+    
+    # --- MAVLinkインスタンス設定（追加） ---
+    'MAV_0_CONFIG': 1,       # TELEM1使用
+    'MAV_0_MODE': 0,         # Normal mode
+    'MAV_0_RATE': 1,         # 1=基本レート
+    'MAV_0_FORWARD': 1,      # フォワード有効
+    
     # --- Guidedモード設定 ---
-    'WPNAV_SPEED_UP': 30,    # 上昇速度: 0.2m/s
-    'WPNAV_SPEED_DN': 20,   # 下降速度: 1.0m/s
-    'WPNAV_ACCEL_Z': 30,     # 加速度: 0.25m/s²
-    'WPNAV_SPEED': 150,       # 水平速度:
-    'WPNAV_ACCEL':  250,    # 水平加速度
-    'WPNAV_RADIUS': 20,      # 到達半径: 30cm
+    'WPNAV_SPEED_UP': 30,    # 上昇速度: 0.3m/s
+    'WPNAV_SPEED_DN': 20,    # 下降速度: 0.2m/s
+    'WPNAV_ACCEL_Z': 30,     # 加速度: 0.3m/s²
+    'WPNAV_SPEED': 150,      # 水平速度: 1.5m/s
+    'WPNAV_ACCEL': 250,      # 水平加速度: 2.5m/s²
+    'WPNAV_RADIUS': 20,      # 到達半径: 20cm
+    'WPNAV_JERK': 1000,      # 最大ジャーク（応答性向上）【追加】
 
     # --- Loiterモード設定 ---
     'LOIT_SPEED': 50,
@@ -89,22 +119,24 @@ params_to_set = {
     'PSC_VELZ_P': 4.0,       # 垂直速度制御P
     'PSC_VELZ_I': 8.0,       # 垂直速度制御I
     'PSC_VELZ_D': 0.01,      # 垂直速度制御D
+    'PSC_VELZ_FILT': 5.0,    # 垂直速度フィルタ【追加】
     'PSC_ACCZ_P': 0.3,       # 垂直加速度制御P
     'PSC_ACCZ_I': 1.0,       # 垂直加速度制御I
     
     # --- 水平制御PID ---
     'PSC_POSXY_P': 1.5,      # 水平位置制御P（1.0→1.5に増加）
-    'PSC_VELXY_P': 1.1,      # 水平速度制御P（1.2→2.0に増加）
-    'PSC_VELXY_I': 0.2,      # 水平速度制御I（2.5→1.0に削減）
-    'PSC_VELXY_D': 0.25,      # 水平速度制御D（追加）
+    'PSC_VELXY_P': 1.1,      # 水平速度制御P
+    'PSC_VELXY_I': 0.2,      # 水平速度制御I
+    'PSC_VELXY_D': 0.25,     # 水平速度制御D
+    'PSC_VELXY_FILT': 5.0,   # 水平速度フィルタ【追加】
     
     # --- 姿勢制御PID ---
-    'ATC_RAT_RLL_P': 0.03,  # Roll P（0.05→0.135、標準値）
-    'ATC_RAT_RLL_I': 0.05,  # Roll I（0.05→0.135、標準値）
-    'ATC_RAT_RLL_D': 0.002, # Roll D（0.001→0.0036、標準値）
-    'ATC_RAT_PIT_P': 0.04,  # Pitch P（0.05→0.135、標準値）
-    'ATC_RAT_PIT_I': 0.05,  # Pitch I（0.05→0.135、標準値）
-    'ATC_RAT_PIT_D': 0.002, # Pitch D（0.001→0.0036、標準値）
+    'ATC_RAT_RLL_P': 0.03,   # Roll P
+    'ATC_RAT_RLL_I': 0.05,   # Roll I
+    'ATC_RAT_RLL_D': 0.002,  # Roll D
+    'ATC_RAT_PIT_P': 0.04,   # Pitch P
+    'ATC_RAT_PIT_I': 0.05,   # Pitch I
+    'ATC_RAT_PIT_D': 0.002,  # Pitch D
     'ATC_RAT_YAW_P': 0.2,    # Yaw P（ハイブリッドヨー対応）
     'ATC_RAT_YAW_I': 0.02,   # Yaw I
     
@@ -121,23 +153,17 @@ params_to_set = {
     'FS_CRASH_CHECK': 0,     # クラッシュ検出無効化
     'FS_VIBE_ENABLE': 0,     # 振動検出無効化
     'FS_DR_ENABLE': 0,       # Dead Reckoning無効化
-    'RTL_ALT': 50,          # RTL高度: 50cm
-    
-    # --- シリアル設定 ---
-    'SERIAL1_PROTOCOL': 2,
-    'SERIAL1_BAUD': 115200,
-    'BRD_SER1_RTSCTS': 0,
-    'SERIAL2_PROTOCOL': 23,
+    'RTL_ALT': 50,           # RTL高度: 50cm
     
     # --- RC設定 ---
     'RC10_OPTION': 56,
     'RC11_OPTION': 55,
     'THR_DZ': 200,
     'RC_OPTIONS': 10336,
-    'RSSI_TYPE': 3,
-    'RC9_OPTION': 153,
-    
-
+    'RSSI_TYPE': 3,          # ELRSレシーバー
+    # 'RSSI_TYPE': 0,        # 双葉レシーバー
+    'RC9_OPTION': 153,       # ELRSレシーバー
+    # 'RC9_OPTION': 0,       # 双葉レシーバー
     
     # --- GUIDEDモード設定 ---
     'GUID_TIMEOUT': 3,
@@ -176,6 +202,10 @@ params_to_set = {
     'BATT_LOW_MAH': 0,
     'MOT_BAT_VOLT_MAX': 21.0,
     'MOT_BAT_VOLT_MIN': 13.5,
+    
+    # --- ログ設定（デバッグ用）【追加】 ---
+    'LOG_BITMASK': 196662,   # EKF, GPS, RCIN, RCOUT, IMU, BARO, MAG
+    'LOG_DISARMED': 1,       # 非武装時もログ記録
 }
 
 
