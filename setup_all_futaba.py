@@ -4,8 +4,7 @@ import time
 # 接続を確立（実際の接続方法に合わせて変更してください）
 # 例: シリアル接続 ('/dev/ttyACM0', baud=115200)
 # 例: UDP接続 ('udpin:0.0.0.0:14550')  USB接続: 'COM3'など
-baud = 1000000
-master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=baud, rtscts=True)
+master = mavutil.mavlink_connection('/dev/ttyAMA0', 921600, rtscts=True)
 # master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)  # USB接続
 
 # ハートビートを待機（接続確認）
