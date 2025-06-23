@@ -1,7 +1,7 @@
 from pymavlink import mavutil
 import time
 
-master = mavutil.mavlink_connection('/dev/ttyAMA0', 921600, rtscts=True)  # フロー制御
+master = mavutil.mavlink_connection('/dev/ttyAMA0', 115200, rtscts=True)  # フロー制御
 # master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)  # USB接続
 
 # ハートビートを待機（接続確認）
