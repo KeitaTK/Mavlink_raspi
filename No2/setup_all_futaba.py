@@ -4,8 +4,8 @@ import time
 # 接続を確立（実際の接続方法に合わせて変更してください）
 # 例: シリアル接続 ('/dev/ttyACM0', baud=115200)
 # 例: UDP接続 ('udpin:0.0.0.0:14550')  USB接続: 'COM3'など
-# master = mavutil.mavlink_connection('/dev/ttyAMA0', 115200, rtscts=True)
-master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)  # USB接続
+master = mavutil.mavlink_connection('/dev/ttyAMA0', 1000000, rtscts=True)  #  フロー制御
+# master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)  # USB接続
 
 # ハートビートを待機（接続確認）
 print("接続を待機中...")
@@ -125,7 +125,7 @@ params_to_set = {
     
     # --- シリアル設定 ---
     'SERIAL1_PROTOCOL': 2,
-    'SERIAL1_BAUD': 115200,
+    'SERIAL1_BAUD': 1000000,
     'BRD_SER1_RTSCTS': 2,    # ハードウェアフロー制御有効（0→2に変更）
     # 'SERIAL2_PROTOCOL': 23,  # ELRSレシーバー
     'SERIAL2_PROTOCOL': 2,  # 双葉レシーバー
