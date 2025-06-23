@@ -1,11 +1,7 @@
 from pymavlink import mavutil
 
 
-# print("USB接続通信")
-# master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)
-# telem1で接続するとき
-print("tekem1通信接続")
-# master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200)
+# master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)　　# USB
 master = mavutil.mavlink_connection('/dev/ttyAMA0', 921600, rtscts=True)  # フロー制御
 # 2. heartbeat 受信待ち
 #    これにより target_system, target_component が設定される
