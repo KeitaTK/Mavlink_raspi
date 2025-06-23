@@ -131,14 +131,13 @@ params_to_set = {
     # 'SERIAL2_PROTOCOL': 2,  # 双葉レシーバー
     
     # --- RC設定 ---
-    'RC10_OPTION': 56,
-    'RC11_OPTION': 55,
+    'RC6_OPTION': 56,  # Loiter
+    'RC7_OPTION': 55,  # Guided
     'THR_DZ': 200,
     'RC_OPTIONS': 10336,
-    'RSSI_TYPE': 3,  # ELRSレシーバー
-    # 'RSSI_TYPE': 0,  # 双葉レシーバー
-    'RC9_OPTION': 153,  # ELRSレシーバー
-    # 'RC9_OPTION': 0,  # 双葉レシーバー
+    # 'RSSI_TYPE': 3,  # ELRSレシーバー
+    'RSSI_TYPE': 0,  # 双葉レシーバー
+    'RC9_OPTION': 153,  # アーム設定
     
     # --- GUIDEDモード設定 ---
     'GUID_TIMEOUT': 3,
