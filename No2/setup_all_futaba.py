@@ -1,7 +1,7 @@
 from pymavlink import mavutil
 import time
 
-master = mavutil.mavlink_connection('/dev/ttyAMA0', 115200, rtscts=True)  # フロー制御
+master = mavutil.mavlink_connection('/dev/ttyAMA0', 921600, rtscts=True)  # フロー制御
 # master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)  # USB接続
 
 # ハートビートを待機（接続確認）
@@ -122,7 +122,7 @@ params_to_set = {
     
     # --- シリアル設定 ---
     'SERIAL1_PROTOCOL': 2,
-    'SERIAL1_BAUD': 1000000,
+    'SERIAL1_BAUD': 921600,
     'BRD_SER1_RTSCTS': 2,    # ハードウェアフロー制御有効（0→2に変更）
     # 'SERIAL2_PROTOCOL': 23,  # ELRSレシーバー
     'SERIAL2_PROTOCOL': 2,  # 双葉レシーバー

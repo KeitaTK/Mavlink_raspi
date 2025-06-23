@@ -18,10 +18,9 @@ class ArduPilotConnector:
         try:
             print("ArduPilot接続開始...")
             
-            # 添付ファイルと同じ接続方式
             print("telem1通信接続")
-            self.master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200)
-            
+            self.master = mavutil.mavlink_connection('/dev/ttyAMA0', 921600, rtscts=True)  # フロー制御
+
             # heartbeat 受信待ち
             print("Heartbeat待機中...")
             self.master.wait_heartbeat()
