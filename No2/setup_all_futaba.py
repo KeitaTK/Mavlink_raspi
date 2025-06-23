@@ -134,7 +134,7 @@ params_to_set = {
     'RC_OPTIONS': 10336,
     # 'RSSI_TYPE': 3,  # ELRSレシーバー
     'RSSI_TYPE': 0,  # 双葉レシーバー
-    'RC9_OPTION': 153,  # アーム設定
+    'RC5_OPTION': 153,  # アーム設定
     
     # --- GUIDEDモード設定 ---
     'GUID_TIMEOUT': 3,
