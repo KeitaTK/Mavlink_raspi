@@ -125,8 +125,8 @@ params_to_set = {
     
     # --- シリアル設定 ---
     'SERIAL1_PROTOCOL': 2,
-    'SERIAL1_BAUD': 115200,
-    'BRD_SER1_RTSCTS': 0,
+    'SERIAL1_BAUD': 921600,
+    'BRD_SER1_RTSCTS': 2,    # ハードウェアフロー制御有効
     'SERIAL2_PROTOCOL': 23,  # ELRSレシーバー
     # 'SERIAL2_PROTOCOL': 2,  # 双葉レシーバー
     
