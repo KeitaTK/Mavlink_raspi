@@ -2,10 +2,10 @@ from pymavlink import mavutil
 import csv
 import os
 
-# ログファイルのパス（ラズパイ環境での絶対パスに変更）
-log_file = '/bin/00000058.BIN'  # ラズパイのホームディレクトリ下を想定
+# ログファイルのパス（指定されたディレクトリに基づく）
+log_file = '/home/taki/Mavlink_raspi/log_analyzer/bin/00000058.BIN'
 # 出力CSVファイルのパス
-output_csv = 'CSV/output1.csv'
+output_csv = '/home/taki/Mavlink_raspi/log_analyzer/CSV/output.csv'
 
 # 出力ディレクトリが存在しない場合は作成
 os.makedirs(os.path.dirname(output_csv), exist_ok=True)
