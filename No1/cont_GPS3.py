@@ -13,8 +13,6 @@ import pyned2lla
 from pymavlink import mavutil
 
 # ───── ユーザ設定 ─────
-PORT        = '/dev/ttyAMA0'
-BAUD        = 115200
 STEP        = 0.10           # 10 cm
 TAKEOFF_ALT = 0.10           # 10 cm
 GPS_HZ      = 5
@@ -38,7 +36,7 @@ def get_key():
 # ───── MAVLink接続 ─────
 def connect():
     print(f'Connecting {PORT} …')
-    m = mavutil.mavlink_connection(PORT, baud=BAUD, wait_heartbeat=True)
+    m = mavutil.mavlink_connection('/dev/ttyAMA0', baud=1000000, rtscts=True) # フロー制御
     print('✓ Heartbeat')
     return m
 

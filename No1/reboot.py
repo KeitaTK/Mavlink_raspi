@@ -9,7 +9,7 @@ import time
 def reboot_only():
     """リブートのみ実行"""
     
-    # master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=115200)
+    # master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=1000000, rtscts=True) # フロー制御
     master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)  # USB接続
     master.wait_heartbeat()
     
