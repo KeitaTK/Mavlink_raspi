@@ -7,7 +7,7 @@ for baud in baud_test:
     try:
         print(f"Testing {baud}bps...")
         master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=baud, rtscts=True)
-        master.wait_heartbeat(timeout=3)
+        master.wait_heartbeat()
         print(f"{baud}bps: 成功！")
         
         # 簡単な通信テスト
