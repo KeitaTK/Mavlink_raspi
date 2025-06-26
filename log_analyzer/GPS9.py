@@ -7,7 +7,7 @@ from pyproj import Transformer
 # ログファイルのパス（初期値）
 log_file = '/home/taki/Mavlink_raspi/log_analyzer/LOGS1/00000090.BIN'
 # 出力CSVファイルのパス
-output_csv = '/home/taki/Mavlink_raspi/log_analyzer/CSV/merged_output5.csv'
+output_csv = '/home/taki/Mavlink_raspi/log_analyzer/CSV/merged_output6.csv'
 
 
 # 基準GPS座標（7桁精度）
