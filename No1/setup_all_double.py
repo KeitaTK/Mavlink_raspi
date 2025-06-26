@@ -140,6 +140,10 @@ params_to_set = {
     # --- GUIDEDモード設定 ---
     'GUID_TIMEOUT': 3,
     'GUID_OPTIONS': 0,
+
+    # --- ログ設定（GUIDEDモードの目標GPS値を記録） ---
+    'LOG_BITMASK': 131071,  # すべてのメッセージを記録（CMDメッセージを含む）
+
     
     # --- モーター・安全設定 ---
     'SERVO1_FUNCTION': 0,
