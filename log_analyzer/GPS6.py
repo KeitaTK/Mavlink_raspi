@@ -3,7 +3,7 @@ import csv
 import os
 
 # ログファイルのパス（初期値）
-log_file = '/home/taki/Mavlink_raspi/log_analyzer/LOGS1/00000091.BIN'
+log_file = '/home/taki/Mavlink_raspi/log_analyzer/LOGS1/00000090.BIN'
 # 出力CSVファイルのパス
 output_csv = '/home/taki/Mavlink_raspi/log_analyzer/CSV/merged_output3.csv'
 
