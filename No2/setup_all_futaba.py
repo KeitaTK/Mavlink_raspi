@@ -139,6 +139,12 @@ params_to_set = {
     # --- GUIDEDモード設定 ---
     'GUID_TIMEOUT': 3,
     'GUID_OPTIONS': 0,
+
+    # --- ログ制御設定（アーム時のみ記録、ファイルローテーション） ---
+    'LOG_DISARMED': 0,        # 非アーム時はログを記録しない
+    'LOG_FILE_DSRMROT': 1,    # ディスアーム時にログファイルをローテーション
+    'LOG_FILE_TIMEOUT': 5,    # ログファイルのタイムアウト（秒）
+    'LOG_BACKEND_TYPE': 1,    # デフォルトのログバックエンド（ファイル）
     
     # --- モーター・安全設定 ---
     'SERVO1_FUNCTION': 0,
