@@ -48,11 +48,37 @@ while True:
     else:
         ekf_lat = ekf_lng = ekf_alt = 0.0
 
-    # Guided
+    # Guided - GPS座標として解釈してNED変換
     if msg_type == 'GUIP':
-        guided_x = getattr(msg, 'pX', 0.0) or 0.0
-        guided_y = getattr(msg, 'pY', 0.0) or 0.0
-        guided_z = getattr(msg, 'pZ', 0.0) or 0.0
+        guided_px = getattr(msg, 'pX', 0.0) or 0.0
+        guided_py = getattr(msg, 'pY', 0.0) or 0.0
+        guided_pz = getattr(msg, 'pZ', 0.0) or 0.0
+        
+        # pX, pYがGPS座標（スケールされている可能性）として解釈
+        if guided_px != 0.0 and guided_py != 0.0:
+            # 値が大きすぎる場合（1e7倍されている場合）はスケールダウン
+            if abs(guided_px) > 1000:  # 1000を超える場合は度ではなく1e7倍された値
+                guided_lat = guided_px / 1e7
+                guided_lng = guided_py / 1e7
+            else:
+                guided_lat = guided_px
+                guided_lng = guided_py
+            
+            # pZも高度として扱う（メートル単位と仮定）
+            guided_alt = guided_pz
+            
+            # GPS座標からNED座標に変換
+            x_ecef, y_ecef, z_ecef = transformer_lla2ecef.transform(guided_lat, guided_lng, guided_alt)
+            d_x = x_ecef - ref_x
+            d_y = y_ecef - ref_y
+            d_z = z_ecef - ref_z
+            phi = np.radians(ref_lat)
+            lam = np.radians(ref_lon)
+            guided_x = -d_x * np.sin(lam) + d_y * np.cos(lam)
+            guided_y = -d_x * np.sin(phi) * np.cos(lam) - d_y * np.sin(phi) * np.sin(lam) + d_z * np.cos(phi)
+            guided_z = d_x * np.cos(phi) * np.cos(lam) + d_y * np.cos(phi) * np.sin(lam) + d_z * np.sin(phi)
+        else:
+            guided_x = guided_y = guided_z = 0.0
     else:
         guided_x = guided_y = guided_z = 0.0
 
