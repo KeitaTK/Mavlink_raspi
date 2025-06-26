@@ -1,7 +1,7 @@
 from pymavlink import mavutil
 import os
 
-log_file = '/home/taki/Mavlink_raspi/log_analyzer/LOGS1/00000090.BIN'
+log_file = '/home/taki/Mavlink_raspi/log_analyzer/LOGS1/00000091.BIN'
 
 if not os.path.exists(log_file):
     print(f"エラー: ログファイル {log_file} が見つかりません。パスを確認してください。")
