@@ -1,12 +1,14 @@
 from pymavlink import mavutil
 import csv
 import os
-import pyned2lla
+import numpy as np
+from pyproj import Transformer
 
 # ログファイルのパス（初期値）
 log_file = '/home/taki/Mavlink_raspi/log_analyzer/LOGS1/00000090.BIN'
 # 出力CSVファイルのパス
 output_csv = '/home/taki/Mavlink_raspi/log_analyzer/CSV/merged_output5.csv'
+
 
 # 基準GPS座標（7桁精度）
 ref_lat = 36.0757800  # 緯度
@@ -29,6 +31,10 @@ try:
     # ロールの位置情報を格納するリスト
     roll_positions = []
 
+    # ECEFからNEDへの変換のための基準点のECEF座標を計算
+    transformer_lla2ecef = Transformer.from_crs("EPSG:4326", "EPSG:4978")  # WGS84 LLA to ECEF
+    ref_x, ref_y, ref_z = transformer_lla2ecef.transform(ref_lat, ref_lon, ref_alt)
+
     # すべてのメッセージを読み込み、GPSデータを抽出
     while True:
         msg = mlog.recv_match(blocking=False)
@@ -43,8 +49,24 @@ try:
                 lon = getattr(msg, 'Lng', 0.0)
                 alt_cm = getattr(msg, 'Alt', 0)  # センチメートル単位
                 alt = alt_cm / 100.0  # メートルに変換
-                # NED座標に変換（geo_ellipsoid='WGS84'を指定）
-                x, y, z = pyned2lla.lla2ned(lat, lon, alt, ref_lat, ref_lon, ref_alt, geo_ellipsoid='WGS84')
+                
+                # LLAからECEFに変換
+                x_ecef, y_ecef, z_ecef = transformer_lla2ecef.transform(lat, lon, alt)
+                
+                # ECEFからNEDに変換
+                d_x = x_ecef - ref_x
+                d_y = y_ecef - ref_y
+                d_z = z_ecef - ref_z
+                
+                # 基準点の緯度・経度をラジアンに変換
+                phi = np.radians(ref_lat)
+                lam = np.radians(ref_lon)
+                
+                # ECEF差分をNEDに変換
+                x = -d_x * np.sin(lam) + d_y * np.cos(lam)  # East
+                y = -d_x * np.sin(phi) * np.cos(lam) - d_y * np.sin(phi) * np.sin(lam) + d_z * np.cos(phi)  # North
+                z = d_x * np.cos(phi) * np.cos(lam) + d_y * np.cos(phi) * np.sin(lam) + d_z * np.sin(phi)  # Down
+                
                 # ロールの位置情報としてNED座標を保存（単位：メートル）
                 roll_positions.append((time_us, x, y, z))
 
@@ -63,8 +85,10 @@ except ImportError as e:
     print(f"エラー: 必要なライブラリがインストールされていません。以下のコマンドでインストールしてください。")
     if 'pymavlink' in str(e):
         print("pip install pymavlink")
-    if 'pyned2lla' in str(e):
-        print("pip install pyned2lla")
+    if 'pyproj' in str(e):
+        print("pip install pyproj")
+    if 'numpy' in str(e):
+        print("pip install numpy")
     exit(1)
 except Exception as e:
     print(f"エラーが発生しました: {e}")
