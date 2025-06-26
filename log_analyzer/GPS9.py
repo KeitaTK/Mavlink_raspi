@@ -1,12 +1,12 @@
-import os
-import csv
 from pymavlink import mavutil
+import csv
+import os
 import pyned2lla
 
 # ログファイルのパス（初期値）
 log_file = '/home/taki/Mavlink_raspi/log_analyzer/LOGS1/00000090.BIN'
 # 出力CSVファイルのパス
-output_csv = '/home/taki/Mavlink_raspi/log_analyzer/CSV/merged_output6.csv'
+output_csv = '/home/taki/Mavlink_raspi/log_analyzer/CSV/merged_output5.csv'
 
 # 基準GPS座標（7桁精度）
 ref_lat = 36.0757800  # 緯度
@@ -19,34 +19,7 @@ os.makedirs(os.path.dirname(output_csv), exist_ok=True)
 # ログファイルの存在確認
 if not os.path.exists(log_file):
     print(f"エラー: ログファイル {log_file} が見つかりません。パスを確認してください。")
-    # 代替ディレクトリを検索して .BIN ファイルを探す
-    base_dirs = [
-        '/home/taki/Mavlink_raspi/log_analyzer/bin',
-        '/home/taki/Mavlink_raspi/log_analyzer',
-        '/home/taki/Mavlink_raspi',
-        '/home/taki'
-    ]
-    bin_files = []
-    for base_dir in base_dirs:
-        if os.path.exists(base_dir):
-            print(f"ディレクトリ {base_dir} を探索中...")
-            try:
-                for root, dirs, files in os.walk(base_dir):
-                    for file in files:
-                        if file.upper().endswith('.BIN'):
-                            bin_files.append(os.path.join(root, file))
-            except Exception as e:
-                print(f"ディレクトリ {base_dir} の探索に失敗: {e}")
-        else:
-            print(f"ディレクトリ {base_dir} は存在しません。")
-    
-    if bin_files:
-        print(f"見つかった.BINファイル: {bin_files}")
-        log_file = bin_files[0]  # 最初のファイルを使用
-        print(f"最初のファイルを使用します: {log_file}")
-    else:
-        print("ログファイルが見つかりませんでした。プログラムを終了します。")
-        exit(1)
+    exit(1)
 
 try:
     # ログを開く
@@ -70,8 +43,8 @@ try:
                 lon = getattr(msg, 'Lng', 0.0)
                 alt_cm = getattr(msg, 'Alt', 0)  # センチメートル単位
                 alt = alt_cm / 100.0  # メートルに変換
-                # NED座標に変換
-                x, y, z = pyned2lla.lla2ned(lat, lon, alt, ref_lat, ref_lon, ref_alt)
+                # NED座標に変換（geo_ellipsoid='WGS84'を指定）
+                x, y, z = pyned2lla.lla2ned(lat, lon, alt, ref_lat, ref_lon, ref_alt, geo_ellipsoid='WGS84')
                 # ロールの位置情報としてNED座標を保存（単位：メートル）
                 roll_positions.append((time_us, x, y, z))
 
