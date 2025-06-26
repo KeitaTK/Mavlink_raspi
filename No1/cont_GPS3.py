@@ -36,7 +36,7 @@ def get_key():
 # ───── MAVLink接続 ─────
 def connect():
     print(f'Connecting {PORT} …')
-    m = mavutil.mavlink_connection('/dev/ttyAMA0', baud=1000000, rtscts=True) # フロー制御
+    m = mavutil.mavlink_connection('/dev/ttyAMA0', baud=1000000, rtscts=True)
     print('✓ Heartbeat')
     return m
 
