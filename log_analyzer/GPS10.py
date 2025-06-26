@@ -4,10 +4,10 @@ import os
 import numpy as np
 from pyproj import Transformer
 
-# ログファイルのパス
+# ログファイルのパス（初期値）
 log_file = '/home/taki/Mavlink_raspi/log_analyzer/LOGS1/00000090.BIN'
 # 出力CSVファイルのパス
-output_csv = '/home/taki/Mavlink_raspi/log_analyzer/CSV/merged_output7.csv'
+output_csv = '/home/taki/Mavlink_raspi/log_analyzer/CSV/merged_output8_complemented.csv'
 
 # 基準GPS座標（7桁精度）
 ref_lat = 36.0757800  # 緯度
@@ -23,6 +23,7 @@ if not os.path.exists(log_file):
     # 代替ディレクトリを検索して .BIN ファイルを探す
     base_dirs = [
         '/home/taki/Mavlink_raspi/log_analyzer/LOGS1',
+        '/home/taki/Mavlink_raspi/log_analyzer/bin',
         '/home/taki/Mavlink_raspi/log_analyzer',
         '/home/taki/Mavlink_raspi',
         '/home/taki'
@@ -155,16 +156,47 @@ try:
                 guided_x_local, guided_y_local, guided_z_local
             ))
 
+    # 0の値を前の有効な値で補完する
+    def complement_values(data_list):
+        complemented = []
+        last_values = [0.0] * 3  # X, Y, Z の3つの座標用
+        for values in data_list:
+            new_values = []
+            for i, v in enumerate(values):
+                if v == 0.0 and last_values[i] != 0.0:
+                    new_values.append(last_values[i])
+                else:
+                    new_values.append(v)
+                    if v != 0.0:
+                        last_values[i] = v
+            complemented.append(tuple(new_values))
+        return complemented
+
+    # GPS, EKF, GUIDEDのそれぞれの座標を補完
+    gps_coords = complement_values([(r[1], r[2], r[3]) for r in data_records])
+    ekf_coords = complement_values([(r[4], r[5], r[6]) for r in data_records])
+    guided_coords = complement_values([(r[7], r[8], r[9]) for r in data_records])
+
+    # 補完後のデータで新しいリストを作成
+    complemented_records = []
+    for i, r in enumerate(data_records):
+        complemented_records.append((
+            r[0],  # TimeUS
+            gps_coords[i][0], gps_coords[i][1], gps_coords[i][2],  # GPS_X, GPS_Y, GPS_Z
+            ekf_coords[i][0], ekf_coords[i][1], ekf_coords[i][2],  # EKF_X, EKF_Y, EKF_Z
+            guided_coords[i][0], guided_coords[i][1], guided_coords[i][2]  # Guided_X, Guided_Y, Guided_Z
+        ))
+
     # CSVに書き込み
     with open(output_csv, 'w', newline='') as f:
         writer = csv.writer(f)
         # ヘッダー
         writer.writerow(['TimeUS', 'GPS_X', 'GPS_Y', 'GPS_Z', 'EKF_X', 'EKF_Y', 'EKF_Z', 'Guided_X', 'Guided_Y', 'Guided_Z'])
-        for row in data_records:
+        for row in complemented_records:
             writer.writerow(row)
 
-    print(f"ローカル座標データをCSVに書き込みました: {output_csv}")
-    print(f"記録された行数: {len(data_records)}")
+    print(f"補完されたローカル座標データをCSVに書き込みました: {output_csv}")
+    print(f"記録された行数: {len(complemented_records)}")
 
 except ImportError as e:
     print(f"エラー: 必要なライブラリがインストールされていません。以下のコマンドでインストールしてください。")
