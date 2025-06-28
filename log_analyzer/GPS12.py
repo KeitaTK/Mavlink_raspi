@@ -6,7 +6,7 @@ from pyproj import Transformer
 
 # ログファイルのパス
 log_file = '/home/taki/Mavlink_raspi/log_analyzer/LOGS1/00000090.BIN'
-output_csv = '/home/taki/Mavlink_raspi/log_analyzer/CSV/local_2.csv'
+output_csv = '/home/taki/Mavlink_raspi/log_analyzer/CSV/local_3.csv'
 
 # 基準座標（ローカル座標系の原点）
 ref_lat = 36.0757800
