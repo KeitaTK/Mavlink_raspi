@@ -6,7 +6,7 @@ from pyproj import Transformer
 
 # ログファイルのパス
 log_file = '/home/taki/Mavlink_raspi/log_analyzer/LOGS1/00000090.BIN'
-output_csv = '/home/taki/Mavlink_raspi/log_analyzer/CSV/local_3.csv'
+output_csv = '/home/taki/Mavlink_raspi/log_analyzer/CSV/local_4.csv'
 
 # 基準座標（ローカル座標系の原点）
 ref_lat = 36.0757800
@@ -54,23 +54,21 @@ while True:
     if time_us is None:
         continue
 
-    # GPS - 度の単位で記録されている
+    # GPS - 度の単位で記録されている、既にメートル単位
     if msg_type == 'GPS':
         gps_lat = getattr(msg, 'Lat', 0.0) or 0.0
         gps_lng = getattr(msg, 'Lng', 0.0) or 0.0
-        gps_alt_cm = getattr(msg, 'Alt', 0.0) or 0.0  # センチメートル単位
-        gps_alt = gps_alt_cm / 100.0  # メートルに変換
+        gps_alt = getattr(msg, 'Alt', 0.0) or 0.0  # 既にメートル単位
         # NED座標に変換
         gps_x, gps_y, gps_z = lla_to_ned(gps_lat, gps_lng, gps_alt)
     else:
         gps_x = gps_y = gps_z = 0.0
 
-    # EKF - 度の単位で記録されている
+    # EKF - 度の単位で記録されている、既にメートル単位
     if msg_type == 'POS':
         ekf_lat = getattr(msg, 'Lat', 0.0) or 0.0
         ekf_lng = getattr(msg, 'Lng', 0.0) or 0.0
-        ekf_alt_cm = getattr(msg, 'Alt', 0.0) or 0.0  # センチメートル単位
-        ekf_alt = ekf_alt_cm / 100.0  # メートルに変換
+        ekf_alt = getattr(msg, 'Alt', 0.0) or 0.0  # 既にメートル単位
         # NED座標に変換
         ekf_x, ekf_y, ekf_z = lla_to_ned(ekf_lat, ekf_lng, ekf_alt)
     else:
