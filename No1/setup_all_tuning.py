@@ -90,10 +90,10 @@ params_to_set = {
     'PSC_ACCZ_I': 1.0,       # 垂直加速度制御I
     
     # --- 水平制御PID ---
-    'PSC_POSXY_P': 3.0,      # 水平位置制御P（1.0→1.5に増加）
-    'PSC_VELXY_P': 2,      # 水平速度制御P（1.2→2.0に増加）
-    'PSC_VELXY_I': 0.8,      # 水平速度制御I（2.5→1.0に削減）
-    'PSC_VELXY_D': 0.5,      # 水平速度制御D（追加）
+    'PSC_POSXY_P': 3.0,      # 水平位置制御P
+    'PSC_VELXY_P': 2,      # 水平速度制御P
+    'PSC_VELXY_I': 0.8,      # 水平速度制御I
+    'PSC_VELXY_D': 0.5,      # 水平速度制御D
     
     # --- 姿勢制御PID ---
     'ATC_RAT_RLL_P': 0.03,  # Roll P（0.05→0.135、標準値）
