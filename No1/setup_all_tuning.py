@@ -66,7 +66,7 @@ params_to_set = {
     'WPNAV_ACCEL_Z': 30,     # 加速度: 0.25m/s²
     'WPNAV_SPEED': 300,     # 水平速度: 1.5m/s → 3.0m/s
     'WPNAV_ACCEL': 400,     # 水平加速度: 2.5m/s² → 4.0m/s²
-    'WPNAV_RADIUS': 10,      # 到達半径: 0.2m → 0.1m
+    'WPNAV_RADIUS': 5,      # 到達半径: 0.2m → 0.1m
 
     # --- Loiterモード設定 ---
     'LOIT_SPEED': 50,
@@ -92,16 +92,16 @@ params_to_set = {
     # --- 水平制御PID ---
     'PSC_POSXY_P': 5.0,      # 水平位置制御P
     'PSC_VELXY_P': 3,      # 水平速度制御P
-    'PSC_VELXY_I': 1.5,      # 水平速度制御I
+    'PSC_VELXY_I': 2,      # 水平速度制御I
     'PSC_VELXY_D': 0.3,      # 水平速度制御D
     
     # --- 姿勢制御PID ---
     'ATC_RAT_RLL_P': 0.04,  # Roll P（0.05→0.135、標準値）
     'ATC_RAT_RLL_I': 0.07,  # Roll I（0.05→0.135、標準値）
     'ATC_RAT_RLL_D': 0.001, # Roll D（0.001→0.0036、標準値）
-    'ATC_RAT_PIT_P': 0.03,  # Pitch P（0.05→0.135、標準値）
-    'ATC_RAT_PIT_I': 0.05,  # Pitch I（0.05→0.135、標準値）
-    'ATC_RAT_PIT_D': 0.001, # Pitch D（0.001→0.0036、標準値）
+    'ATC_RAT_PIT_P': 0.04,  # Pitch P（0.05→0.135、標準値）
+    'ATC_RAT_PIT_I': 0.07,  # Pitch I（0.05→0.135、標準値）
+    'ATC_RAT_PIT_D': 0.0015, # Pitch D（0.001→0.0036、標準値）
     'ATC_RAT_YAW_P': 0.2,    # Yaw P（ハイブリッドヨー対応）
     'ATC_RAT_YAW_I': 0.02,   # Yaw I
     
