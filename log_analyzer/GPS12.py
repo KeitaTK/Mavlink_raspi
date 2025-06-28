@@ -6,7 +6,7 @@ from pyproj import Transformer
 
 # ログファイルのパス
 log_file = '/home/taki/Mavlink_raspi/log_analyzer/LOGS1/00000090.BIN'
-output_csv = '/home/taki/Mavlink_raspi/log_analyzer/CSV/local_1.csv'
+output_csv = '/home/taki/Mavlink_raspi/log_analyzer/CSV/local_2.csv'
 
 # 基準座標（ローカル座標系の原点）
 ref_lat = 36.0757800
@@ -58,7 +58,8 @@ while True:
     if msg_type == 'GPS':
         gps_lat = getattr(msg, 'Lat', 0.0) or 0.0
         gps_lng = getattr(msg, 'Lng', 0.0) or 0.0
-        gps_alt = getattr(msg, 'Alt', 0.0) or 0.0  # 既にメートル単位
+        gps_alt_cm = getattr(msg, 'Alt', 0.0) or 0.0  # センチメートル単位
+        gps_alt = gps_alt_cm / 100.0  # メートルに変換
         # NED座標に変換
         gps_x, gps_y, gps_z = lla_to_ned(gps_lat, gps_lng, gps_alt)
     else:
@@ -68,13 +69,14 @@ while True:
     if msg_type == 'POS':
         ekf_lat = getattr(msg, 'Lat', 0.0) or 0.0
         ekf_lng = getattr(msg, 'Lng', 0.0) or 0.0
-        ekf_alt = getattr(msg, 'Alt', 0.0) or 0.0  # 既にメートル単位
+        ekf_alt_cm = getattr(msg, 'Alt', 0.0) or 0.0  # センチメートル単位
+        ekf_alt = ekf_alt_cm / 100.0  # メートルに変換
         # NED座標に変換
         ekf_x, ekf_y, ekf_z = lla_to_ned(ekf_lat, ekf_lng, ekf_alt)
     else:
         ekf_x = ekf_y = ekf_z = 0.0
 
-    # Guided - pX, pYが1e7倍された緯度経度、pZが高度
+    # Guided - pX, pYが1e7倍された緯度経度、pZが高度（cm単位と仮定）
     if msg_type == 'GUIP':
         guided_px_raw = getattr(msg, 'pX', 0.0) or 0.0
         guided_py_raw = getattr(msg, 'pY', 0.0) or 0.0
@@ -84,7 +86,8 @@ while True:
             # 1e7倍された値を度に戻す
             guided_lat = guided_px_raw / 1e7
             guided_lng = guided_py_raw / 1e7
-            guided_alt = guided_pz_raw  # 既にメートル単位
+            guided_alt_cm = guided_pz_raw  # センチメートル単位と仮定
+            guided_alt = guided_alt_cm / 100.0  # メートルに変換
             # NED座標に変換
             guided_x, guided_y, guided_z = lla_to_ned(guided_lat, guided_lng, guided_alt)
         else:
