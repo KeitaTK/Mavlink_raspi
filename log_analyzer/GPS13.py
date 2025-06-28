@@ -33,7 +33,7 @@ def lla_to_ned(lat, lon, alt):
     phi = np.radians(ref_lat)
     lam = np.radians(ref_lon)
     
-    # 正しいNED変換（North-East-Down順序）
+    # 正しいNED変換（North-East-Down順序に修正）
     ned_north = -d_x * np.sin(phi) * np.cos(lam) - d_y * np.sin(phi) * np.sin(lam) + d_z * np.cos(phi)
     ned_east = -d_x * np.sin(lam) + d_y * np.cos(lam)
     ned_down = -d_x * np.cos(phi) * np.cos(lam) - d_y * np.cos(phi) * np.sin(lam) - d_z * np.sin(phi)
@@ -50,33 +50,46 @@ while True:
     if msg is None:
         break
     msg_type = msg.get_type()
-    time_us = getattr(msg, 'time_usec', None) or getattr(msg, 'TimeUS', None)
+    time_us = getattr(msg, 'TimeUS', None)
     if time_us is None:
         continue
 
-    # GPS_RAW_INT または GLOBAL_POSITION_INT
-    if msg_type == 'GPS_RAW_INT' or msg_type == 'GLOBAL_POSITION_INT':
-        gps_lat = getattr(msg, 'lat', 0.0) / 1e7 if hasattr(msg, 'lat') else 0.0
-        gps_lng = getattr(msg, 'lon', 0.0) / 1e7 if hasattr(msg, 'lon') else 0.0
-        gps_alt = getattr(msg, 'alt', 0.0) / 1000 if hasattr(msg, 'alt') else 0.0  # mm to m
+    # GPS - 度の単位で記録されている、既にメートル単位
+    if msg_type == 'GPS':
+        gps_lat = getattr(msg, 'Lat', 0.0) or 0.0
+        gps_lng = getattr(msg, 'Lng', 0.0) or 0.0
+        gps_alt = getattr(msg, 'Alt', 0.0) or 0.0  # 既にメートル単位
+        # NED座標に変換（修正版）
         gps_x, gps_y, gps_z = lla_to_ned(gps_lat, gps_lng, gps_alt)
     else:
         gps_x = gps_y = gps_z = 0.0
 
-    # LOCAL_POSITION_NED
-    if msg_type == 'LOCAL_POSITION_NED':
-        ekf_x = getattr(msg, 'x', 0.0) if hasattr(msg, 'x') else 0.0
-        ekf_y = getattr(msg, 'y', 0.0) if hasattr(msg, 'y') else 0.0
-        ekf_z = getattr(msg, 'z', 0.0) if hasattr(msg, 'z') else 0.0
+    # EKF - 度の単位で記録されている、既にメートル単位
+    if msg_type == 'POS':
+        ekf_lat = getattr(msg, 'Lat', 0.0) or 0.0
+        ekf_lng = getattr(msg, 'Lng', 0.0) or 0.0
+        ekf_alt = getattr(msg, 'Alt', 0.0) or 0.0  # 既にメートル単位
+        # NED座標に変換（修正版）
+        ekf_x, ekf_y, ekf_z = lla_to_ned(ekf_lat, ekf_lng, ekf_alt)
     else:
         ekf_x = ekf_y = ekf_z = 0.0
 
-    # POSITION_TARGET_GLOBAL_INT
-    if msg_type == 'POSITION_TARGET_GLOBAL_INT':
-        guided_lat = getattr(msg, 'lat_int', 0) / 1e7 if hasattr(msg, 'lat_int') else 0.0
-        guided_lng = getattr(msg, 'lon_int', 0) / 1e7 if hasattr(msg, 'lon_int') else 0.0
-        guided_alt = getattr(msg, 'alt', 0) / 1000 if hasattr(msg, 'alt') else 0.0  # mm to m
-        guided_x, guided_y, guided_z = lla_to_ned(guided_lat, guided_lng, guided_alt)
+    # Guided - pX, pYが1e7倍された緯度経度、pZが高度（cm単位と仮定）
+    if msg_type == 'GUIP':
+        guided_px_raw = getattr(msg, 'pX', 0.0) or 0.0
+        guided_py_raw = getattr(msg, 'pY', 0.0) or 0.0
+        guided_pz_raw = getattr(msg, 'pZ', 0.0) or 0.0
+        
+        if guided_px_raw != 0.0 and guided_py_raw != 0.0:
+            # 1e7倍された値を度に戻す
+            guided_lat = guided_px_raw / 1e7
+            guided_lng = guided_py_raw / 1e7
+            guided_alt_cm = guided_pz_raw  # センチメートル単位と仮定
+            guided_alt = guided_alt_cm / 100.0  # メートルに変換
+            # NED座標に変換（修正版）
+            guided_x, guided_y, guided_z = lla_to_ned(guided_lat, guided_lng, guided_alt)
+        else:
+            guided_x = guided_y = guided_z = 0.0
     else:
         guided_x = guided_y = guided_z = 0.0
 
