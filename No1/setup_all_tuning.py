@@ -29,8 +29,8 @@ params_to_set = {
     'EK3_HGT_I_GATE': 10.0,  # 高度ゲート
     
     # --- ノイズパラメータ（ハイブリッド用調整） --- これを小さくするとGPS情報をより信用
-    'EK3_POSNE_M_NSE': 0.3,  # 水平位置ノイズ:
-    'EK3_VELNE_M_NSE': 0.5,  # 水平速度ノイズ: 50cm/s
+    'EK3_POSNE_M_NSE': 0.2,  # 水平位置ノイズ:
+    'EK3_VELNE_M_NSE': 0.3,  # 水平速度ノイズ: 50cm/s
     'EK3_VELD_M_NSE': 0.5,   # 垂直速度ノイズ: 50cm/s
     'EK3_YAW_M_NSE': 0.2,    # ヨー角ノイズ（ハイブリッド用に緩和）
     
@@ -90,14 +90,14 @@ params_to_set = {
     'PSC_ACCZ_I': 1.0,       # 垂直加速度制御I
     
     # --- 水平制御PID ---
-    'PSC_POSXY_P': 4.0,      # 水平位置制御P
+    'PSC_POSXY_P': 5.0,      # 水平位置制御P
     'PSC_VELXY_P': 3,      # 水平速度制御P
-    'PSC_VELXY_I': 1,      # 水平速度制御I
-    'PSC_VELXY_D': 0.4,      # 水平速度制御D
+    'PSC_VELXY_I': 1.5,      # 水平速度制御I
+    'PSC_VELXY_D': 0.3,      # 水平速度制御D
     
     # --- 姿勢制御PID ---
-    'ATC_RAT_RLL_P': 0.03,  # Roll P（0.05→0.135、標準値）
-    'ATC_RAT_RLL_I': 0.05,  # Roll I（0.05→0.135、標準値）
+    'ATC_RAT_RLL_P': 0.04,  # Roll P（0.05→0.135、標準値）
+    'ATC_RAT_RLL_I': 0.07,  # Roll I（0.05→0.135、標準値）
     'ATC_RAT_RLL_D': 0.001, # Roll D（0.001→0.0036、標準値）
     'ATC_RAT_PIT_P': 0.03,  # Pitch P（0.05→0.135、標準値）
     'ATC_RAT_PIT_I': 0.05,  # Pitch I（0.05→0.135、標準値）
