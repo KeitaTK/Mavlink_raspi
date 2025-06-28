@@ -90,19 +90,19 @@ params_to_set = {
     'PSC_ACCZ_I': 1.0,       # 垂直加速度制御I
     
     # --- 水平制御PID ---
-    'PSC_POSXY_P': 5.0,      # 水平位置制御P
+    'PSC_POSXY_P': 6.0,      # 水平位置制御P
     'PSC_VELXY_P': 3,      # 水平速度制御P
-    'PSC_VELXY_I': 2,      # 水平速度制御I
+    'PSC_VELXY_I': 2.5,      # 水平速度制御I
     'PSC_VELXY_D': 0.3,      # 水平速度制御D
     
     # --- 姿勢制御PID ---
-    'ATC_RAT_RLL_P': 0.04,  # Roll P（0.05→0.135、標準値）
-    'ATC_RAT_RLL_I': 0.07,  # Roll I（0.05→0.135、標準値）
-    'ATC_RAT_RLL_D': 0.001, # Roll D（0.001→0.0036、標準値）
-    'ATC_RAT_PIT_P': 0.04,  # Pitch P（0.05→0.135、標準値）
-    'ATC_RAT_PIT_I': 0.07,  # Pitch I（0.05→0.135、標準値）
-    'ATC_RAT_PIT_D': 0.0015, # Pitch D（0.001→0.0036、標準値）
-    'ATC_RAT_YAW_P': 0.2,    # Yaw P（ハイブリッドヨー対応）
+    'ATC_RAT_RLL_P': 0.04,  # Roll P
+    'ATC_RAT_RLL_I': 0.07,  # Roll I
+    'ATC_RAT_RLL_D': 0.001, # Roll D
+    'ATC_RAT_PIT_P': 0.05,  # Pitch P
+    'ATC_RAT_PIT_I': 0.07,  # Pitch I
+    'ATC_RAT_PIT_D': 0.001, # Pitch D
+    'ATC_RAT_YAW_P': 0.2,    # Yaw P
     'ATC_RAT_YAW_I': 0.02,   # Yaw I
     
     # --- IMUフィルタ（応答性向上） ---
