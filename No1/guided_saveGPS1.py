@@ -123,7 +123,7 @@ def gps_to_local(lat, lon):
     return x - x0, y - y0
 
 def keyboard_input_thread():
-    global current_target
+    global current_target, running  # ←✔ ここで先に宣言
     print("位置入力形式: 緯度,経度（例: 35.000123,135.000456）")
     print("`exit`で終了可能\n")
 
@@ -131,7 +131,6 @@ def keyboard_input_thread():
         try:
             cmd = input("> ")
             if cmd.lower() == "exit":
-                global running
                 running = False
                 break
             parts = cmd.strip().split(",")
@@ -147,6 +146,7 @@ def keyboard_input_thread():
                 print("⚠ 入力形式エラー")
         except Exception as e:
             print(f"⚠ 入力エラー: {e}")
+
 
 def target_sender():
     while running:
