@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
 """
 ArduPilot Guided制御 + GPS記録プログラム（修正版）
-Guidedモードを待機し続ける版
+手順:
+1. アーム
+2. プログラム実行
+3. プロポのスイッチでguidedモードに
+4. 記録開始
+5. 離陸
+6. プロポでディスアーム
+7. CSV記録
+8. 終了
 """
 
 import time, threading, csv, datetime, pytz, signal, sys
@@ -11,7 +19,8 @@ from pymavlink import mavutil
 # ===== 設定 =====
 SEND_RATE = 10               
 GPS_RATE = 10                
-TAKEOFF_ALT = 0.10           
+TAKEOFF_ALT = 0.5          # 離陸高度 1m
+GUIDED_DELAY = 3.0           # Guidedモード検出後の待機時間
 
 CSV_DIR = Path.home() / "LOGS"
 CSV_DIR.mkdir(exist_ok=True)
@@ -94,13 +103,14 @@ def send_target_position(m, lat, lon, alt):
     m.mav.set_position_target_global_int_send(
         0, m.target_system, m.target_component,
         mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
-        0x0FF8,
+        0x0FF8,  # 位置のみ制御
         lat_int, lon_int, alt,
         0, 0, 0, 0, 0, 0, 0, 0)
 
 def monitor_vehicle_state(m):
     """機体状態監視スレッド"""
     global current_mode, armed, guided_active, recording, takeoff_sent, current_gps
+    guided_start_time = 0  # Guidedモード開始時刻
     
     while running:
         heartbeat = m.recv_match(type='HEARTBEAT', blocking=False, timeout=0.05)
@@ -110,28 +120,35 @@ def monitor_vehicle_state(m):
             
             # Guidedモード検出（モード4）
             if current_mode == 4 and armed and not guided_active:
-                print('✓ Guidedモード検出 - 記録開始')
+                print('✓ Guidedモード検出 - 安定化待機中...')
                 guided_active = True
                 recording = True
+                guided_start_time = time.time()
                 
-                if not takeoff_sent:
-                    send_takeoff_command(m, TAKEOFF_ALT)
-                    takeoff_sent = True
+            # Guidedモード安定後に離陸コマンド送信
+            if (guided_active and not takeoff_sent and 
+                time.time() - guided_start_time >= GUIDED_DELAY):
+                print(f'✓ Guidedモード安定 - 離陸コマンド送信: {TAKEOFF_ALT:.1f}m')
+                send_takeoff_command(m, TAKEOFF_ALT)
+                takeoff_sent = True
             
             # Guidedモードから外れた場合の処理
             if current_mode != 4 and guided_active:
                 print('✓ Guidedモード終了')
                 guided_active = False
                 recording = False
+                takeoff_sent = False  # リセット
+                guided_start_time = 0
             
-            # ディスアーム検出（記録停止のみ、プログラム継続）
+            # ディスアーム検出
             if not armed and recording:
                 print('✓ ディスアーム検出 - 記録停止')
                 recording = False
                 guided_active = False
-                takeoff_sent = False  # リセット
+                takeoff_sent = False
+                guided_start_time = 0
         
-        # GPS位置監視
+        # GPS位置監視（変更なし）
         pos = m.recv_match(type='GLOBAL_POSITION_INT', blocking=False, timeout=0.05)
         if pos:
             with data_lock:
@@ -173,6 +190,7 @@ def save_csv():
         print("記録データがありません")
         return
     
+    # 日本時間でファイル名生成
     jst = pytz.timezone("Asia/Tokyo")
     timestamp = datetime.datetime.now(jst).strftime("%Y%m%d_%H%M%S")
     csv_path = CSV_DIR / f"{timestamp}_1.csv"
