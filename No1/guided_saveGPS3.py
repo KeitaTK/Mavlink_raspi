@@ -10,6 +10,7 @@ import pyned2lla
 STEP = 0.10          # 10cm移動
 TAKEOFF_ALT = 0.50   # 初期離陸高度（m）
 SEND_HZ = 10
+MASK = 0x09F8        # bit10=0(Yaw有効) bit11=1(YawRate無視)
 CSV_DIR = Path.home() / "LOGS_Pixhawk6c"
 CSV_DIR.mkdir(exist_ok=True)
 
@@ -51,25 +52,23 @@ def send_takeoff_command(mav, alt):
         mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0,0,0,0,0,0,0, alt)
 
 # ───── 修正されたコマンド送信関数 ─────
-def send_setpoint(m, lat_i, lon_i, alt):
-    """位置制御のみ（ヨー角は無視）"""
+def send_setpoint(m, lat_i, lon_i, alt, yaw_deg):
+    """位置とヨー角を毎回明示的に指定して送信"""
     with io_lock:
         target.update(lat=lat_i/1e7, lon=lon_i/1e7, alt=alt)
     m.mav.set_position_target_global_int_send(
         0, m.target_system, m.target_component,
         mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
-        0b0000111111111000,  # bit10=1 yaw ignored, bit11=1 yaw rate ignored
+        MASK,  # ヨー角制御有効
         lat_i, lon_i, alt,
-        0,0,0, 0,0,0,
-        0, 0)  # yaw and yaw_rate ignored
-
-def send_yaw_command(m, yaw_deg):
-    """ヨー角制御専用（CONDITION_YAWコマンド）"""
+        0, 0, 0, 0, 0, 0,
+        math.radians(yaw_deg), 0)
+    
+    # 2. ヨー角コマンド（補強）
     m.mav.command_long_send(
         m.target_system, m.target_component,
         mavutil.mavlink.MAV_CMD_CONDITION_YAW,
-        0, yaw_deg, 20, 0, 0, 0, 0, 0  # 20度/秒で回転
-    )
+        0, yaw_deg, 20, 0, 0, 0, 0, 0)
 
 # ───── 離陸時ヨー角取得 ─────
 def get_initial_yaw(mav):
@@ -111,8 +110,6 @@ def monitor_vehicle(mav):
                     initial_yaw = get_initial_yaw(mav)
                     yaw_t_deg = initial_yaw  # 初期値として設定
                     yaw_acquired = True
-                    # 基準ヨー角をセット
-                    send_yaw_command(mav, yaw_t_deg)
 
             if guided_active and not takeoff_sent and time.time() - start_time > 3:
                 send_takeoff_command(mav, TAKEOFF_ALT)
@@ -141,6 +138,8 @@ def monitor_vehicle(mav):
                 origin = pos
                 init_transformer(pos.lat / 1e7, pos.lon / 1e7)
                 print(f"✓ 原点設定 lat={gps_now['lat']}, lon={gps_now['lon']}")
+                # 初期位置設定時もヨー角を指定
+                send_setpoint(mav, int(gps_now['lat'] * 1e7), int(gps_now['lon'] * 1e7), TAKEOFF_ALT, yaw_t_deg)
 
         time.sleep(1 / SEND_HZ)
 
@@ -169,58 +168,54 @@ def control_loop(mav):
     old = termios.tcgetattr(fd)
     tty.setcbreak(fd)
     print("\n" + "="*60)
-    print("キーボード制御モード（ヨー角固定方式）")
+    print("キーボード制御モード（完全平行移動）")
     print("[u]南 [m]北 [h]東 [l]西 10cm  [w/z]±10cm  [a/d]Yaw±5°  [q]終了")
-    print("位置移動時：ヨー角は固定保持")
-    print("ヨー角変更：キーボード入力のみ")
+    print("すべての移動で現在のヨー角を明示的に指定")
     print("="*60)
 
     try:
         while running:
             key = get_key()
-            position_moved = False
-            yaw_moved = False
+            moved = False
             echo = None
             
             if key == 'q':
                 running = False
                 break
-            # 位置制御（ヨー角は固定のまま）
+            # 位置制御（現在のヨー角を明示的に保持）
             elif key == 'u': 
-                target['n'] -= STEP; position_moved = True; echo = "u South"
+                target['n'] -= STEP; moved = True; echo = "u South"
             elif key == 'm': 
-                target['n'] += STEP; position_moved = True; echo = "m North"
+                target['n'] += STEP; moved = True; echo = "m North"
             elif key == 'h': 
-                target['e'] += STEP; position_moved = True; echo = "h East"
+                target['e'] += STEP; moved = True; echo = "h East"
             elif key == 'l': 
-                target['e'] -= STEP; position_moved = True; echo = "l West"
+                target['e'] -= STEP; moved = True; echo = "l West"
             elif key == 'w': 
-                target['alt'] += STEP; position_moved = True; echo = "w Up"
+                target['alt'] += STEP; moved = True; echo = "w Up"
             elif key == 'z' and target['alt'] - STEP >= 0.05:
-                target['alt'] -= STEP; position_moved = True; echo = "z Down"
-            
-            # ヨー角制御のみ（位置は変更しない）
+                target['alt'] -= STEP; moved = True; echo = "z Down"
+            # ヨー角制御（現在の位置を保持）
             elif key == 'a':
-                yaw_t_deg = (yaw_t_deg - 5) % 360; yaw_moved = True; echo = "a Yaw-5"
+                yaw_t_deg = (yaw_t_deg - 5) % 360; moved = True; echo = "a Yaw-5"
             elif key == 'd':
-                yaw_t_deg = (yaw_t_deg + 5) % 360; yaw_moved = True; echo = "d Yaw+5"
+                yaw_t_deg = (yaw_t_deg + 5) % 360; moved = True; echo = "d Yaw+5"
 
             if echo:
                 sys.stdout.write(f"\x1b[2K\rKEY: {echo}\n")
                 sys.stdout.flush()
 
-            # 位置コマンド送信（ヨー角は無視される）
-            if position_moved:
+            # すべての移動でヨー角を明示的に指定して送信
+            if moved:
                 lat, lon, alt = enu_to_gps(target['n'], target['e'], target['alt'])
-                send_setpoint(mav, int(lat * 1e7), int(lon * 1e7), alt)
-                print(f"  位置更新: N={target['n']:.2f} E={target['e']:.2f} Alt={target['alt']:.2f} (ヨー角固定: {yaw_t_deg:.1f}°)")
-
-            # ヨー角コマンド送信（位置は変更されない）
-            if yaw_moved:
-                send_yaw_command(mav, yaw_t_deg)
+                send_setpoint(mav, int(lat * 1e7), int(lon * 1e7), alt, yaw_t_deg)
+                
                 if initial_yaw:
                     offset = (yaw_t_deg - initial_yaw + 180) % 360 - 180
-                    print(f"  ヨー角変更: {yaw_t_deg:.1f}° (基準{initial_yaw:.1f}°から{offset:+.0f}°)")
+                    print(f"  目標更新: N={target['n']:.2f} E={target['e']:.2f} Alt={target['alt']:.2f} "
+                          f"Yaw={yaw_t_deg:.1f}° (基準{initial_yaw:.1f}°+{offset:+.0f}°)")
+                else:
+                    print(f"  目標更新: N={target['n']:.2f} E={target['e']:.2f} Alt={target['alt']:.2f} Yaw={yaw_t_deg:.1f}°")
 
             time.sleep(0.05)
     finally:
@@ -267,8 +262,8 @@ def main():
     global running
     signal.signal(signal.SIGINT, lambda sig, frame: setattr(sys.modules[__name__], "running", False))
     print("="*50)
-    print("ArduPilot 精密制御 - ヨー角固定方式")
-    print("位置制御とヨー角制御を完全分離")
+    print("ArduPilot 精密制御 - 完全平行移動モード")
+    print("毎回ヨー角を明示的に指定して送信")
     print("="*50)
 
     mav = connect_mavlink()
