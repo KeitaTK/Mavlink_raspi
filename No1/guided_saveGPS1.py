@@ -39,6 +39,13 @@ def connect_mavlink():
     print('✓ MAVLink接続完了')
     return m
 
+def set_msg_rate(m):
+    """メッセージレート設定（重要：これが抜けていた）"""
+    for mid, us in [(24,200000),(33,200000),(30,200000)]:   # 5 Hz
+        m.mav.command_long_send(m.target_system, m.target_component,
+            mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
+            0, mid, us, 0,0,0,0,0)
+
 def wait_guided_and_armed(m):
     """Guidedモード＆アーム待機"""
     print('Guidedモード待機中...')
@@ -51,16 +58,14 @@ def wait_guided_and_armed(m):
         pass
     print('✓ アーム完了')
 
-def get_initial_position(m):
-    """初期GPS位置取得"""
+def wait_fix(m):
+    """GPS Fix待機（動作するコードから移植）"""
     print('GPS Fix待機中...')
-    while running:
-        gps = m.recv_match(type='GPS_RAW_INT', blocking=True)
-        if gps and gps.fix_type >= 3:
-            pos = m.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
-            lat, lon, alt = pos.lat/1e7, pos.lon/1e7, pos.relative_alt/1000
-            print(f"✓ 初期位置: {lat:.7f}, {lon:.7f}")
-            return lat, lon, alt
+    while True:
+        if (g:=m.recv_match(type='GPS_RAW_INT',blocking=True)) and g.fix_type>=3:
+            p = m.recv_match(type='GLOBAL_POSITION_INT',blocking=True)
+            print(f"✓ GPS OK {p.lat/1e7:.7f},{p.lon/1e7:.7f}")
+            return p.lat/1e7, p.lon/1e7, p.relative_alt/1000
 
 def send_target_position(m, lat, lon, alt):
     """目標位置送信"""
@@ -95,7 +100,7 @@ def target_sender_thread(m):
     while running:
         with data_lock:
             if current_target['lat'] != 0:
-                send_target_position(m, current_target['lat'], 
+                send_target_position(m, current_target['lat'],
                                    current_target['lon'], current_target['alt'])
         time.sleep(1/SEND_RATE)
 
@@ -124,7 +129,7 @@ def save_csv():
     
     with open(csv_path, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['Time', 'GPS_Lat', 'GPS_Lon', 'GPS_Alt', 
+        writer.writerow(['Time', 'GPS_Lat', 'GPS_Lon', 'GPS_Alt',
                         'Target_Lat', 'Target_Lon', 'Target_Alt'])
         writer.writerows(data_records)
     
@@ -138,10 +143,13 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     
     try:
-        # 初期化
+        # 初期化（動作するコードと同じ手順）
         m = connect_mavlink()
+        set_msg_rate(m)  # ← これが重要！
+        time.sleep(2)    # ← メッセージレート設定の待機
+        
         wait_guided_and_armed(m)
-        lat, lon, alt = get_initial_position(m)
+        lat, lon, alt = wait_fix(m)  # ← 動作する関数を使用
         
         # 初期位置を目標位置として設定
         with data_lock:
