@@ -61,6 +61,7 @@ def send_target_position(m, lat, lon, alt):
 
 def monitor_vehicle_state(m):
     global current_mode, armed, guided_active, takeoff_sent, recording, current_gps, origin_lat, origin_lon
+    global current_gps, origin_lat, origin_lon, running
     guided_start_time = 0
 
     while running:
