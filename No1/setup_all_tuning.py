@@ -61,12 +61,12 @@ params_to_set = {
     'GPS_PRIMARY': 0,
     
     # --- Guidedモード設定 ---
-    'WPNAV_SPEED_UP': 40,    # 上昇速度: 0.2m/s
-    'WPNAV_SPEED_DN': 30,   # 下降速度: 1.0m/s
-    'WPNAV_ACCEL_Z': 50,     # 加速度: 0.25m/s²
-    'WPNAV_SPEED': 400,     # 水平速度: 1.5m/s → 3.0m/s
-    'WPNAV_ACCEL': 500,     # 水平加速度: 2.5m/s² → 4.0m/s²
-    'WPNAV_RADIUS': 5,      # 到達半径: 0.2m → 0.1m
+    'WPNAV_SPEED_UP': 40,    # 上昇速度: m/s
+    'WPNAV_SPEED_DN': 30,   # 下降速度:  m/s
+    'WPNAV_ACCEL_Z': 70,     # 加速度: m/s^2
+    'WPNAV_SPEED': 500,     # 水平速度:  m/s
+    'WPNAV_ACCEL': 500,     # 水平加速度: m/s^2
+    'WPNAV_RADIUS': 5,      # 到達半径: cm
 
     # --- Loiterモード設定 ---
     'LOIT_SPEED': 50,
@@ -82,7 +82,7 @@ params_to_set = {
     'PILOT_ACCEL_Z': 250,    # パイロット加速度: 2.5m/s²
     
     # --- 垂直制御PID ---
-    'PSC_POSZ_P': 1.0,       # 高度位置制御P
+    'PSC_POSZ_P': 2.0,       # 高度位置制御P
     'PSC_VELZ_P': 4.0,       # 垂直速度制御P
     'PSC_VELZ_I': 8.0,       # 垂直速度制御I
     'PSC_VELZ_D': 0.01,      # 垂直速度制御D
