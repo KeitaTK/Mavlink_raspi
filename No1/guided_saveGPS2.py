@@ -4,25 +4,12 @@ from pathlib import Path
 from pymavlink import mavutil
 from pyproj import Transformer
 
-SEND_RATE = 10
-TAKEOFF_ALT = 0.5
-GUIDED_DELAY = 3.0
+SEND_RATE = 10      # Hz
+TAKEOFF_ALT = 0.5   # m
+GUIDED_DELAY = 3.0  # s
 
-# 保存先ディレクトリ変更
 CSV_DIR = Path.home() / "LOGS_Pixhawk6c"
 CSV_DIR.mkdir(exist_ok=True)
-
-# 基準座標（ローカル座標系の原点）
-ref_lat = 36.0757800
-ref_lon = 136.2132900
-ref_alt = 0.0
-
-# pyproj 変換器の設定（WGS84 → ENU）
-transformer = Transformer.from_crs(
-    "epsg:4326",
-    f"+proj=tmerc +lat_0={ref_lat} +lon_0={ref_lon} +k=1 +x_0=0 +y_0=0 +ellps=WGS84",
-    always_xy=True
-)
 
 running = True
 recording = False
@@ -36,6 +23,10 @@ current_gps = {'lat': 0, 'lon': 0, 'alt': 0, 'time': 0}
 current_target = {'lat': 0, 'lon': 0, 'alt': TAKEOFF_ALT, 'time': 0}
 current_mode = 0
 armed = False
+
+origin_lat = None
+origin_lon = None
+transformer = None
 
 def signal_handler(sig, frame):
     global running
@@ -69,7 +60,7 @@ def send_target_position(m, lat, lon, alt):
         0, 0, 0, 0, 0, 0, 0, 0)
 
 def monitor_vehicle_state(m):
-    global current_mode, armed, guided_active, takeoff_sent, recording, current_gps
+    global current_mode, armed, guided_active, takeoff_sent, recording, current_gps, origin_lat, origin_lon
     guided_start_time = 0
 
     while running:
@@ -79,7 +70,7 @@ def monitor_vehicle_state(m):
             armed = bool(hb.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
 
             if current_mode == 4 and armed and not guided_active:
-                print("✓ Guidedモード検出 -> 安定化中...")
+                print("✓ Guidedモード検出 → 安定化中...")
                 guided_active = True
                 guided_start_time = time.time()
 
@@ -109,20 +100,36 @@ def monitor_vehicle_state(m):
                     'alt': pos.relative_alt / 1000,
                     'time': time.time()
                 }
+                if origin_lat is None:
+                    origin_lat = current_gps['lat']
+                    origin_lon = current_gps['lon']
+                    init_transformer(origin_lat, origin_lon)
+                    print(f"✓ 原点設定: lat={origin_lat}, lon={origin_lon}")
 
         time.sleep(1 / SEND_RATE)
 
-def keyboard_input_thread():
-    """SSH用のキーボード入力で位置制御"""
-    global current_target
+def init_transformer(lat, lon):
+    global transformer
+    utm_zone = int((lon + 180) / 6) + 1
+    proj_str = f"+proj=utm +zone={utm_zone} +datum=WGS84 +units=m +no_defs"
+    transformer = Transformer.from_crs("EPSG:4326", proj_str, always_xy=True)
+
+def gps_to_local(lat, lon):
+    if transformer is None:
+        return 0.0, 0.0
+    x0, y0 = transformer.transform(origin_lon, origin_lat)
+    x, y = transformer.transform(lon, lat)
+    return x - x0, y - y0
+
+def keyboard_input_loop():
+    global running, current_target  # ← 修正箇所：globalを関数先頭に移動
     print("位置入力形式: 緯度,経度（例: 35.000123,135.000456）")
     print("`exit`で終了可能\n")
 
     while running:
         try:
-            cmd = input("> ")
+            cmd = input("\n> ")
             if cmd.lower() == "exit":
-                global running
                 running = False
                 break
             parts = cmd.strip().split(",")
@@ -165,44 +172,28 @@ def save_csv():
     if not data_records:
         print("記録データがありません")
         return
-
     jst = pytz.timezone("Asia/Tokyo")
     timestamp = datetime.datetime.now(jst).strftime("%Y%m%d_%H%M%S")
-    csv_path = CSV_DIR / f"{timestamp}_local.csv"
+    csv_path = CSV_DIR / f"{timestamp}_1.csv"
 
     with open(csv_path, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow([
-            'JST_Time',
-            'GPS_Lat', 'GPS_Lon', 'GPS_Alt',
-            'Target_Lat', 'Target_Lon', 'Target_Alt',
-            'GPS_X[m]', 'GPS_Y[m]', 'GPS_Z[m]',
-            'Target_X[m]', 'Target_Y[m]', 'Target_Z[m]'
-        ])
-
+        writer.writerow(['JST_Time',
+                         'GPS_Lat', 'GPS_Lon', 'GPS_Alt',
+                         'Target_Lat', 'Target_Lon', 'Target_Alt',
+                         'Local_X', 'Local_Y', 'Target_X', 'Target_Y'])
         for row in data_records:
-            jst_time, gps_lat, gps_lon, gps_alt, tgt_lat, tgt_lon, tgt_alt = row
-
-            gps_x, gps_y = transformer.transform(gps_lon, gps_lat)
-            tgt_x, tgt_y = transformer.transform(tgt_lon, tgt_lat)
-            gps_z = gps_alt - ref_alt
-            tgt_z = tgt_alt - ref_alt
-
-            writer.writerow([
-                jst_time,
-                gps_lat, gps_lon, gps_alt,
-                tgt_lat, tgt_lon, tgt_alt,
-                gps_x, gps_y, gps_z,
-                tgt_x, tgt_y, tgt_z
-            ])
-
-    print(f"✓ ローカルCSV保存完了: {csv_path}, 記録数: {len(data_records)}")
+            _, glat, glon, galt, tlat, tlon, talt = row
+            gx, gy = gps_to_local(glat, glon)
+            tx, ty = gps_to_local(tlat, tlon)
+            writer.writerow(row + [gx, gy, tx, ty])
+    print(f"✓ CSV保存完了: {csv_path}, 記録数: {len(data_records)}")
 
 def main():
     global mav
     signal.signal(signal.SIGINT, signal_handler)
     print("=" * 50)
-    print("ArduPilot Guided + SSH制御 + CSV記録 (10Hz)")
+    print("ArduPilot Guided + SSH制御 + ローカル座標記録")
     print("=" * 50)
 
     mav = connect_mavlink()
@@ -210,23 +201,17 @@ def main():
 
     print("プロポでアーム後、Guidedにしてください")
 
+    # サブスレッド起動（非入力系）
     threads = [
         threading.Thread(target=monitor_vehicle_state, args=(mav,), daemon=True),
         threading.Thread(target=target_sender, daemon=True),
         threading.Thread(target=data_recorder, daemon=True),
-        threading.Thread(target=keyboard_input_thread, daemon=True)
     ]
-
     for t in threads:
         t.start()
 
-    while running:
-        mode_name = {0:'Manual', 1:'Circle', 2:'Stabilize', 3:'Training',
-                     4:'Guided', 5:'LoiterUnlimited', 6:'RTL', 7:'Land',
-                     9:'Drift', 10:'Sport'}.get(current_mode, f'Mode{current_mode}')
-        print(f"\rモード: {mode_name}, アーム: {'Yes' if armed else 'No'}, "
-              f"記録: {'中' if recording else '待機'}, データ数: {len(data_records)}", end='')
-        time.sleep(1)
+    # 入力処理はメインスレッドで行う
+    keyboard_input_loop()
 
     print("\n記録終了、保存処理中...")
     save_csv()
