@@ -145,9 +145,9 @@ def monitor_vehicle(mav):
                 takeoff_reached = True
                 # 検索結果のコード例に基づく初期目標高度設定
                 with io_lock:
-                    target['z'] = TAKEOFF_ALT + 0.10  # 離陸高度プラス10cmを初期目標高度に設定
+                    target['z'] = TAKEOFF_ALT
                     initial_target_set = True
-                print(f"✓ 離陸高度到達 → 初期目標高度設定: {target['z']:.2f}m (離陸高度+10cm)")
+                print(f"✓ 離陸高度到達: {target['z']:.2f}m")
 
         time.sleep(1 / SEND_HZ)
 
