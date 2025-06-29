@@ -174,7 +174,7 @@ def control_loop(mav):
     print("キーボード制御モード（離陸高度自動設定→普通操作）")
     print("[u]南(-Y) [m]北(+Y) [h]東(+X) [l]西(-X) 10cm")
     print("[w]上昇(+Z) 10cm [z]下降(-Z) 10cm  [a/d]Yaw±5°  [q]終了")
-    print("初期目標高度: 離陸高度自動設定後、普通に上下移動可能")
+    print("初期目標高度: 離陸高度自動設定後、上下移動")
     print("="*60)
 
     try:
@@ -275,7 +275,7 @@ def main():
     print("="*50)
     print("ArduPilot 精密制御 - 離陸高度自動設定版")
     print("初期目標高度: TAKEOFF_ALT 自動設定")
-    print("その後: 普通にw/zキーで上下移動可能")
+    print("その後: w/zキーで上下移動可能")
     print("="*50)
 
     mav = connect_mavlink()
