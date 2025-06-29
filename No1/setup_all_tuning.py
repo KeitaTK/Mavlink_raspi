@@ -98,10 +98,10 @@ params_to_set = {
     # --- 姿勢制御PID ---
     'ATC_RAT_RLL_P': 0.03,  # Roll P
     'ATC_RAT_RLL_I': 0.07,  # Roll I
-    'ATC_RAT_RLL_D': 0.0015, # Roll D
+    'ATC_RAT_RLL_D': 0.002, # Roll D
     'ATC_RAT_PIT_P': 0.04,  # Pitch P
     'ATC_RAT_PIT_I': 0.07,  # Pitch I
-    'ATC_RAT_PIT_D': 0.0015, # Pitch D
+    'ATC_RAT_PIT_D': 0.002, # Pitch D
     'ATC_RAT_YAW_P': 0.2,    # Yaw P
     'ATC_RAT_YAW_I': 0.02,   # Yaw I
     
@@ -217,7 +217,7 @@ master.mav.command_long_send(
 )
 
 # コマンドACKを待機
-ack = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=5)
+ack = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=1)
 if ack and ack.command == mavutil.mavlink.MAV_CMD_PREFLIGHT_STORAGE and ack.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
     print("EEPROMへの保存成功")
 else:
