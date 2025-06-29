@@ -1,15 +1,7 @@
 #!/usr/bin/env python3
 """
-ArduPilot Guided制御 + GPS記録プログラム（ノンブロッキング版）
-手順:
-1. アーム
-2. プログラム実行
-3. プロポのスイッチでguidedモードに
-4. 記録開始
-5. 離陸
-6. プロポでディスアーム
-7. CSV記録
-8. 終了
+ArduPilot Guided制御 + GPS記録プログラム（修正版）
+Guidedモードを待機し続ける版
 """
 
 import time, threading, csv, datetime, pytz, signal, sys
@@ -17,23 +9,22 @@ from pathlib import Path
 from pymavlink import mavutil
 
 # ===== 設定 =====
-SEND_RATE = 10               # ArduPilotへの送信頻度 (Hz)
-GPS_RATE = 10                # GPS記録頻度 (Hz)
-TAKEOFF_ALT = 0.10           # 離陸高度 10cm
+SEND_RATE = 10               
+GPS_RATE = 10                
+TAKEOFF_ALT = 0.10           
 
 CSV_DIR = Path.home() / "LOGS"
 CSV_DIR.mkdir(exist_ok=True)
 
 # ===== グローバル変数 =====
 running = True
-recording = False            # 記録状態
-guided_active = False        # guidedモード状態
-takeoff_sent = False         # 離陸コマンド送信済み
+recording = False            
+guided_active = False        
+takeoff_sent = False         
 
 data_records = []
 data_lock = threading.Lock()
 
-# 現在状態
 current_gps = {'lat': 0, 'lon': 0, 'alt': 0, 'time': 0}
 current_target = {'lat': 0, 'lon': 0, 'alt': 0, 'time': 0}
 current_mode = 0
@@ -54,7 +45,7 @@ def connect_mavlink():
 
 def set_msg_rate(m):
     """メッセージレート設定"""
-    for mid, us in [(24,200000),(33,200000),(30,200000)]:   # 5 Hz
+    for mid, us in [(24,200000),(33,200000),(30,200000)]:
         m.mav.command_long_send(m.target_system, m.target_component,
             mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
             0, mid, us, 0,0,0,0,0)
@@ -103,7 +94,7 @@ def send_target_position(m, lat, lon, alt):
     m.mav.set_position_target_global_int_send(
         0, m.target_system, m.target_component,
         mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
-        0x0FF8,  # 位置のみ制御
+        0x0FF8,
         lat_int, lon_int, alt,
         0, 0, 0, 0, 0, 0, 0, 0)
 
@@ -112,7 +103,6 @@ def monitor_vehicle_state(m):
     global current_mode, armed, guided_active, recording, takeoff_sent, current_gps
     
     while running:
-        # ハートビート監視（モード・アーム状態）
         heartbeat = m.recv_match(type='HEARTBEAT', blocking=False, timeout=0.05)
         if heartbeat:
             current_mode = heartbeat.custom_mode
@@ -124,16 +114,22 @@ def monitor_vehicle_state(m):
                 guided_active = True
                 recording = True
                 
-                # 離陸コマンド送信（1回のみ）
                 if not takeoff_sent:
                     send_takeoff_command(m, TAKEOFF_ALT)
                     takeoff_sent = True
             
-            # ディスアーム検出
+            # Guidedモードから外れた場合の処理
+            if current_mode != 4 and guided_active:
+                print('✓ Guidedモード終了')
+                guided_active = False
+                recording = False
+            
+            # ディスアーム検出（記録停止のみ、プログラム継続）
             if not armed and recording:
                 print('✓ ディスアーム検出 - 記録停止')
                 recording = False
-                return  # スレッド終了でメイン処理へ
+                guided_active = False
+                takeoff_sent = False  # リセット
         
         # GPS位置監視
         pos = m.recv_match(type='GLOBAL_POSITION_INT', blocking=False, timeout=0.05)
@@ -150,17 +146,18 @@ def monitor_vehicle_state(m):
 
 def target_sender_thread(m):
     """目標位置送信スレッド"""
-    while running and recording:
-        with data_lock:
-            if current_target['lat'] != 0 and guided_active:
-                send_target_position(m, current_target['lat'],
-                                   current_target['lon'], current_target['alt'])
+    while running:
+        if recording:  # 記録中のみ送信
+            with data_lock:
+                if current_target['lat'] != 0:
+                    send_target_position(m, current_target['lat'],
+                                       current_target['lon'], current_target['alt'])
         time.sleep(1/SEND_RATE)
 
 def data_recorder_thread():
     """データ記録スレッド"""
     while running:
-        if recording:  # 記録中のみデータ保存
+        if recording:
             with data_lock:
                 if current_gps['time'] > 0 and current_target['time'] > 0:
                     data_records.append([
@@ -176,7 +173,6 @@ def save_csv():
         print("記録データがありません")
         return
     
-    # 日本時間でファイル名生成
     jst = pytz.timezone("Asia/Tokyo")
     timestamp = datetime.datetime.now(jst).strftime("%Y%m%d_%H%M%S")
     csv_path = CSV_DIR / f"{timestamp}_1.csv"
@@ -193,7 +189,6 @@ def save_csv():
 def main():
     global running
     
-    # シグナルハンドラ設定
     signal.signal(signal.SIGINT, signal_handler)
     
     try:
@@ -201,23 +196,19 @@ def main():
         print("ArduPilot Guided制御 + GPS記録")
         print("=" * 50)
         
-        # 初期化
         m = connect_mavlink()
         set_msg_rate(m)
         time.sleep(2)
         
-        # 手順1: アーム待機
         if not wait_for_arming(m):
             print("アーム失敗")
             return
         
-        # 手順2: GPS Fix確認
         lat, lon, alt = wait_for_gps_fix(m)
         if lat is None:
             print("GPS Fix失敗")
             return
         
-        # 初期位置を目標位置として設定
         with data_lock:
             current_target['lat'] = lat
             current_target['lon'] = lon
@@ -229,20 +220,21 @@ def main():
         print("2. ✓ プログラム実行中")
         print("3. プロポのスイッチでGuidedモードにしてください")
         print("4. 自動で記録開始・離陸します")
-        print("5. プロポでディスアームすると記録停止・保存します")
+        print("5. Ctrl+Cで終了（自動でCSV保存）")
         print("-" * 50)
         
         # スレッド開始
-        monitor_thread = threading.Thread(target=monitor_vehicle_state, args=(m,), daemon=True)
-        sender_thread = threading.Thread(target=target_sender_thread, args=(m,), daemon=True)
-        recorder_thread = threading.Thread(target=data_recorder_thread, daemon=True)
+        threads = [
+            threading.Thread(target=monitor_vehicle_state, args=(m,), daemon=True),
+            threading.Thread(target=target_sender_thread, args=(m,), daemon=True),
+            threading.Thread(target=data_recorder_thread, daemon=True)
+        ]
         
-        monitor_thread.start()
-        sender_thread.start()
-        recorder_thread.start()
+        for t in threads:
+            t.start()
         
-        # メインループ（状態表示）
-        while running and armed:
+        # メインループ（修正版：Ctrl+Cまで継続）
+        while running:
             mode_name = {0:'Manual', 1:'Circle', 2:'Stabilize', 3:'Training', 
                         4:'Guided', 5:'LoiterUnlimited', 6:'RTL', 7:'Land', 
                         8:'Unknown', 9:'Drift', 10:'Sport'}.get(current_mode, f'Mode{current_mode}')
@@ -253,10 +245,6 @@ def main():
             print(f"\rモード: {mode_name}, アーム: {'Yes' if armed else 'No'}, "
                   f"状態: {status}, 記録数: {record_count}", end='')
             
-            # ディスアーム検出でメインループ終了
-            if not armed and recording:
-                break
-                
             time.sleep(1)
     
     except Exception as e:
