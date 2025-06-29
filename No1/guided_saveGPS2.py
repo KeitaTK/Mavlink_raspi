@@ -1,222 +1,213 @@
 #!/usr/bin/env python3
-import time, threading, csv, datetime, pytz, signal, sys
+import sys, select, time, math, threading, termios, tty, csv, datetime, signal
 from pathlib import Path
 from pymavlink import mavutil
 from pyproj import Transformer
+import pytz
+import pyned2lla
 
-SEND_RATE = 10      # Hz
-TAKEOFF_ALT = 0.5   # m
-GUIDED_DELAY = 3.0  # s
-
+# ───── ユーザー設定 ─────
+STEP = 0.10          # 10cm移動
+TAKEOFF_ALT = 0.50   # 初期離陸高度（m）
+SEND_HZ = 10
 CSV_DIR = Path.home() / "LOGS_Pixhawk6c"
 CSV_DIR.mkdir(exist_ok=True)
 
+# ───── 状態変数 ─────
 running = True
 recording = False
-guided_active = False
-takeoff_sent = False
-
+target = {'n':0.0, 'e':0.0, 'alt':TAKEOFF_ALT, 'yaw':180.0}
+gps_now = {'lat':0, 'lon':0, 'alt':0}
 data_records = []
-data_lock = threading.Lock()
-
-current_gps = {'lat': 0, 'lon': 0, 'alt': 0, 'time': 0}
-current_target = {'lat': 0, 'lon': 0, 'alt': TAKEOFF_ALT, 'time': 0}
-current_mode = 0
-armed = False
-
-origin_lat = None
-origin_lon = None
+origin = None
 transformer = None
+io_lock = threading.Lock()
 
-def signal_handler(sig, frame):
-    global running
-    print("\n手動終了処理中...")
-    running = False
+# ───── 非ブロッキングキー入力 ─────
+def get_key():
+    if select.select([sys.stdin], [], [], 0)[0]:
+        return sys.stdin.read(1)
+    return None
 
+# ───── MAV接続 & 設定 ─────
 def connect_mavlink():
     m = mavutil.mavlink_connection('/dev/ttyAMA0', baud=1000000, rtscts=True)
     m.wait_heartbeat()
-    print('✓ MAVLink接続完了')
+    print("✓ MAVLink接続完了")
     return m
 
 def set_msg_rate(m):
     for mid, us in [(24,200000),(33,200000),(30,200000)]:
         m.mav.command_long_send(m.target_system, m.target_component,
-            mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
-            0, mid, us, 0,0,0,0,0)
+            mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL, 0, mid, us, 0,0,0,0,0)
 
-def send_takeoff_command(m, alt):
-    m.mav.command_long_send(
-        m.target_system, m.target_component,
-        mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
-        0, 0, 0, 0, 0, 0, 0, alt)
+def send_takeoff_command(mav, alt):
+    mav.mav.command_long_send(mav.target_system, mav.target_component,
+        mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0,0,0,0,0,0,0, alt)
 
-def send_target_position(m, lat, lon, alt):
-    m.mav.set_position_target_global_int_send(
-        0, m.target_system, m.target_component,
+def send_target_position(mav, lat, lon, alt, yaw):
+    mav.mav.set_position_target_global_int_send(
+        0, mav.target_system, mav.target_component,
         mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
-        0x0FF8,
+        0x0FF8,  # Yaw有効
         int(lat * 1e7), int(lon * 1e7), alt,
-        0, 0, 0, 0, 0, 0, 0, 0)
+        0,0,0, 0,0,0,
+        math.radians(yaw), 0)
 
-def monitor_vehicle_state(m):
-    global current_mode, armed, guided_active, takeoff_sent, recording, current_gps, origin_lat, origin_lon
-    global current_gps, origin_lat, origin_lon, running
-    guided_start_time = 0
+# ───── GPS更新 & ディスアーム監視 ─────
+def monitor_vehicle(mav):
+    global running, recording, gps_now, origin, transformer
+    guided_active = False
+    armed = False
+    takeoff_sent = False
+    start_time = 0
 
     while running:
-        hb = m.recv_match(type='HEARTBEAT', blocking=False, timeout=0.05)
+        hb = mav.recv_match(type='HEARTBEAT', blocking=False, timeout=0.05)
         if hb:
-            current_mode = hb.custom_mode
-            armed = bool(hb.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
+            mode = hb.custom_mode
+            new_armed = bool(hb.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
 
-            if current_mode == 4 and armed and not guided_active:
-                print("✓ Guidedモード検出 → 安定化中...")
+            if mode == 4 and new_armed and not guided_active:
+                print("✓ Guidedモード検出 → 離陸準備")
+                start_time = time.time()
                 guided_active = True
-                guided_start_time = time.time()
 
-            if guided_active and not takeoff_sent and (time.time() - guided_start_time) > GUIDED_DELAY:
+            if guided_active and not takeoff_sent and time.time() - start_time > 3:
+                send_takeoff_command(mav, TAKEOFF_ALT)
                 print(f"✓ 離陸指令（{TAKEOFF_ALT:.1f}m）")
-                send_takeoff_command(m, TAKEOFF_ALT)
                 recording = True
                 takeoff_sent = True
 
-            if current_mode != 4 and guided_active:
-                print("✓ Guided終了 → 停止")
+            if mode != 4:
                 guided_active = False
-                recording = False
                 takeoff_sent = False
+                recording = False
 
-            if not armed and recording:
-                print("✓ ディスアーム検出 → 停止 & 保存")
+            if not new_armed and recording:
+                print("\n✓ ディスアーム検出 → 記録停止")
                 running = False
                 recording = False
 
-        pos = m.recv_match(type='GLOBAL_POSITION_INT', blocking=False, timeout=0.05)
+        pos = mav.recv_match(type='GLOBAL_POSITION_INT', blocking=False)
         if pos:
-            with data_lock:
-                current_gps = {
-                    'lat': pos.lat / 1e7,
-                    'lon': pos.lon / 1e7,
-                    'alt': pos.relative_alt / 1000,
-                    'time': time.time()
-                }
-                if origin_lat is None:
-                    origin_lat = current_gps['lat']
-                    origin_lon = current_gps['lon']
-                    init_transformer(origin_lat, origin_lon)
-                    print(f"✓ 原点設定: lat={origin_lat}, lon={origin_lon}")
+            gps_now = {
+                'lat': pos.lat / 1e7,
+                'lon': pos.lon / 1e7,
+                'alt': pos.relative_alt / 1000
+            }
+            if origin is None:
+                origin = pos
+                init_transformer(pos.lat / 1e7, pos.lon / 1e7)
+                print(f"✓ 原点設定 lat={gps_now['lat']}, lon={gps_now['lon']}")
 
-        time.sleep(1 / SEND_RATE)
+        time.sleep(1 / SEND_HZ)
 
+# ───── ENU → 緯度経度変換 ─────
 def init_transformer(lat, lon):
     global transformer
     utm_zone = int((lon + 180) / 6) + 1
     proj_str = f"+proj=utm +zone={utm_zone} +datum=WGS84 +units=m +no_defs"
     transformer = Transformer.from_crs("EPSG:4326", proj_str, always_xy=True)
 
+def enu_to_gps(n, e, alt):
+    if origin is None:
+        return gps_now['lat'], gps_now['lon'], alt
+    wgs = pyned2lla.wgs84()
+    lat0 = origin.lat / 1e7
+    lon0 = origin.lon / 1e7
+    alt0 = origin.alt / 1000
+    latr, lonr, _ = pyned2lla.ned2lla(math.radians(lat0), math.radians(lon0), alt0, n, e, 0, wgs)
+    return math.degrees(latr), math.degrees(lonr), alt
+
+# ───── 操作スレッド ─────
+def control_loop(mav):
+    global running, target
+
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    tty.setcbreak(fd)
+    print("キー操作: u/m/h/l/w/z/a/d (qで終了)")
+
+    try:
+        while running:
+            key = get_key()
+            moved = False
+            if key == 'q':
+                running = False
+                break
+            elif key == 'u': target['n'] -= STEP; moved = True
+            elif key == 'm': target['n'] += STEP; moved = True
+            elif key == 'h': target['e'] += STEP; moved = True
+            elif key == 'l': target['e'] -= STEP; moved = True
+            elif key == 'w': target['alt'] += STEP; moved = True
+            elif key == 'z' and target['alt'] - STEP >= 0.05:
+                target['alt'] -= STEP; moved = True
+            elif key == 'a': target['yaw'] = (target['yaw'] - 5) % 360; moved = True
+            elif key == 'd': target['yaw'] = (target['yaw'] + 5) % 360; moved = True
+
+            if moved:
+                lat, lon, alt = enu_to_gps(target['n'], target['e'], target['alt'])
+                send_target_position(mav, lat, lon, alt, target['yaw'])
+                print(f"\r→ 目標更新: N={target['n']:.2f} E={target['e']:.2f} Alt={target['alt']:.2f} Yaw={target['yaw']:.1f}°", end='')
+
+            time.sleep(0.05)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+# ───── データ記録スレッド ─────
+def record_data():
+    while running:
+        if recording and origin:
+            lat, lon, alt = gps_now['lat'], gps_now['lon'], gps_now['alt']
+            x, y = gps_to_local(lat, lon)
+            data_records.append([
+                datetime.datetime.now(pytz.timezone("Asia/Tokyo")).isoformat(),
+                lat, lon, alt,
+                target['n'], target['e'], target['alt'], target['yaw'],
+                x, y
+            ])
+        time.sleep(1 / SEND_HZ)
+
 def gps_to_local(lat, lon):
     if transformer is None:
-        return 0.0, 0.0
-    x0, y0 = transformer.transform(origin_lon, origin_lat)
+        return 0, 0
+    x0, y0 = transformer.transform(origin.lon / 1e7, origin.lat / 1e7)
     x, y = transformer.transform(lon, lat)
     return x - x0, y - y0
 
-def keyboard_input_loop():
-    global running, current_target  # ← 修正箇所：globalを関数先頭に移動
-    print("位置入力形式: 緯度,経度（例: 35.000123,135.000456）")
-    print("`exit`で終了可能\n")
-
-    while running:
-        try:
-            cmd = input("\n> ")
-            if cmd.lower() == "exit":
-                running = False
-                break
-            parts = cmd.strip().split(",")
-            if len(parts) == 2:
-                lat = float(parts[0])
-                lon = float(parts[1])
-                with data_lock:
-                    current_target['lat'] = lat
-                    current_target['lon'] = lon
-                    current_target['time'] = time.time()
-                print(f"✓ 目標更新: lat={lat}, lon={lon}")
-            else:
-                print("⚠ 入力形式エラー")
-        except Exception as e:
-            print(f"⚠ 入力エラー: {e}")
-
-def target_sender():
-    while running:
-        if recording:
-            with data_lock:
-                if current_target['time'] > 0:
-                    send_target_position(mav, current_target['lat'],
-                                         current_target['lon'],
-                                         current_target['alt'])
-        time.sleep(1 / SEND_RATE)
-
-def data_recorder():
-    while running:
-        if recording:
-            with data_lock:
-                if current_gps['time'] > 0 and current_target['time'] > 0:
-                    data_records.append([
-                        datetime.datetime.now(pytz.timezone("Asia/Tokyo")).isoformat(),
-                        current_gps['lat'], current_gps['lon'], current_gps['alt'],
-                        current_target['lat'], current_target['lon'], current_target['alt']
-                    ])
-        time.sleep(1 / SEND_RATE)
-
 def save_csv():
     if not data_records:
-        print("記録データがありません")
+        print("⚠ 記録なし")
         return
-    jst = pytz.timezone("Asia/Tokyo")
-    timestamp = datetime.datetime.now(jst).strftime("%Y%m%d_%H%M%S")
-    csv_path = CSV_DIR / f"{timestamp}_1.csv"
-
-    with open(csv_path, 'w', newline='') as f:
+    now = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y%m%d_%H%M%S")
+    path = CSV_DIR / f"{now}_log.csv"
+    with open(path, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['JST_Time',
-                         'GPS_Lat', 'GPS_Lon', 'GPS_Alt',
-                         'Target_Lat', 'Target_Lon', 'Target_Alt',
-                         'Local_X', 'Local_Y', 'Target_X', 'Target_Y'])
-        for row in data_records:
-            _, glat, glon, galt, tlat, tlon, talt = row
-            gx, gy = gps_to_local(glat, glon)
-            tx, ty = gps_to_local(tlat, tlon)
-            writer.writerow(row + [gx, gy, tx, ty])
-    print(f"✓ CSV保存完了: {csv_path}, 記録数: {len(data_records)}")
+        writer.writerow(['Time', 'GPS_Lat', 'GPS_Lon', 'GPS_Alt',
+                         'N(m)', 'E(m)', 'Target_Alt', 'Yaw(deg)',
+                         'Local_X(m)', 'Local_Y(m)'])
+        writer.writerows(data_records)
+    print(f"\n✓ CSV保存完了: {path}")
 
+# ───── メイン関数 ─────
 def main():
-    global mav
-    signal.signal(signal.SIGINT, signal_handler)
-    print("=" * 50)
+    global running
+    signal.signal(signal.SIGINT, lambda sig, frame: setattr(sys.modules[__name__], "running", False))
+    print("="*50)
     print("ArduPilot Guided + SSH制御 + ローカル座標記録")
-    print("=" * 50)
+    print("="*50)
 
     mav = connect_mavlink()
     set_msg_rate(mav)
 
-    print("プロポでアーム後、Guidedにしてください")
+    threading.Thread(target=monitor_vehicle, args=(mav,), daemon=True).start()
+    threading.Thread(target=record_data, daemon=True).start()
+    control_loop(mav)
 
-    # サブスレッド起動（非入力系）
-    threads = [
-        threading.Thread(target=monitor_vehicle_state, args=(mav,), daemon=True),
-        threading.Thread(target=target_sender, daemon=True),
-        threading.Thread(target=data_recorder, daemon=True),
-    ]
-    for t in threads:
-        t.start()
-
-    # 入力処理はメインスレッドで行う
-    keyboard_input_loop()
-
-    print("\n記録終了、保存処理中...")
+    print("\n記録終了、CSV保存中...")
     save_csv()
-    print("プログラム終了")
+    print("✓ プログラム終了")
 
 if __name__ == "__main__":
     main()
