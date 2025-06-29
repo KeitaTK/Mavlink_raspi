@@ -61,11 +61,11 @@ params_to_set = {
     'GPS_PRIMARY': 0,
     
     # --- Guidedモード設定 ---
-    'WPNAV_SPEED_UP': 30,    # 上昇速度: 0.2m/s
-    'WPNAV_SPEED_DN': 20,   # 下降速度: 1.0m/s
-    'WPNAV_ACCEL_Z': 30,     # 加速度: 0.25m/s²
-    'WPNAV_SPEED': 300,     # 水平速度: 1.5m/s → 3.0m/s
-    'WPNAV_ACCEL': 400,     # 水平加速度: 2.5m/s² → 4.0m/s²
+    'WPNAV_SPEED_UP': 40,    # 上昇速度: 0.2m/s
+    'WPNAV_SPEED_DN': 30,   # 下降速度: 1.0m/s
+    'WPNAV_ACCEL_Z': 50,     # 加速度: 0.25m/s²
+    'WPNAV_SPEED': 400,     # 水平速度: 1.5m/s → 3.0m/s
+    'WPNAV_ACCEL': 500,     # 水平加速度: 2.5m/s² → 4.0m/s²
     'WPNAV_RADIUS': 5,      # 到達半径: 0.2m → 0.1m
 
     # --- Loiterモード設定 ---
@@ -98,10 +98,10 @@ params_to_set = {
     # --- 姿勢制御PID ---
     'ATC_RAT_RLL_P': 0.03,  # Roll P
     'ATC_RAT_RLL_I': 0.05,  # Roll I
-    'ATC_RAT_RLL_D': 0.001, # Roll D
+    'ATC_RAT_RLL_D': 0.0012, # Roll D
     'ATC_RAT_PIT_P': 0.04,  # Pitch P
     'ATC_RAT_PIT_I': 0.05,  # Pitch I
-    'ATC_RAT_PIT_D': 0.001, # Pitch D
+    'ATC_RAT_PIT_D': 0.0012, # Pitch D
     'ATC_RAT_YAW_P': 0.2,    # Yaw P
     'ATC_RAT_YAW_I': 0.02,   # Yaw I
     
