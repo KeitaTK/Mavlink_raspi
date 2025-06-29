@@ -20,8 +20,8 @@ target = {'x':0.0, 'y':0.0, 'z':0.0}  # ローカル座標系で記録
 gps_now = {'x':0.0, 'y':0.0, 'z':0.0}
 data_records = []
 origin = None
-origin_alt_relative = None  # 追加：相対高度の初期値
 io_lock = threading.Lock()
+initial_target_set = False  # 初期目標高度設定完了フラグ
 
 # ───── ヨー角制御関連 ─────
 initial_yaw = None
@@ -78,11 +78,12 @@ def get_initial_yaw(mav):
 
 # ───── GPS更新 & ディスアーム監視（修正版） ─────
 def monitor_vehicle(mav):
-    global running, recording, gps_now, origin, origin_alt_relative
-    global initial_yaw, yaw_t_deg, yaw_acquired
+    global running, recording, gps_now, origin, io_lock
+    global initial_yaw, yaw_t_deg, yaw_acquired, initial_target_set
     guided_active = False
     armed = False
     takeoff_sent = False
+    takeoff_reached = False
     start_time = 0
 
     while running:
@@ -111,6 +112,8 @@ def monitor_vehicle(mav):
                 guided_active = False
                 takeoff_sent = False
                 recording = False
+                takeoff_reached = False
+                initial_target_set = False
 
             if not new_armed and recording:
                 print("\n✓ ディスアーム検出 → 記録停止")
@@ -121,69 +124,57 @@ def monitor_vehicle(mav):
         if pos:
             lat = pos.lat / 1e7
             lon = pos.lon / 1e7
-            alt_relative = pos.relative_alt / 1000  # 修正：相対高度を使用
-            
+            alt = pos.relative_alt / 1000
+
             if origin is None:
                 origin = pos
-                origin_alt_relative = alt_relative  # 修正：相対高度の初期値を保存
-                print(f"✓ 原点設定 lat={lat}, lon={lon}, relative_alt={alt_relative:.3f}m")
+                print(f"✓ 原点設定 lat={lat}, lon={lon}")
 
-            # 修正：相対高度基準でローカルXYZ座標に変換
-            x, y, z = gps_to_local_xyz(lat, lon, alt_relative)
+            # 簡易的なローカル座標変換
+            x = (lon - origin.lon / 1e7) * 111319.5 * math.cos(math.radians(lat))
+            y = (lat - origin.lat / 1e7) * 111319.5
+            z = alt - (origin.relative_alt / 1000)
+
             with io_lock:
                 gps_now['x'] = x
                 gps_now['y'] = y
                 gps_now['z'] = z
-                
-            # デバッグ出力（離陸確認用）
-            if recording and abs(z) > 0.1:  # 10cm以上の高度変化があった場合
-                print(f"高度変化検出: {z:.3f}m (relative_alt: {alt_relative:.3f}m)")
+
+            # 離陸高度到達チェックと初期目標高度設定
+            if takeoff_sent and not takeoff_reached and z >= TAKEOFF_ALT * 0.9:
+                takeoff_reached = True
+                # 検索結果のコード例に基づく初期目標高度設定
+                with io_lock:
+                    target['z'] = TAKEOFF_ALT + 0.10  # 離陸高度プラス10cmを初期目標高度に設定
+                    initial_target_set = True
+                print(f"✓ 離陸高度到達 → 初期目標高度設定: {target['z']:.2f}m (離陸高度+10cm)")
 
         time.sleep(1 / SEND_HZ)
 
-# ───── 修正：緯度経度高度をローカルXYZ座標に変換 ─────
-def gps_to_local_xyz(lat, lon, alt_relative):
-    """緯度経度高度をローカルXYZ座標に変換（修正版）"""
-    if origin is None or origin_alt_relative is None:
-        return 0.0, 0.0, 0.0
-    
-    lat0 = origin.lat / 1e7
-    lon0 = origin.lon / 1e7
-    
-    # 簡易的なローカル座標変換
-    x = (lon - lon0) * 111319.5 * math.cos(math.radians(lat0))  # East (X)
-    y = (lat - lat0) * 111319.5  # North (Y)
-    z = alt_relative - origin_alt_relative  # 修正：相対高度の差分を使用
-    
-    return x, y, z
-
-# ───── 修正：ローカルXYZ → 緯度経度変換 ─────
+# ───── ローカルXYZ → 緯度経度変換 ─────
 def local_xyz_to_gps(x, y, z):
-    """ローカルXYZ座標を緯度経度高度に変換（修正版）"""
-    if origin is None or origin_alt_relative is None:
+    if origin is None:
         return 0.0, 0.0, 0.0
-    
     lat0 = origin.lat / 1e7
     lon0 = origin.lon / 1e7
-    
+    alt0 = origin.relative_alt / 1000
     lat = lat0 + y / 111319.5
     lon = lon0 + x / (111319.5 * math.cos(math.radians(lat0)))
-    alt = origin_alt_relative + z  # 修正：相対高度基準
-    
+    alt = alt0 + z
     return lat, lon, alt
 
-# ───── 操作スレッド ─────
+# ───── 操作スレッド（修正版） ─────
 def control_loop(mav):
-    global running, target, yaw_t_deg
+    global running, target, yaw_t_deg, initial_target_set
 
     fd = sys.stdin.fileno()
     old = termios.tcgetattr(fd)
     tty.setcbreak(fd)
     print("\n" + "="*60)
-    print("キーボード制御モード（XYZ座標系記録・高度修正版）")
+    print("キーボード制御モード（離陸高度+10cm自動設定→普通操作）")
     print("[u]南(-Y) [m]北(+Y) [h]東(+X) [l]西(-X) 10cm")
-    print("[w]上昇(+Z) [z]下降(-Z) 10cm  [a/d]Yaw±5°  [q]終了")
-    print("記録: GPS_XYZ, Target_XYZ, Time のみ（高度修正済み）")
+    print("[w]上昇(+Z) 10cm [z]下降(-Z) 10cm  [a/d]Yaw±5°  [q]終了")
+    print("初期目標高度: 離陸高度+10cm自動設定後、普通に上下移動可能")
     print("="*60)
 
     try:
@@ -211,14 +202,22 @@ def control_loop(mav):
                 target['x'] -= STEP
                 moved = True
                 echo = "l West(-X)"
-            elif key == 'w':  # 上昇（+Z）
-                target['z'] += STEP
-                moved = True
-                echo = "w Up(+Z)"
-            elif key == 'z' and target['z'] - STEP >= -2.0:  # 下降（-Z）
-                target['z'] -= STEP
-                moved = True
-                echo = "z Down(-Z)"
+            elif key == 'w':  # 上昇（+Z）普通の操作
+                if initial_target_set:  # 初期目標高度設定後のみ操作可能
+                    target['z'] += STEP
+                    moved = True
+                    echo = "w Up(+10cm)"
+                else:
+                    echo = "w 待機中（離陸完了後に操作可能）"
+            elif key == 'z':  # 下降（-Z）普通の操作
+                if initial_target_set and target['z'] - STEP >= 0.05:  # 5cm以上を維持
+                    target['z'] -= STEP
+                    moved = True
+                    echo = "z Down(-10cm)"
+                elif not initial_target_set:
+                    echo = "z 待機中（離陸完了後に操作可能）"
+                else:
+                    echo = "z 最低高度制限"
             elif key == 'a':
                 yaw_t_deg = (yaw_t_deg - 5) % 360
                 moved = True
@@ -241,14 +240,13 @@ def control_loop(mav):
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
-# ───── データ記録スレッド（最小限） ─────
+# ───── データ記録スレッド ─────
 def record_data():
     """時間、GPS_XYZ、Target_XYZのみ記録"""
     while running:
         if recording and origin:
             gps_x, gps_y, gps_z = gps_now['x'], gps_now['y'], gps_now['z']
             target_x, target_y, target_z = target['x'], target['y'], target['z']
-            
             data_records.append([
                 time.time(),
                 gps_x, gps_y, gps_z,
@@ -256,21 +254,17 @@ def record_data():
             ])
         time.sleep(1 / SEND_HZ)
 
-# ───── CSV保存（最小限） ─────
+# ───── CSV保存 ─────
 def save_csv():
-    """XYZ座標系データのみをCSV保存"""
     if not data_records:
         print("⚠ 記録なし")
         return
-    
     now = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y%m%d_%H%M%S")
     path = CSV_DIR / f"{now}_xyz_log.csv"
-    
     with open(path, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['Time', 'GPS_X', 'GPS_Y', 'GPS_Z', 'Target_X', 'Target_Y', 'Target_Z'])
         writer.writerows(data_records)
-    
     print(f"\n✓ CSV保存完了: {path}")
     print(f"  記録行数: {len(data_records)}")
 
@@ -279,8 +273,9 @@ def main():
     global running
     signal.signal(signal.SIGINT, lambda sig, frame: setattr(sys.modules[__name__], "running", False))
     print("="*50)
-    print("ArduPilot 精密制御 - XYZ座標系記録（高度修正版）")
-    print("GPS_XYZ + Target_XYZ + Time のみ記録")
+    print("ArduPilot 精密制御 - 離陸高度+10cm自動設定版")
+    print("初期目標高度: TAKEOFF_ALT + 10cm 自動設定")
+    print("その後: 普通にw/zキーで上下移動可能")
     print("="*50)
 
     mav = connect_mavlink()
