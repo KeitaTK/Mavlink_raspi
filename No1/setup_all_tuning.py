@@ -82,7 +82,7 @@ params_to_set = {
     'PILOT_ACCEL_Z': 250,    # パイロット加速度: 2.5m/s²
     
     # --- 垂直制御PID ---
-    'PSC_POSZ_P': 2.0,       # 高度位置制御P
+    'PSC_POSZ_P': 1,       # 高度位置制御P
     'PSC_VELZ_P': 4.0,       # 垂直速度制御P
     'PSC_VELZ_I': 8.0,       # 垂直速度制御I
     'PSC_VELZ_D': 0.01,      # 垂直速度制御D
@@ -90,7 +90,7 @@ params_to_set = {
     'PSC_ACCZ_I': 1.0,       # 垂直加速度制御I
     
     # --- 水平制御PID ---
-    'PSC_POSXY_P': 6.0,      # 水平位置制御P
+    'PSC_POSXY_P': 5.0,      # 水平位置制御P
     'PSC_VELXY_P': 3,      # 水平速度制御P
     'PSC_VELXY_I': 2.5,      # 水平速度制御I
     'PSC_VELXY_D': 0.5,      # 水平速度制御D
