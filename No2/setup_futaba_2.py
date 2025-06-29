@@ -17,20 +17,20 @@ params_to_set = {
     
     # --- ハイブリッド設定：GPS位置+コンパスヨー角（GPS補助）、速度はIMU推定 ---
     'EK3_SRC1_POSXY': 3,     # GPS (水平位置)
-    'EK3_SRC1_VELXY': 0,     # None (水平速度をIMUから推定)
+    'EK3_SRC1_VELXY': 3,     # None (垂直速度)
     'EK3_SRC1_POSZ': 3,      # GPS (垂直位置)
-    'EK3_SRC1_VELZ': 0,      # None (垂直速度をIMUから推定)
+    'EK3_SRC1_VELZ': 3,      # None (垂直速度)
     'EK3_SRC1_YAW': 3,       # GPS with compass fallback（ハイブリッド）[1]
     
     # --- EKF3精度設定（適正化） ---
-    'EK3_GPS_CHECK': 0,      # GPS健全性チェック完全無効化
+    'EK3_GPS_CHECK': 1,      # GPS健全性チェック完全無効化
     'EK3_POS_I_GATE': 8.0,  # 位置ゲート(デフォルト5)
     'EK3_VEL_I_GATE': 8.0,   # 速度ゲート（IMU推定精度向上）
     'EK3_HGT_I_GATE': 10.0,  # 高度ゲート
     
     # --- ノイズパラメータ（ハイブリッド用調整） --- これを小さくするとGPS情報をより信用
-    'EK3_POSNE_M_NSE': 0.3,  # 水平位置ノイズ:
-    'EK3_VELNE_M_NSE': 0.5,  # 水平速度ノイズ: 50cm/s
+    'EK3_POSNE_M_NSE': 0.2,  # 水平位置ノイズ:
+    'EK3_VELNE_M_NSE': 0.3,  # 水平速度ノイズ: 50cm/s
     'EK3_VELD_M_NSE': 0.5,   # 垂直速度ノイズ: 50cm/s
     'EK3_YAW_M_NSE': 0.2,    # ヨー角ノイズ（ハイブリッド用に緩和）
     
@@ -61,12 +61,12 @@ params_to_set = {
     'GPS_PRIMARY': 0,
     
     # --- Guidedモード設定 ---
-    'WPNAV_SPEED_UP': 30,    # 上昇速度: 0.2m/s
-    'WPNAV_SPEED_DN': 20,   # 下降速度: 1.0m/s
-    'WPNAV_ACCEL_Z': 30,     # 加速度: 0.25m/s²
-    'WPNAV_SPEED': 150,       # 水平速度:
-    'WPNAV_ACCEL':  250,    # 水平加速度
-    'WPNAV_RADIUS': 20,      # 到達半径: 30cm
+    'WPNAV_SPEED_UP': 40,    # 上昇速度: m/s
+    'WPNAV_SPEED_DN': 30,   # 下降速度:  m/s
+    'WPNAV_ACCEL_Z': 70,     # 加速度: m/s^2
+    'WPNAV_SPEED': 500,     # 水平速度:  m/s
+    'WPNAV_ACCEL': 500,     # 水平加速度: m/s^2
+    'WPNAV_RADIUS': 5,      # 到達半径: cm
 
     # --- Loiterモード設定 ---
     'LOIT_SPEED': 50,
@@ -90,19 +90,19 @@ params_to_set = {
     'PSC_ACCZ_I': 1.0,       # 垂直加速度制御I
     
     # --- 水平制御PID ---
-    'PSC_POSXY_P': 1.5,      # 水平位置制御P（1.0→1.5に増加）
-    'PSC_VELXY_P': 1.1,      # 水平速度制御P（1.2→2.0に増加）
-    'PSC_VELXY_I': 0.2,      # 水平速度制御I（2.5→1.0に削減）
-    'PSC_VELXY_D': 0.25,      # 水平速度制御D（追加）
+    'PSC_POSXY_P': 5.0,      # 水平位置制御P
+    'PSC_VELXY_P': 3,      # 水平速度制御P
+    'PSC_VELXY_I': 2.5,      # 水平速度制御I
+    'PSC_VELXY_D': 0.5,      # 水平速度制御D
     
     # --- 姿勢制御PID ---
-    'ATC_RAT_RLL_P': 0.03,  # Roll P（0.05→0.135、標準値）
-    'ATC_RAT_RLL_I': 0.05,  # Roll I（0.05→0.135、標準値）
-    'ATC_RAT_RLL_D': 0.002, # Roll D（0.001→0.0036、標準値）
-    'ATC_RAT_PIT_P': 0.04,  # Pitch P（0.05→0.135、標準値）
-    'ATC_RAT_PIT_I': 0.05,  # Pitch I（0.05→0.135、標準値）
-    'ATC_RAT_PIT_D': 0.002, # Pitch D（0.001→0.0036、標準値）
-    'ATC_RAT_YAW_P': 0.2,    # Yaw P（ハイブリッドヨー対応）
+    'ATC_RAT_RLL_P': 0.04,  # Roll P
+    'ATC_RAT_RLL_I': 0.05,  # Roll I
+    'ATC_RAT_RLL_D': 0.0012, # Roll D
+    'ATC_RAT_PIT_P': 0.05,  # Pitch P
+    'ATC_RAT_PIT_I': 0.05,  # Pitch I
+    'ATC_RAT_PIT_D': 0.0012, # Pitch D
+    'ATC_RAT_YAW_P': 0.2,    # Yaw P
     'ATC_RAT_YAW_I': 0.02,   # Yaw I
     
     # --- IMUフィルタ（応答性向上） ---
@@ -124,7 +124,6 @@ params_to_set = {
     'SERIAL1_PROTOCOL': 2,
     'SERIAL1_BAUD': 921600,
     'BRD_SER1_RTSCTS': 2,    # ハードウェアフロー制御有効（0→2に変更）
-    # 'SERIAL2_PROTOCOL': 23,  # ELRSレシーバー
     'SERIAL2_PROTOCOL': 2,  # 双葉レシーバー
     
     # --- RC設定 ---
@@ -132,7 +131,6 @@ params_to_set = {
     'RC7_OPTION': 55,  # Guided
     'THR_DZ': 200,
     'RC_OPTIONS': 10336,
-    # 'RSSI_TYPE': 3,  # ELRSレシーバー
     'RSSI_TYPE': 0,  # 双葉レシーバー
     'RC8_OPTION': 153,  # アーム設定
     
@@ -216,7 +214,7 @@ master.mav.command_long_send(
 )
 
 # コマンドACKを待機
-ack = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=5)
+ack = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=1)
 if ack and ack.command == mavutil.mavlink.MAV_CMD_PREFLIGHT_STORAGE and ack.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
     print("EEPROMへの保存成功")
 else:

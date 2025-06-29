@@ -125,7 +125,6 @@ params_to_set = {
     'SERIAL1_BAUD': 1000000,
     'BRD_SER1_RTSCTS': 2,    # ハードウェアフロー制御有効
     'SERIAL2_PROTOCOL': 23,  # ELRSレシーバー
-    # 'SERIAL2_PROTOCOL': 2,  # 双葉レシーバー
     
     # --- RC設定 ---
     'RC10_OPTION': 56,
@@ -133,9 +132,7 @@ params_to_set = {
     'THR_DZ': 200,
     'RC_OPTIONS': 10336,
     'RSSI_TYPE': 3,  # ELRSレシーバー
-    # 'RSSI_TYPE': 0,  # 双葉レシーバー
     'RC9_OPTION': 153,  # ELRSレシーバー
-    # 'RC9_OPTION': 0,  # 双葉レシーバー
     
     # --- GUIDEDモード設定 ---
     'GUID_TIMEOUT': 3,
