@@ -96,12 +96,12 @@ params_to_set = {
     'PSC_VELXY_D': 0.5,      # 水平速度制御D
     
     # --- 姿勢制御PID ---
-    'ATC_RAT_RLL_P': 0.04,  # Roll P
+    'ATC_RAT_RLL_P': 0.03,  # Roll P
     'ATC_RAT_RLL_I': 0.07,  # Roll I
-    'ATC_RAT_RLL_D': 0.0008, # Roll D
-    'ATC_RAT_PIT_P': 0.05,  # Pitch P
+    'ATC_RAT_RLL_D': 0.001, # Roll D
+    'ATC_RAT_PIT_P': 0.04,  # Pitch P
     'ATC_RAT_PIT_I': 0.07,  # Pitch I
-    'ATC_RAT_PIT_D': 0.0008, # Pitch D
+    'ATC_RAT_PIT_D': 0.001, # Pitch D
     'ATC_RAT_YAW_P': 0.2,    # Yaw P
     'ATC_RAT_YAW_I': 0.02,   # Yaw I
     
