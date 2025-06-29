@@ -7,7 +7,7 @@ import pyned2lla
 
 # ───── ユーザー設定 ─────
 STEP = 0.10          # 10cm移動
-TAKEOFF_ALT = 0.40   # 初期離陸高度（m）
+TAKEOFF_ALT = 0.50   # 初期離陸高度（m）
 SEND_HZ = 10
 MASK = 0x09F8        # bit10=0(Yaw有効) bit11=1(YawRate無視)
 CSV_DIR = Path.home() / "LOGS_Pixhawk6c"
@@ -20,6 +20,7 @@ target = {'x':0.0, 'y':0.0, 'z':0.0}  # ローカル座標系で記録
 gps_now = {'x':0.0, 'y':0.0, 'z':0.0}
 data_records = []
 origin = None
+origin_alt_relative = None  # 追加：相対高度の初期値
 io_lock = threading.Lock()
 
 # ───── ヨー角制御関連 ─────
@@ -75,9 +76,9 @@ def get_initial_yaw(mav):
     print("⚠ ヨー角取得失敗、デフォルト値180°を使用")
     return 180.0
 
-# ───── GPS更新 & ディスアーム監視 ─────
+# ───── GPS更新 & ディスアーム監視（修正版） ─────
 def monitor_vehicle(mav):
-    global running, recording, gps_now, origin
+    global running, recording, gps_now, origin, origin_alt_relative
     global initial_yaw, yaw_t_deg, yaw_acquired
     guided_active = False
     armed = False
@@ -120,51 +121,54 @@ def monitor_vehicle(mav):
         if pos:
             lat = pos.lat / 1e7
             lon = pos.lon / 1e7
-            alt = pos.relative_alt / 1000
+            alt_relative = pos.relative_alt / 1000  # 修正：相対高度を使用
             
             if origin is None:
                 origin = pos
-                print(f"✓ 原点設定 lat={lat}, lon={lon}")
+                origin_alt_relative = alt_relative  # 修正：相対高度の初期値を保存
+                print(f"✓ 原点設定 lat={lat}, lon={lon}, relative_alt={alt_relative:.3f}m")
 
-            # 緯度経度高度をローカルXYZ座標に変換
-            x, y, z = gps_to_local_xyz(lat, lon, alt)
+            # 修正：相対高度基準でローカルXYZ座標に変換
+            x, y, z = gps_to_local_xyz(lat, lon, alt_relative)
             with io_lock:
                 gps_now['x'] = x
                 gps_now['y'] = y
                 gps_now['z'] = z
+                
+            # デバッグ出力（離陸確認用）
+            if recording and abs(z) > 0.1:  # 10cm以上の高度変化があった場合
+                print(f"高度変化検出: {z:.3f}m (relative_alt: {alt_relative:.3f}m)")
 
         time.sleep(1 / SEND_HZ)
 
-# ───── 緯度経度高度をローカルXYZ座標に変換 ─────
-def gps_to_local_xyz(lat, lon, alt):
-    """緯度経度高度をローカルXYZ座標に変換"""
-    if origin is None:
+# ───── 修正：緯度経度高度をローカルXYZ座標に変換 ─────
+def gps_to_local_xyz(lat, lon, alt_relative):
+    """緯度経度高度をローカルXYZ座標に変換（修正版）"""
+    if origin is None or origin_alt_relative is None:
         return 0.0, 0.0, 0.0
     
     lat0 = origin.lat / 1e7
     lon0 = origin.lon / 1e7
-    alt0 = origin.alt / 1000
     
     # 簡易的なローカル座標変換
     x = (lon - lon0) * 111319.5 * math.cos(math.radians(lat0))  # East (X)
     y = (lat - lat0) * 111319.5  # North (Y)
-    z = alt - alt0  # Up (Z)
+    z = alt_relative - origin_alt_relative  # 修正：相対高度の差分を使用
     
     return x, y, z
 
-# ───── ローカルXYZ → 緯度経度変換 ─────
+# ───── 修正：ローカルXYZ → 緯度経度変換 ─────
 def local_xyz_to_gps(x, y, z):
-    """ローカルXYZ座標を緯度経度高度に変換"""
-    if origin is None:
+    """ローカルXYZ座標を緯度経度高度に変換（修正版）"""
+    if origin is None or origin_alt_relative is None:
         return 0.0, 0.0, 0.0
     
     lat0 = origin.lat / 1e7
     lon0 = origin.lon / 1e7
-    alt0 = origin.alt / 1000
     
     lat = lat0 + y / 111319.5
     lon = lon0 + x / (111319.5 * math.cos(math.radians(lat0)))
-    alt = alt0 + z
+    alt = origin_alt_relative + z  # 修正：相対高度基準
     
     return lat, lon, alt
 
@@ -176,10 +180,10 @@ def control_loop(mav):
     old = termios.tcgetattr(fd)
     tty.setcbreak(fd)
     print("\n" + "="*60)
-    print("キーボード制御モード（XYZ座標系記録のみ）")
+    print("キーボード制御モード（XYZ座標系記録・高度修正版）")
     print("[u]南(-Y) [m]北(+Y) [h]東(+X) [l]西(-X) 10cm")
     print("[w]上昇(+Z) [z]下降(-Z) 10cm  [a/d]Yaw±5°  [q]終了")
-    print("記録: GPS_XYZ, Target_XYZ, Time のみ")
+    print("記録: GPS_XYZ, Target_XYZ, Time のみ（高度修正済み）")
     print("="*60)
 
     try:
@@ -275,7 +279,7 @@ def main():
     global running
     signal.signal(signal.SIGINT, lambda sig, frame: setattr(sys.modules[__name__], "running", False))
     print("="*50)
-    print("ArduPilot 精密制御 - XYZ座標系記録のみ")
+    print("ArduPilot 精密制御 - XYZ座標系記録（高度修正版）")
     print("GPS_XYZ + Target_XYZ + Time のみ記録")
     print("="*50)
 
