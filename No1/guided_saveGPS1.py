@@ -2,7 +2,7 @@
 import time, threading, csv, datetime, pytz, signal, sys
 from pathlib import Path
 from pymavlink import mavutil
-from pyproj import Proj, Transformer
+from pyproj import Transformer
 
 SEND_RATE = 10      # Hz
 TAKEOFF_ALT = 0.5   # m
@@ -11,11 +11,13 @@ GUIDED_DELAY = 3.0  # s
 CSV_DIR = Path.home() / "LOGS_Pixhawk6c"
 CSV_DIR.mkdir(exist_ok=True)
 
+# フラグ類
 running = True
 recording = False
 guided_active = False
 takeoff_sent = False
 
+# 状態共有
 data_records = []
 data_lock = threading.Lock()
 
@@ -24,6 +26,7 @@ current_target = {'lat': 0, 'lon': 0, 'alt': TAKEOFF_ALT, 'time': 0}
 current_mode = 0
 armed = False
 
+# 座標変換用
 origin_lat = None
 origin_lon = None
 transformer = None
@@ -40,16 +43,19 @@ def connect_mavlink():
     return m
 
 def set_msg_rate(m):
-    for mid, us in [(24,200000),(33,200000),(30,200000)]:
-        m.mav.command_long_send(m.target_system, m.target_component,
+    for mid, us in [(24, 200000), (33, 200000), (30, 200000)]:
+        m.mav.command_long_send(
+            m.target_system, m.target_component,
             mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
-            0, mid, us, 0,0,0,0,0)
+            0, mid, us, 0, 0, 0, 0, 0
+        )
 
 def send_takeoff_command(m, alt):
     m.mav.command_long_send(
         m.target_system, m.target_component,
         mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
-        0, 0, 0, 0, 0, 0, 0, alt)
+        0, 0, 0, 0, 0, 0, 0, alt
+    )
 
 def send_target_position(m, lat, lon, alt):
     m.mav.set_position_target_global_int_send(
@@ -57,10 +63,25 @@ def send_target_position(m, lat, lon, alt):
         mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
         0x0FF8,
         int(lat * 1e7), int(lon * 1e7), alt,
-        0, 0, 0, 0, 0, 0, 0, 0)
+        0, 0, 0, 0, 0, 0, 0, 0
+    )
+
+def init_transformer(lat, lon):
+    global transformer
+    utm_zone = int((lon + 180) / 6) + 1
+    proj_str = f"+proj=utm +zone={utm_zone} +datum=WGS84 +units=m +no_defs"
+    transformer = Transformer.from_crs("EPSG:4326", proj_str, always_xy=True)
+
+def gps_to_local(lat, lon):
+    if transformer is None:
+        return 0.0, 0.0
+    x0, y0 = transformer.transform(origin_lon, origin_lat)
+    x, y = transformer.transform(lon, lat)
+    return x - x0, y - y0
 
 def monitor_vehicle_state(m):
-    global current_mode, armed, guided_active, takeoff_sent, recording, current_gps, origin_lat, origin_lon
+    global running, current_mode, armed, guided_active, takeoff_sent, recording
+    global current_gps, origin_lat, origin_lon
     guided_start_time = 0
 
     while running:
@@ -108,22 +129,8 @@ def monitor_vehicle_state(m):
 
         time.sleep(1 / SEND_RATE)
 
-def init_transformer(lat, lon):
-    global transformer
-    # ENU: 地理座標 → ローカル座標（m）
-    utm_zone = int((lon + 180) / 6) + 1
-    proj_str = f"+proj=utm +zone={utm_zone} +datum=WGS84 +units=m +no_defs"
-    transformer = Transformer.from_crs("EPSG:4326", proj_str, always_xy=True)
-
-def gps_to_local(lat, lon):
-    if transformer is None:
-        return 0.0, 0.0
-    x0, y0 = transformer.transform(origin_lon, origin_lat)
-    x, y = transformer.transform(lon, lat)
-    return x - x0, y - y0
-
 def keyboard_input_thread():
-    global current_target, running  # ←✔ ここで先に宣言
+    global current_target, running
     print("位置入力形式: 緯度,経度（例: 35.000123,135.000456）")
     print("`exit`で終了可能\n")
 
@@ -147,8 +154,8 @@ def keyboard_input_thread():
         except Exception as e:
             print(f"⚠ 入力エラー: {e}")
 
-
 def target_sender():
+    global mav
     while running:
         if recording:
             with data_lock:
@@ -178,7 +185,6 @@ def save_csv():
     timestamp = datetime.datetime.now(jst).strftime("%Y%m%d_%H%M%S")
     csv_path = CSV_DIR / f"{timestamp}_1.csv"
 
-    # 座標変換
     with open(csv_path, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['JST_Time',
@@ -215,9 +221,9 @@ def main():
         t.start()
 
     while running:
-        mode_name = {0:'Manual', 1:'Circle', 2:'Stabilize', 3:'Training',
-                     4:'Guided', 5:'LoiterUnlimited', 6:'RTL', 7:'Land',
-                     9:'Drift', 10:'Sport'}.get(current_mode, f'Mode{current_mode}')
+        mode_name = {0: 'Manual', 1: 'Circle', 2: 'Stabilize', 3: 'Training',
+                     4: 'Guided', 5: 'LoiterUnlimited', 6: 'RTL', 7: 'Land',
+                     9: 'Drift', 10: 'Sport'}.get(current_mode, f'Mode{current_mode}')
         print(f"\rモード: {mode_name}, アーム: {'Yes' if armed else 'No'}, "
               f"記録: {'中' if recording else '待機'}, データ数: {len(data_records)}", end='')
         time.sleep(1)
