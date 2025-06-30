@@ -15,7 +15,7 @@ MASK = 0x09F8        # bit10=0(Yaw有効) bit11=1(YawRate無視)
 REF_LAT = 36.0757800               # 基準GPS緯度
 REF_LON = 136.2132900              # 基準GPS経度
 REF_ALT = 0.000                    # 基準GPS高度
-TARGET_HEIGHT_ABOVE_TAKEOFF = 0.70 # 離陸地点から70cm上空
+TARGET_HEIGHT_ABOVE_TAKEOFF = 1.10 # 離陸地点から70cm上空
 
 CSV_DIR = Path.home() / "LOGS_Pixhawk6c"
 CSV_DIR.mkdir(exist_ok=True)
