@@ -15,7 +15,7 @@ MASK = 0x09F8        # bit10=0(Yaw有効) bit11=1(YawRate無視)
 REF_LAT = 36.0757800               # 基準GPS緯度
 REF_LON = 136.2132900              # 基準GPS経度
 REF_ALT = 0.000                    # 基準GPS高度
-TARGET_HEIGHT_ABOVE_TAKEOFF = 0.20 # 離陸地点から30
+TARGET_HEIGHT_ABOVE_TAKEOFF = 0.20 # 離陸地点から
 
 CSV_DIR = Path.home() / "LOGS_Pixhawk6c"
 CSV_DIR.mkdir(exist_ok=True)
@@ -258,7 +258,7 @@ def control_loop(mav):
                     ref_x, ref_y, ref_z = gps_to_local_xyz(36.0757693, 136.2132945, REF_ALT)
                     target['x'] = ref_x
                     target['y'] = ref_y
-                    target['z'] = 0.30  # 離陸高度を0基準として0.3m
+                    target['z'] = TARGET_HEIGHT_ABOVE_TAKEOFF  # 離陸高度を0基準
                     moved = True
                     echo = f"t 基準点移動 X={target['x']:.2f} Y={target['y']:.2f} Z={target['z']:.2f}m"
                 elif not origin:

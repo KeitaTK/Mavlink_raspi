@@ -258,7 +258,7 @@ def control_loop(mav):
                     ref_x, ref_y, ref_z = gps_to_local_xyz(36.0757693, 136.2132945, REF_ALT)
                     target['x'] = ref_x
                     target['y'] = ref_y
-                    target['z'] = 0.70  # 離陸高度を0基準として0.7m
+                    target['z'] = TARGET_HEIGHT_ABOVE_TAKEOFF  # 離陸高度を0基準として0.7m
                     moved = True
                     echo = f"t 基準点移動 X={target['x']:.2f} Y={target['y']:.2f} Z={target['z']:.2f}m"
                 elif not origin:
