@@ -255,7 +255,7 @@ def control_loop(mav):
                 echo = "d Yaw+5"
             elif key == 't':  # 基準点上空70cm移動
                 if initial_target_set and origin:
-                    ref_x, ref_y, ref_z = gps_to_local_xyz(36.0757755, 136.213293, REF_ALT)
+                    ref_x, ref_y, ref_z = gps_to_local_xyz(36.0757693, 136.2132945, REF_ALT)
                     target['x'] = ref_x
                     target['y'] = ref_y
                     target['z'] = 0.70  # 離陸高度を0基準として0.7m
