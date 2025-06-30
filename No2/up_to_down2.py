@@ -178,7 +178,7 @@ def save_csv():
         print("⚠ 記録なし")
         return
     now = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y%m%d_%H%M%S")
-    path = CSV_DIR / f"{now}_1.csv"
+    path = CSV_DIR / f"{now}_2.csv"
     with open(path, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['Time', 'GPS_X', 'GPS_Y', 'GPS_Z', 'Target_X', 'Target_Y', 'Target_Z'])
