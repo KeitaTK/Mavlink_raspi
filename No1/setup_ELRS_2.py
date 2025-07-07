@@ -144,7 +144,9 @@ params_to_set = {
     'LOG_FILE_TIMEOUT': 5,    # ログファイルのタイムアウト（秒）
     'LOG_BACKEND_TYPE': 1,    # デフォルトのログバックエンド（ファイル）
 
-    
+    # 追加項目：ホバリング学習有効化
+    'MOT_HOVER_LEARN' : 2,
+
     # --- モーター・安全設定 ---
     'SERVO1_FUNCTION': 0,
     'SERVO2_FUNCTION': 0,
