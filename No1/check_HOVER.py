@@ -13,12 +13,19 @@ def get_param(master, name, timeout=5):
     start = time.time()
     while time.time() - start < timeout:
         msg = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=1)
-        if msg and msg.param_id.decode('utf-8').strip('\x00') == name:
-            return msg.param_value
+        if msg:
+            # Python 3対応: param_idが既に文字列の場合とbytesの場合の両方に対応
+            if isinstance(msg.param_id, bytes):
+                param_id = msg.param_id.decode('utf-8').strip('\x00')
+            else:
+                param_id = str(msg.param_id).strip('\x00')
+            
+            if param_id == name:
+                return msg.param_value
     return None
 
 if __name__ == '__main__':
-    # シリアル接続（TELEM1, 1 000 000bps, RTS/CTS 有効）
+    # シリアル接続（TELEM1, 1 000 000bps, RTS/CTS 有効）
     master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=1000000, rtscts=True)
     try:
         # Heartbeat を待ってからリクエスト
@@ -31,3 +38,4 @@ if __name__ == '__main__':
             print('MOT_THST_HOVER の取得に失敗しました')
     finally:
         master.close()
+
