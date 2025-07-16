@@ -20,7 +20,7 @@ params_to_set = {
     'EK3_SRC1_VELXY': 3,     # None (水平速度をGPSから推定)
     'EK3_SRC1_POSZ': 3,      # GPS (垂直位置)
     'EK3_SRC1_VELZ': 3,      # None (垂直速度をGPSから推定)
-    'EK3_SRC1_YAW': 8,       # GPS with compass fallback（ハイブリッド）[1]
+    'EK3_SRC1_YAW': 3,       # GPS with compass fallback（ハイブリッド）[1]
     
     # --- EKF3精度設定（適正化） ---
     'EK3_GPS_CHECK': 1,      # GPS健全性チェック
