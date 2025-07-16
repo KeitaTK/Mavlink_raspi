@@ -151,7 +151,7 @@ params_to_set = {
     # 'EK3_THR_MDL_YINT': 0.05,   # 推力切片
     # 'FRAME_MASS': 1.4,          # 機体質量（kg）
     # 'MOT_THST_HOVER': 0.223,    # ホバリングスロットル比
-    # 'MOT_THST_EXPO': 0.65,      # 推力曲線指数
+    'MOT_THST_EXPO': 0,      # 推力曲線指数
     'MOT_HOVER_LEARN': 0,       # ホバリング学習（0:無効）
 
 
