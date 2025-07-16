@@ -152,7 +152,9 @@ params_to_set = {
     'FRAME_MASS': 1.4,          # 機体質量（kg）
     'MOT_THST_HOVER': 0.223,    # ホバリングスロットル比
     'MOT_THST_EXPO': 0.65,      # 推力曲線指数
-    'MOT_HOVER_LEARN': 0,       # ホバリング学習（常時）
+    'MOT_HOVER_LEARN': 0,       # ホバリング学習（0:無効）
+
+
 
     # --- モーター・安全設定 ---
     'SERVO1_FUNCTION': 0,
