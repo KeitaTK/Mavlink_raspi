@@ -17,10 +17,10 @@ params_to_set = {
     
     # --- ハイブリッド設定：GPS位置+コンパスヨー角（GPS補助）、速度はIMU推定 ---
     'EK3_SRC1_POSXY': 3,     # GPS (水平位置)
-    'EK3_SRC1_VELXY': 3,     # None (水平速度をIMUから推定)
+    'EK3_SRC1_VELXY': 3,     # None (水平速度をGPSから推定)
     'EK3_SRC1_POSZ': 3,      # GPS (垂直位置)
-    'EK3_SRC1_VELZ': 3,      # None (垂直速度をIMUから推定)
-    'EK3_SRC1_YAW': 3,       # GPS with compass fallback（ハイブリッド）[1]
+    'EK3_SRC1_VELZ': 3,      # None (垂直速度をGPSから推定)
+    'EK3_SRC1_YAW': 8,       # GPS with compass fallback（ハイブリッド）[1]
     
     # --- EKF3精度設定（適正化） ---
     'EK3_GPS_CHECK': 1,      # GPS健全性チェック
@@ -144,8 +144,15 @@ params_to_set = {
     'LOG_FILE_TIMEOUT': 5,    # ログファイルのタイムアウト（秒）
     'LOG_BACKEND_TYPE': 1,    # デフォルトのログバックエンド（ファイル）
 
-    # 追加項目：ホバリング学習有効化
-    'MOT_HOVER_LEARN' : 2,
+    # 推力推定に必要な設定
+    'EK3_THR_MDL_TYPE': 2,      # 二次推力モデル
+    'EK3_THR_MDL_SLOPE': 0.7,   # 推力-スロットル線形係数
+    'EK3_THR_MDL_XINT': -0.1,   # スロットル切片
+    'EK3_THR_MDL_YINT': 0.05,   # 推力切片
+    'FRAME_MASS': 1.4,          # 機体質量（kg）
+    'MOT_THST_HOVER': 0.223,    # ホバリングスロットル比
+    'MOT_THST_EXPO': 0.65,      # 推力曲線指数
+    'MOT_HOVER_LEARN': 0,       # ホバリング学習（常時）
 
     # --- モーター・安全設定 ---
     'SERVO1_FUNCTION': 0,
