@@ -1,8 +1,8 @@
 from pymavlink import mavutil
 import time
 
-master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=1000000, rtscts=True) # フロー制御
-# master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)  # USB接続
+# master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=1000000, rtscts=True) # フロー制御
+master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)  # USB接続
 
 # ハートビートを待機（接続確認）
 print("接続を待機中...")
@@ -144,14 +144,14 @@ params_to_set = {
     'LOG_FILE_TIMEOUT': 5,    # ログファイルのタイムアウト（秒）
     'LOG_BACKEND_TYPE': 1,    # デフォルトのログバックエンド（ファイル）
 
-    # 推力推定に必要な設定
-    'EK3_THR_MDL_TYPE': 2,      # 二次推力モデル
-    'EK3_THR_MDL_SLOPE': 0.7,   # 推力-スロットル線形係数
-    'EK3_THR_MDL_XINT': -0.1,   # スロットル切片
-    'EK3_THR_MDL_YINT': 0.05,   # 推力切片
-    'FRAME_MASS': 1.4,          # 機体質量（kg）
-    'MOT_THST_HOVER': 0.223,    # ホバリングスロットル比
-    'MOT_THST_EXPO': 0.65,      # 推力曲線指数
+    # # 推力推定に必要な設定
+    # 'EK3_THR_MDL_TYPE': 2,      # 二次推力モデル
+    # 'EK3_THR_MDL_SLOPE': 0.7,   # 推力-スロットル線形係数
+    # 'EK3_THR_MDL_XINT': -0.1,   # スロットル切片
+    # 'EK3_THR_MDL_YINT': 0.05,   # 推力切片
+    # 'FRAME_MASS': 1.4,          # 機体質量（kg）
+    # 'MOT_THST_HOVER': 0.223,    # ホバリングスロットル比
+    # 'MOT_THST_EXPO': 0.65,      # 推力曲線指数
     'MOT_HOVER_LEARN': 0,       # ホバリング学習（0:無効）
 
 
