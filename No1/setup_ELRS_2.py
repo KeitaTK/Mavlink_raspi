@@ -154,8 +154,6 @@ params_to_set = {
     'MOT_THST_EXPO': 0,      # 推力曲線指数
     'MOT_HOVER_LEARN': 0,       # ホバリング学習（0:無効）
 
-
-
     # --- モーター・安全設定 ---
     'SERVO1_FUNCTION': 0,
     'SERVO2_FUNCTION': 0,
