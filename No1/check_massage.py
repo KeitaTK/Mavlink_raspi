@@ -16,61 +16,89 @@ def signal_handler(sig, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 try:
-    # 1. シリアル接続の確立（ハードウェアフロー制御有効）
+    # 1. シリアル接続の確立（元の設定を維持）
     print("TELEM1通信接続（ハードウェアフロー制御有効）")
     master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=1000000, rtscts=True)
 
     # 2. heartbeat 受信待ち（タイムアウト設定）
     master.wait_heartbeat(timeout=5)
     print(f"Heartbeat received from system {master.target_system}, component {master.target_component}")
-    
-    # 3. ログメッセージの受信を開始
-    print("メッセージ受信を開始しています... (Ctrl+C で停止)")
+
+    # 3. AUTOPILOT_VERSION_REQUEST の送信（元のまま）
+    master.mav.autopilot_version_request_send(
+        master.target_system,
+        master.target_component
+    )
+
+    # 4. AUTOPILOT_VERSION メッセージの受信（元のまま）
+    msg = master.recv_match(type='AUTOPILOT_VERSION', blocking=True, timeout=3)
+    if msg:
+        data = msg.to_dict()
+        print("AUTOPILOT_VERSION received:")
+        for k, v in data.items():
+            print(f"  {k}: {v}")
+    else:
+        print("AUTOPILOT_VERSION メッセージの受信に失敗しました（タイムアウト）")
+
+    # 5. STATUSTEXTメッセージの受信を要求（追加）
+    print("\nSTATUSTEXTメッセージの受信を要求しています...")
+    master.mav.request_data_stream_send(
+        master.target_system,
+        master.target_component,
+        mavutil.mavlink.MAV_DATA_STREAM_EXTENDED_STATUS,
+        1,  # 1Hz
+        1   # start
+    )
+
+    # 6. 継続的なメッセージ受信（追加）
+    print("継続的なメッセージ受信を開始... (Ctrl+C で停止)")
     print("-" * 50)
     
-    # 4. 継続的にメッセージを受信
     while running:
-        # すべてのメッセージを受信（タイムアウト設定で無限待機を防ぐ）
+        # すべてのメッセージを受信
         msg = master.recv_match(blocking=True, timeout=1)
         
         if msg is not None:
             # 現在の時刻を取得
             current_time = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+            msg_type = msg.get_type()
             
-            # メッセージタイプによって処理を分岐
-            if msg.get_type() == 'STATUSTEXT':
+            if msg_type == 'STATUSTEXT':
                 # ステータステキストメッセージ（ログメッセージ）を表示
                 text = msg.text.strip()
-                severity = msg.severity
                 print(f"{current_time} : {text}")
                 
-            elif msg.get_type() == 'HEARTBEAT':
-                # ハートビートメッセージ（必要に応じて表示）
-                # print(f"{current_time} : Heartbeat from system {msg.get_srcSystem()}")
+            elif msg_type == 'HEARTBEAT':
+                # ハートビートメッセージ（表示しない）
                 pass
                 
-            elif msg.get_type() == 'SYSTEM_TIME':
-                # システム時刻メッセージ
+            elif msg_type == 'SYSTEM_TIME':
+                # システム時刻メッセージ（表示しない）
                 pass
                 
-            elif msg.get_type() == 'AUTOPILOT_VERSION':
-                # オートパイロットバージョン情報
-                print(f"{current_time} : AUTOPILOT_VERSION received")
+            elif msg_type == 'TIMESYNC':
+                # タイムシンクメッセージ（表示しない）
+                pass
                 
-            else:
-                # その他のメッセージ（必要に応じて表示）
-                print(f"{current_time} : {msg.get_type()}: {msg}")
+            elif msg_type == 'BAD_DATA':
+                # BAD_DATAエラーがあれば表示
+                print(f"{current_time} : [警告] データ受信エラー")
+                
+            # その他のメッセージは表示しない（ノイズ軽減）
         
-        # 少し待機（CPU負荷軽減）
+        # CPU負荷軽減のため少し待機
         time.sleep(0.01)
 
+except KeyboardInterrupt:
+    print("\nユーザーによって中断されました")
+    
 except Exception as e:
     print(f"通信エラー: {e}")
 
 finally:
     try:
-        print("接続を閉じています...")
-        master.close()
+        if 'master' in locals():
+            master.close()
     except:
         pass
     print("プログラムを終了しました")
