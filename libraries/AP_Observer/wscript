@@ -1,0 +1,17 @@
+# libraries/AP_Observer/wscript
+def configure(cfg):
+    cfg.env.AP_LIBRARIES.append('AP_Observer')
+    cfg.env.append_value('AP_MODULE_NAMES', 'AP_Observer')
+
+def build(bld):
+    bld.ap_library(
+        name='AP_Observer',
+        source=bld.srcnode.ant_glob('*.cpp'),
+        includes='.',
+        depends=[
+            'AP_HAL',
+            'AP_Vehicle',
+            'AP_Motors'
+        ],
+        install_path='libraries/AP_Observer'
+    )

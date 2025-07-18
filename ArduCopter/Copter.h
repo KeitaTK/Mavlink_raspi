@@ -73,6 +73,7 @@
 #include <AP_Winch/AP_Winch_config.h>
 #include <AP_SurfaceDistance/AP_SurfaceDistance.h>
 #include <AP_MyModule/AP_MyModule.h>
+#include <AP_Observer/AP_Observer.h>
 
 // Configuration
 #include "defines.h"
@@ -531,7 +532,8 @@ private:
     AP_Parachute parachute;
 #endif
 
-    AP_MyModule my_module;  
+    AP_MyModule my_module;
+    AP_Observer observer;
 
     // Landing Gear Controller
 #if AP_LANDINGGEAR_ENABLED
@@ -1125,6 +1127,7 @@ private:
 public:
     void failsafe_check();      // failsafe.cpp
     void my_module_update();
+    void observer_update();
 };
 
 extern Copter copter;

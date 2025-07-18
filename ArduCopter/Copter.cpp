@@ -204,6 +204,8 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
     SCHED_TASK(gpsglitch_check,       10,     50,  90),
     SCHED_TASK(takeoff_check,         50,     50,  91),
     SCHED_TASK(my_module_update,      10,    100, 92),  // 10Hzで実行
+    SCHED_TASK(observer_update,    50,    50,   20), // 20 Hz、優先度は任意（例：20）
+
 #if AP_LANDINGGEAR_ENABLED
     SCHED_TASK(landinggear_update,    10,     75,  93),
 #endif
@@ -958,10 +960,15 @@ bool Copter::get_rate_ef_targets(Vector3f& rate_ef_targets) const
     return true;
 }
 
-// ArduCopter/Copter.cpp
 void Copter::my_module_update() {
     my_module.update();
 }
+
+
+void Copter::observer_update() {
+    observer.update();
+}
+
 
 /*
   constructor for main Copter class
