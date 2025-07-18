@@ -126,12 +126,13 @@ def signal_handler(sig, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 try:
-    print("PreArmエラー監視開始")
+    print("システム詳細診断開始")
     master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=1000000, rtscts=True)
 
     master.wait_heartbeat(timeout=5)
     print(f"Heartbeat received from system {master.target_system}, component {master.target_component}")
 
+    # 複数のデータストリームを要求
     master.mav.request_data_stream_send(
         master.target_system,
         master.target_component,
@@ -140,11 +141,18 @@ try:
         1    # start
     )
 
-    print("PreArmエラーの詳細監視中...")
-    print("=" * 60)
+    # システム情報を要求
+    master.mav.autopilot_version_request_send(
+        master.target_system,
+        master.target_component
+    )
+
+    print("システム詳細診断中...")
+    print("=" * 70)
     
-    error_count = 0
+    error_intervals = []
     last_error_time = None
+    system_info_received = False
     
     while running:
         msg = master.recv_match(blocking=True, timeout=1)
@@ -156,31 +164,73 @@ try:
             if msg_type == 'STATUSTEXT':
                 text = msg.text.strip()
                 
-                if "PreArm:" in text:
-                    error_count += 1
+                if "Internal errors 0x100000" in text:
+                    current_dt = datetime.now()
                     
-                    if "Internal errors" in text:
-                        print(f"{current_time} : [CRITICAL] {text}")
-                        print(f"    └── エラー回数: {error_count}")
-                        
-                        # エラーコードの解析
-                        if "0x100000" in text:
-                            print(f"    └── エラータイプ: 制御フロー異常")
-                            print(f"    └── 推奨対処: システム再起動")
-                        
-                        # 連続エラーの検出
-                        if last_error_time:
-                            interval = (datetime.now() - last_error_time).total_seconds()
-                            print(f"    └── 前回エラーから: {interval:.1f}秒")
-                        
-                        last_error_time = datetime.now()
-                        print("-" * 40)
+                    print(f"{current_time} : [CRITICAL] {text}")
+                    print(f"    └── エラー発生時刻: {current_dt}")
                     
-                    else:
-                        print(f"{current_time} : [WARNING] {text}")
+                    if last_error_time:
+                        interval = (current_dt - last_error_time).total_seconds()
+                        error_intervals.append(interval)
+                        print(f"    └── 前回エラーから: {interval:.1f}秒")
+                        
+                        # 間隔パターンの分析
+                        if len(error_intervals) >= 3:
+                            avg_interval = sum(error_intervals[-3:]) / 3
+                            print(f"    └── 平均間隔: {avg_interval:.1f}秒")
+                            
+                            if abs(avg_interval - 18) < 2:
+                                print(f"    └── パターン: 約18秒の定期エラー（定期チェック処理）")
+                            elif abs(avg_interval - 30) < 2:
+                                print(f"    └── パターン: 約30秒の定期エラー（PreArm処理）")
+                    
+                    last_error_time = current_dt
+                    print(f"    └── 総エラー回数: {len(error_intervals) + 1}")
+                    print("-" * 50)
                 
-                elif "Internal errors" in text:
-                    print(f"{current_time} : [SYSTEM] {text}")
+                elif "PreArm:" in text or "Arm:" in text:
+                    print(f"{current_time} : [INFO] {text}")
+                    
+                elif "Thrust:" in text:
+                    print(f"{current_time} : [SUCCESS] {text}")
+                    print("    └── システムが正常にアームされました！")
+                    
+            elif msg_type == 'AUTOPILOT_VERSION':
+                if not system_info_received:
+                    print(f"{current_time} : [SYSTEM INFO] システム情報:")
+                    print(f"    └── Flight Stack: {msg.flight_sw_version}")
+                    print(f"    └── Middleware: {msg.middleware_sw_version}")
+                    print(f"    └── Board Version: {msg.board_version}")
+                    print(f"    └── Vendor ID: {msg.vendor_id}")
+                    print(f"    └── Product ID: {msg.product_id}")
+                    print("-" * 50)
+                    system_info_received = True
+                    
+            elif msg_type == 'SYS_STATUS':
+                # システム状態の監視
+                if hasattr(msg, 'errors_count1') and msg.errors_count1 > 0:
+                    print(f"{current_time} : [WARNING] システムエラー数: {msg.errors_count1}")
+                    
+            elif msg_type == 'HEARTBEAT':
+                # システム状態の変化を監視
+                status_names = {
+                    0: "UNINIT",
+                    1: "BOOT", 
+                    2: "CALIBRATING",
+                    3: "STANDBY",
+                    4: "ACTIVE",
+                    5: "CRITICAL",
+                    6: "EMERGENCY",
+                    7: "POWEROFF"
+                }
+                
+                status_name = status_names.get(msg.system_status, f"UNKNOWN({msg.system_status})")
+                
+                # 状態変化があった場合のみ表示
+                if not hasattr(signal_handler, 'last_status') or signal_handler.last_status != msg.system_status:
+                    print(f"{current_time} : [STATUS] システム状態: {status_name}")
+                    signal_handler.last_status = msg.system_status
 
 except Exception as e:
     print(f"エラー: {e}")
@@ -191,5 +241,26 @@ finally:
             master.close()
     except:
         pass
-    print(f"総エラー回数: {error_count}")
-    print("監視終了")
+    
+    # 診断結果の表示
+    print("\n" + "="*70)
+    print("診断結果:")
+    print(f"  総エラー回数: {len(error_intervals) + 1}")
+    
+    if error_intervals:
+        avg_interval = sum(error_intervals) / len(error_intervals)
+        print(f"  平均エラー間隔: {avg_interval:.1f}秒")
+        print(f"  エラー間隔: {[f'{i:.1f}s' for i in error_intervals]}")
+        
+        if avg_interval < 20:
+            print("  → 推定原因: 定期的なシステムチェック処理での異常")
+        elif avg_interval < 35:
+            print("  → 推定原因: PreArmチェック処理での異常")
+        else:
+            print("  → 推定原因: 不定期なシステム異常")
+    
+    print("\n推奨対処:")
+    print("  1. ファームウェアの再インストール")
+    print("  2. パラメータの完全リセット")
+    print("  3. ハードウェアの点検（電源、配線、センサー）")
+    print("診断終了")
