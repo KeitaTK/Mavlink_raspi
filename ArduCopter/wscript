@@ -27,7 +27,7 @@ def build(bld):
             'AC_AutoTune',
             'AP_KDECAN',
             'AP_SurfaceDistance',
-            'AP_Observer'           # observe機能のコンパイル登録
+            # 'AP_Observer'           # observe機能のコンパイル登録
         ],
     )
 
