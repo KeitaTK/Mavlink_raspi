@@ -204,7 +204,7 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
     SCHED_TASK(gpsglitch_check,       10,     50,  90),
     SCHED_TASK(takeoff_check,         50,     50,  91),
     SCHED_TASK(my_module_update,      10,    100,  92),  // 10Hzで実行
-    SCHED_TASK(observer_update,       10,    100,  92), // 1 Hz、優先度は任意（例：20）
+    SCHED_TASK(observer_update,       1,    100,  92), // 1 Hz、優先度は任意（例：20）
 
 #if AP_LANDINGGEAR_ENABLED
     SCHED_TASK(landinggear_update,    10,     75,  93),

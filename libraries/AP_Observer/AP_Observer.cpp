@@ -65,5 +65,5 @@ void AP_Observer::init() const {  // ✅ クラス名とconst修飾子が一致
 }
 
 void AP_Observer::update() const {  // ✅ クラス名とconst修飾子が一致
-    // 実装内容
+    gcs().send_text(MAV_SEVERITY_INFO, "AP_Observer debug message!");
 }
