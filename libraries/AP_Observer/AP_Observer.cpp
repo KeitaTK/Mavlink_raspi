@@ -1,5 +1,6 @@
 #include "AP_Observer.h"
 #include <AP_HAL/AP_HAL.h>
+#include <cstdio>
 
 void AP_Observer::init() const {
     hal.console->printf("AP_Observer initialized\n");
