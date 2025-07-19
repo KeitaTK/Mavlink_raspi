@@ -44,14 +44,26 @@
 // }
 
 
-#include "AP_Observer.h"
-#include <GCS_MAVLink/GCS.h>
+// #include "AP_Observer.h"
+// #include <GCS_MAVLink/GCS.h>
 
-void AP_Observer::init() {
-    // 初期化処理（空でも可）
+// void AP_Observer::init() {
+//     // 初期化処理（空でも可）
+// }
+
+// void AP_Observer::update() {
+//     // 毎ループ必ずMAVLink経由でデバッグメッセージ送信
+//     gcs().send_text(MAV_SEVERITY_INFO, "AP_Observer debug message!");
+// }
+
+
+#include "AP_Observer.h"
+#include <AP_HAL/AP_HAL.h>
+
+void AP_Observer::init() const {  // ✅ クラス名とconst修飾子が一致
+    hal.console->printf("AP_Observer initialized\n");
 }
 
-void AP_Observer::update() {
-    // 毎ループ必ずMAVLink経由でデバッグメッセージ送信
-    gcs().send_text(MAV_SEVERITY_INFO, "AP_Observer debug message!");
+void AP_Observer::update() const {  // ✅ クラス名とconst修飾子が一致
+    // 実装内容
 }
