@@ -2,6 +2,7 @@
 #include <AP_HAL/AP_HAL.h>
 #include <AP_Motors/AP_Motors.h>
 #include <GCS_MAVLink/GCS.h>  // MAVLink送信用
+#include <cstdio>
 
 
 class AP_Observer {  // ✅ クラス名が完全一致しているか確認

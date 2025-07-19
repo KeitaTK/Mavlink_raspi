@@ -1,6 +1,4 @@
 #include "AP_Observer.h"
-#include <AP_HAL/AP_HAL.h>
-#include <cstdio>
 
 void AP_Observer::init() const {
     hal.console->printf("AP_Observer initialized\n");
@@ -12,12 +10,11 @@ void AP_Observer::update() const {
         gcs().send_text(MAV_SEVERITY_INFO, "AP_Observer: motors is nullptr!");
         return;
     }
-    char msg[128];
-    for (uint8_t i = 0; i < AP_MOTORS_MAX_NUM_MOTORS; i++) {
-        float thr_out = 0.0f;
-        motors->get_thrust(i, thr_out);
-        // メッセージを組み立てて送信
-        snprintf(msg, sizeof(msg), "Motor%d thrust: %f", i, thr_out);
-        gcs().send_text(MAV_SEVERITY_INFO, msg);
-    }
+    
+    // モーターマスクを取得してモーター数をカウント
+    uint32_t motor_mask = motors->get_motor_mask();
+    uint8_t motor_count = __builtin_popcount(motor_mask);
+    
+    // 直接フォーマット文字列で送信
+    gcs().send_text(MAV_SEVERITY_INFO, "Motor count: %d", motor_count);
 }
