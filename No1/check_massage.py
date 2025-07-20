@@ -1,115 +1,3 @@
-# from pymavlink import mavutil
-# import time
-# import signal
-# import sys
-# from datetime import datetime
-
-# running = True
-
-# def signal_handler(sig, frame):
-#     global running
-#     print('\n終了中...')
-#     running = False
-
-# # Ctrl+C で安全に終了するためのシグナルハンドラ
-# signal.signal(signal.SIGINT, signal_handler)
-
-# try:
-#     # 1. シリアル接続の確立
-#     print("TELEM1通信接続（ハードウェアフロー制御有効）")
-#     master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=1000000, rtscts=True)
-
-#     # 2. heartbeat 受信待ち
-#     master.wait_heartbeat(timeout=5)
-#     print(f"Heartbeat received from system {master.target_system}, component {master.target_component}")
-
-#     # 3. STATUSTEXTメッセージの受信を要求
-#     print("STATUSTEXTメッセージの受信を要求中...")
-#     master.mav.request_data_stream_send(
-#         master.target_system,
-#         master.target_component,
-#         mavutil.mavlink.MAV_DATA_STREAM_EXTENDED_STATUS,
-#         10,  # 10Hz（高頻度で要求）
-#         1    # start
-#     )
-
-#     # 4. 全てのデータストリームを要求（念のため）
-#     stream_types = [
-#         mavutil.mavlink.MAV_DATA_STREAM_ALL,
-#         mavutil.mavlink.MAV_DATA_STREAM_EXTENDED_STATUS,
-#         mavutil.mavlink.MAV_DATA_STREAM_EXTRA1,
-#         mavutil.mavlink.MAV_DATA_STREAM_EXTRA2,
-#         mavutil.mavlink.MAV_DATA_STREAM_EXTRA3
-#     ]
-    
-#     for stream_type in stream_types:
-#         master.mav.request_data_stream_send(
-#             master.target_system,
-#             master.target_component,
-#             stream_type,
-#             1,  # 1Hz
-#             1   # start
-#         )
-#         time.sleep(0.1)
-
-#     print("STATUSTEXTメッセージの受信を開始... (Ctrl+C で停止)")
-#     print("=" * 60)
-    
-#     # 5. 継続的にメッセージを受信
-#     while running:
-#         msg = master.recv_match(blocking=True, timeout=1)
-        
-#         if msg is not None:
-#             current_time = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
-#             msg_type = msg.get_type()
-            
-#             if msg_type == 'STATUSTEXT':
-#                 # STATUSTEXTメッセージの詳細を表示
-#                 text = msg.text.strip()
-#                 severity = msg.severity
-                
-#                 # 重要度レベルを文字列に変換
-#                 severity_text = {
-#                     0: "EMERGENCY",
-#                     1: "ALERT", 
-#                     2: "CRITICAL",
-#                     3: "ERROR",
-#                     4: "WARNING",
-#                     5: "NOTICE",
-#                     6: "INFO",
-#                     7: "DEBUG"
-#                 }.get(severity, f"UNKNOWN({severity})")
-                
-#                 # Thrustメッセージかどうかを判定
-#                 if "Thrust:" in text:
-#                     print(f"{current_time} : [THRUST-{severity_text}] {text}")
-#                 elif "PreArm:" in text:
-#                     print(f"{current_time} : [PREARM-{severity_text}] {text}")
-#                 elif "AP_Observer:" in text:
-#                     print(f"{current_time} : [OBSERVER-{severity_text}] {text}")
-#                 else:
-#                     print(f"{current_time} : [STATUS-{severity_text}] {text}")
-                    
-#             # その他のメッセージは表示しない（STATUSTEXTのみに集中）
-            
-#         # CPU負荷軽減のため少し待機
-#         time.sleep(0.01)
-
-# except KeyboardInterrupt:
-#     print("\nユーザーによって中断されました")
-    
-# except Exception as e:
-#     print(f"通信エラー: {e}")
-
-# finally:
-#     try:
-#         if 'master' in locals():
-#             master.close()
-#     except:
-#         pass
-#     print("プログラムを終了しました")
-
-
 from pymavlink import mavutil
 import time
 import signal
@@ -126,7 +14,7 @@ def signal_handler(sig, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 try:
-    print("システム詳細診断開始")
+    print("システム詳細診断開始（AP_Observer対応版）")
     master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=1000000, rtscts=True)
 
     master.wait_heartbeat(timeout=5)
@@ -147,12 +35,13 @@ try:
         master.target_component
     )
 
-    print("システム詳細診断中...")
+    print("システム詳細診断中... (AP_Observer推力データ監視)")
     print("=" * 70)
     
     error_intervals = []
     last_error_time = None
     system_info_received = False
+    thrust_message_count = 0
     
     while running:
         msg = master.recv_match(blocking=True, timeout=1)
@@ -164,6 +53,7 @@ try:
             if msg_type == 'STATUSTEXT':
                 text = msg.text.strip()
                 
+                # Internal Errorsの処理
                 if "Internal errors 0x100000" in text:
                     current_dt = datetime.now()
                     
@@ -189,12 +79,69 @@ try:
                     print(f"    └── 総エラー回数: {len(error_intervals) + 1}")
                     print("-" * 50)
                 
+                # PreArm/Armメッセージの処理
                 elif "PreArm:" in text or "Arm:" in text:
                     print(f"{current_time} : [INFO] {text}")
-                    
+                
+                # === AP_Observer関連メッセージの処理 ===
+                
+                # 推力データの処理
                 elif "Thrust:" in text:
-                    print(f"{current_time} : [SUCCESS] {text}")
-                    print("    └── システムが正常にアームされました！")
+                    thrust_message_count += 1
+                    print(f"{current_time} : [THRUST] {text}")
+                    print(f"    └── 推力データ取得成功 (#{thrust_message_count})")
+                
+                # モーターマスク情報の処理
+                elif "Motor mask:" in text:
+                    print(f"{current_time} : [MOTOR_DEBUG] {text}")
+                    # マスク値の解析
+                    if "0x0F00" in text:
+                        print(f"    └── モーター8-11が有効 (SERVO9-12対応)")
+                    elif "0x000F" in text:
+                        print(f"    └── モーター0-3が有効 (SERVO1-4対応)")
+                    else:
+                        mask_value = text.split("0x")[1] if "0x" in text else "不明"
+                        print(f"    └── カスタムモーター設定: 0x{mask_value}")
+                
+                # PWM出力値の処理
+                elif "PWM M" in text:
+                    print(f"{current_time} : [PWM_DEBUG] {text}")
+                    # PWM値の分析
+                    if "->" in text:
+                        try:
+                            parts = text.split("->")
+                            pwm_part = parts[0].split(":")[-1].strip()
+                            normalized_part = parts[1].strip()
+                            pwm_value = int(pwm_part)
+                            
+                            if pwm_value > 1800:
+                                print(f"    └── 高出力: {pwm_value}μs")
+                            elif pwm_value > 1500:
+                                print(f"    └── 中出力: {pwm_value}μs")
+                            elif pwm_value > 1100:
+                                print(f"    └── 低出力: {pwm_value}μs")
+                            else:
+                                print(f"    └── 最小出力: {pwm_value}μs")
+                        except:
+                            print(f"    └── PWM解析中")
+                
+                # Raw推力値の処理
+                elif "Raw M" in text:
+                    print(f"{current_time} : [RAW_DEBUG] {text}")
+                    # Raw値の状態分析
+                    if "0.0000" in text:
+                        print(f"    └── 推力推定システム未動作")
+                    else:
+                        print(f"    └── 推力推定システム動作中")
+                
+                # AP_Observer nullptrエラーの処理
+                elif "AP_Observer: motors is nullptr!" in text:
+                    print(f"{current_time} : [ERROR] {text}")
+                    print(f"    └── モーターシステム初期化失敗")
+                
+                # その他のAP_Observer関連メッセージ
+                elif "AP_Observer" in text:
+                    print(f"{current_time} : [OBSERVER] {text}")
                     
             elif msg_type == 'AUTOPILOT_VERSION':
                 if not system_info_received:
@@ -245,7 +192,8 @@ finally:
     # 診断結果の表示
     print("\n" + "="*70)
     print("診断結果:")
-    print(f"  総エラー回数: {len(error_intervals) + 1}")
+    print(f"  総エラー回数: {len(error_intervals) + 1 if error_intervals else 0}")
+    print(f"  推力データ受信数: {thrust_message_count}")
     
     if error_intervals:
         avg_interval = sum(error_intervals) / len(error_intervals)
@@ -263,4 +211,10 @@ finally:
     print("  1. ファームウェアの再インストール")
     print("  2. パラメータの完全リセット")
     print("  3. ハードウェアの点検（電源、配線、センサー）")
+    
+    if thrust_message_count > 0:
+        print("  4. AP_Observer推力データ正常受信 ✓")
+    else:
+        print("  4. AP_Observer推力データ未受信 - スケジューラー設定確認")
+    
     print("診断終了")
