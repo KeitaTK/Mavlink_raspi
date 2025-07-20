@@ -145,12 +145,7 @@ params_to_set = {
     'LOG_BACKEND_TYPE': 1,    # デフォルトのログバックエンド（ファイル）
 
     # # 推力推定に必要な設定
-    # 'EK3_THR_MDL_TYPE': 2,      # 二次推力モデル
-    # 'EK3_THR_MDL_SLOPE': 0.7,   # 推力-スロットル線形係数
-    # 'EK3_THR_MDL_XINT': -0.1,   # スロットル切片
-    # 'EK3_THR_MDL_YINT': 0.05,   # 推力切片
-    # 'FRAME_MASS': 1.4,          # 機体質量（kg）
-    # 'MOT_THST_HOVER': 0.223,    # ホバリングスロットル比
+    'MOT_THST_HOVER': 0.223,    # ホバリングスロットル比
     'MOT_THST_EXPO': 0,      # 推力曲線指数
     'MOT_HOVER_LEARN': 0,       # ホバリング学習（0:無効）
 
