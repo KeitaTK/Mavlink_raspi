@@ -1,7 +1,10 @@
 #include "AP_Observer.h"
 
+// static変数の定義
+uint32_t AP_Observer::counter = 0;
+
 void AP_Observer::init() const {
-    // gcs().send_text(MAV_SEVERITY_INFO, "AP_Observer initialized");
+    // 初期化処理
 }
 
 void AP_Observer::update() const {
@@ -11,10 +14,27 @@ void AP_Observer::update() const {
         return;
     }
     
-    // スロットル値取得
+    // スロットル値取得と推力計算
     float throttle_value = motors->get_throttle_out();
-    float paylode = THRUST_SCALE*throttle_value + THRUST_OFFSET + UAV_mass; //kg
+    float thrust = -(THRUST_SCALE * throttle_value + THRUST_OFFSET) * g; // [N]
     
-    // gcs().send_text(MAV_SEVERITY_INFO, "THROTTLE: %.4f", paylode);
-    (void)paylode; // 未使用変数の警告を回避
+    // 特異加速度取得（生データ）
+    Vector3f accel_body = AP::ins().get_accel();
+    
+    // 外力計算 Fpb = m⋅fb - [0, 0, T]
+    Vector3f payload_force;
+    payload_force.x = UAV_mass * accel_body.x;                    // m⋅fb,x
+    payload_force.y = UAV_mass * accel_body.y;                    // m⋅fb,y  
+    payload_force.z = UAV_mass * accel_body.z - thrust;           // m⋅fb,z - T
+    
+    // 送信頻度制御
+    counter++;
+    
+    if (counter % 10 == 0) {
+        // 特異加速度と外力を送信
+        // gcs().send_text(MAV_SEVERITY_INFO, "ACCEL: X=%.3f Y=%.3f Z=%.3f", 
+        //                 accel_body.x, accel_body.y, accel_body.z);
+        gcs().send_text(MAV_SEVERITY_INFO, "FORCE: X=%.3f Y=%.3f Z=%.3f", 
+                        payload_force.x, payload_force.y, payload_force.z);
+    }
 }
