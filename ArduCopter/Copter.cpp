@@ -204,7 +204,7 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
     SCHED_TASK(gpsglitch_check,       10,     50,  90),
     SCHED_TASK(takeoff_check,         50,     50,  91),
     SCHED_TASK(my_module_update,      1,    100,  92),  // カスタムプログラム
-    SCHED_TASK(observer_update,       10,    100,  92), // 推力推定
+    SCHED_TASK(observer_update,       100,    100,  92), // 推力推定
 
 #if AP_LANDINGGEAR_ENABLED
     SCHED_TASK(landinggear_update,    10,     75,  93),
