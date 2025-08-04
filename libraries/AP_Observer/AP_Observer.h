@@ -43,3 +43,5 @@ private:
     static constexpr float THRUST_OFFSET = -0.9995f;
     static constexpr float UAV_mass = 1.4f;
 };
+
+extern AP_Observer ap_observer;

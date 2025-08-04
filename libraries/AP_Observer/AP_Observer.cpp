@@ -1,5 +1,7 @@
 #include "AP_Observer.h"
 
+AP_Observer ap_observer;
+
 uint32_t AP_Observer::counter = 0;
 
 void AP_Observer::init() const {

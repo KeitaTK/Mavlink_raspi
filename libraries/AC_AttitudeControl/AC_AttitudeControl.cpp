@@ -852,13 +852,33 @@ Quaternion AC_AttitudeControl::attitude_from_thrust_vector(Vector3f thrust_vecto
 }
 
 // Calculates the body frame angular velocities to follow the target attitude
+// void AC_AttitudeControl::update_attitude_target()
+// {
+//     // rotate target and normalize
+//     Quaternion attitude_target_update;
+//     attitude_target_update.from_axis_angle(_ang_vel_target_rads * _dt);
+//     _attitude_target *= attitude_target_update;
+//     _attitude_target.normalize();
+// }
+
+// 補正クオータニオンを作用
 void AC_AttitudeControl::update_attitude_target()
 {
-    // rotate target and normalize
+    // 1) 元の角速度積分による目標姿勢更新
     Quaternion attitude_target_update;
     attitude_target_update.from_axis_angle(_ang_vel_target_rads * _dt);
     _attitude_target *= attitude_target_update;
     _attitude_target.normalize();
+
+    // 2) AP_Observer から補正クオータニオンを取得
+    //    既存のインスタンスを使うか、シングルトン等から取得
+    extern AP_Observer ap_observer;  // 例：外部宣言
+    if (ap_observer.is_correction_valid()) {
+        Quaternion correction = ap_observer.get_correction_quaternion();
+        // 3) 補正を乗算して反映
+        _attitude_target = correction * _attitude_target;
+        _attitude_target.normalize();
+    }
 }
 
 // Calculates the body frame angular velocities to follow the target attitude
