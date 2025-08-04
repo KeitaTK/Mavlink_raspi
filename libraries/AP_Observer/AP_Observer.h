@@ -1,41 +1,19 @@
-// #pragma once
-// #include <AP_HAL/AP_HAL.h>
-// #include <AP_Motors/AP_Motors.h>
-// #include <GCS_MAVLink/GCS.h>  // MAVLink送信用
-// #include "AP_Observer.h"
-// #include <AP_InertialSensor/AP_InertialSensor.h>
-
-
-// class AP_Observer {  // ✅ クラス名が完全一致しているか確認
-// public:
-//     void init() const;  // ✅ const修飾子を追加
-//     void update() const; // ✅ const修飾子を追加
-
-// private:
-//     static uint32_t counter;
-
-//     static constexpr float g = 9.7985f;
-//     static constexpr float THRUST_SCALE = 6.3157f;
-//     static constexpr float THRUST_OFFSET = -0.9995f;
-//     static constexpr float UAV_mass = 1.4f;
-// };
-
-
 #pragma once
 #include <AP_HAL/AP_HAL.h>
 #include <AP_Motors/AP_Motors.h>
 #include <GCS_MAVLink/GCS.h>
 #include <AP_InertialSensor/AP_InertialSensor.h>
 #include <Filter/LowPassFilter.h>
+#include <AP_Math/AP_Math.h>
 
 class AP_Observer {
 public:
     void init() const;
     void update() const;
     
-    // 外部アクセス用のゲッター関数
-    Vector3f get_filtered_force() const { return current_filtered_force; }
-    bool is_force_valid() const { return filter_initialized && (AP_HAL::millis() - last_update_ms < 100); }
+    // 補正クオータニオン取得用のゲッター関数
+    Quaternion get_correction_quaternion() const { return current_correction_quat; }
+    bool is_correction_valid() const { return filter_initialized && (AP_HAL::millis() - last_update_ms < 100); }
 
 private:
     static uint32_t counter;
@@ -44,11 +22,20 @@ private:
     mutable LowPassFilterConstDtVector3f force_filter;
     mutable bool filter_initialized = false;
     mutable Vector3f current_filtered_force;     // 最新のフィルタ済み外力
+    mutable Quaternion current_correction_quat;  // 最新の補正クオータニオン
     mutable uint32_t last_update_ms = 0;         // 最終更新時刻
+
+    // 補正計算用の内部関数
+    Quaternion calculate_correction_from_force(const Vector3f& force) const;
 
     // フィルタパラメータ
     static constexpr float SAMPLE_FREQ = 100.0f;
     static constexpr float CUTOFF_FREQ = 5.0f;
+
+    // 補正パラメータ
+    static constexpr float CORRECTION_GAIN = 0.1f;        // 補正の強さ
+    static constexpr float FORCE_THRESHOLD = 0.5f;        // 補正を適用する最小外力 [N]
+    static constexpr float MAX_CORRECTION_ANGLE = 0.1f;   // 最大補正角度 [rad] (約5.7度)
 
     // 物理定数
     static constexpr float g = 9.7985f;
