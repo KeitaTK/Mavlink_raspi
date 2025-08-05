@@ -5,18 +5,19 @@ import sys
 import csv
 import os
 from datetime import datetime
-import re  # 正規表現モジュールを追加
+import re
 
 running = True
 csv_writer = None
 csv_file = None
-file_closed = False  # ファイル状態管理フラグ
+file_closed = False
+message_buffer = ""  # メッセージバッファを追加
 
 
 def signal_handler(sig, frame):
     global running
     print('\n終了中...')
-    running = False  # ファイルクローズはfinally節で行う
+    running = False
 
 
 signal.signal(signal.SIGINT, signal_handler)
@@ -54,6 +55,36 @@ def parse_force_and_quat(text):
         return None
 
 
+def process_message_with_buffer(text):
+    """
+    分割されたメッセージを結合して処理する関数
+    """
+    global message_buffer
+    
+    # CORRECTIONで始まる場合、新しいメッセージの開始
+    if "CORRECTION:" in text:
+        message_buffer = text
+        # 既に完全なメッセージの場合はそのまま処理
+        if "Quat_RPY=[" in text and "]deg" in text:
+            complete_message = message_buffer
+            message_buffer = ""  # バッファクリア
+            return complete_message
+        else:
+            return None  # まだ不完全
+    
+    # 前のメッセージの続きの場合
+    elif message_buffer and ("[" in text and "]deg" in text):
+        # Quat_RPY部分を結合
+        complete_message = message_buffer + text
+        message_buffer = ""  # バッファクリア
+        return complete_message
+    
+    # その他の場合
+    else:
+        message_buffer = ""  # バッファクリア
+        return None
+
+
 def create_csv_filename():
     """
     日時_EFandQ.csv形式のファイル名を生成（External Force and Quaternion）
@@ -88,7 +119,7 @@ def safe_write_csv(writer, file_handle, row):
 
 
 try:
-    print("外力と補正クオータニオンデータ記録開始（AP_Observer対応版）")
+    print("外力と補正クオータニオンデータ記録開始（分割メッセージ対応版）")
     
     # CSVファイル準備
     csv_filepath = create_csv_filename()
@@ -117,7 +148,7 @@ try:
     )
     
     print("外力と補正クオータニオンデータ監視中... (Ctrl+Cで終了)")
-    print("AP_Observerからのメッセージを待機中...")
+    print("AP_Observerからの分割メッセージを結合して処理中...")
     print("=" * 60)
     
     record_count = 0
@@ -132,13 +163,15 @@ try:
                 if msg_type == 'STATUSTEXT':
                     text = msg.text.strip()
                     
-                    # CORRECTIONメッセージのみ処理
-                    if "CORRECTION:" in text:
+                    # 分割メッセージを処理
+                    complete_message = process_message_with_buffer(text)
+                    
+                    if complete_message:
                         current_time = datetime.now()
-                        timestamp = current_time.strftime("%Y/%m/%d %H:%M:%S.%f")[:-3]  # ミリ秒まで
+                        timestamp = current_time.strftime("%Y/%m/%d %H:%M:%S.%f")[:-3]
                         
                         # データ解析
-                        data = parse_force_and_quat(text)
+                        data = parse_force_and_quat(complete_message)
                         
                         if data:
                             # 外力の大きさ計算
@@ -170,6 +203,8 @@ try:
                                 print(f"  Magnitude: {force_magnitude:.3f}N")
                                 print(f"  Quat_RPY: Roll:{data['Quat_Roll']:.2f}deg  Pitch:{data['Quat_Pitch']:.2f}deg  Yaw:{data['Quat_Yaw']:.2f}deg")
                                 print("-" * 60)
+                        else:
+                            print(f"解析失敗: {complete_message}")
         
         except Exception as e:
             print(f"データ処理エラー: {e}")
@@ -193,7 +228,7 @@ finally:
     # ファイルクローズの安全な処理
     if csv_file and not csv_file.closed:
         try:
-            file_closed = True  # フラグ設定
+            file_closed = True
             csv_file.close()
             print("CSVファイルを正常に保存しました")
         except Exception as e:
