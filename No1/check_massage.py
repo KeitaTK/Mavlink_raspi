@@ -219,6 +219,7 @@
     
 #     print("診断終了")
 
+
 from pymavlink import mavutil
 import time
 import signal
@@ -235,7 +236,7 @@ def signal_handler(sig, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 try:
-    print("MAVLinkメッセージ受信プログラム開始 (AP_Observerデバッグ対応)")
+    print("MAVLinkデバッグメッセージ受信プログラム開始")
     master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=1000000, rtscts=True)
 
     master.wait_heartbeat(timeout=5)
@@ -256,7 +257,7 @@ try:
         master.target_component
     )
 
-    print("メッセージ受信中... (AP_Observerデバッグメッセージを強調)")
+    print("デバッグメッセージ受信中... (STATUSTEXTのみを表示)")
     print("=" * 70)
     
     while running:
@@ -265,19 +266,12 @@ try:
         if msg is not None:
             current_time = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
             msg_type = msg.get_type()
-            print(f"{current_time} : [MSG] Type: {msg_type}")
-            print(f"    └── Content: {msg}")
-            print("-" * 50)
             
-            # AP_Observer関連のデバッグメッセージを捕捉 (STATUSTEXTの場合)
+            # STATUSTEXT（デバッグメッセージ）のみを表示
             if msg_type == 'STATUSTEXT':
                 text = msg.text.strip()
-                # キーワードチェック (C++コードの出力に合わせる)
-                keywords = ["AP_Observer", "DEBUG", "CORRECTION", "Force=", "Quat_RPY="]
-                if any(keyword in text for keyword in keywords):
-                    print(f"{current_time} : [AP_OBSERVER_DEBUG] {text}")
-                    print(f"    └── Extracted: {text}")
-                    print("=" * 50)  # 強調のための区切り
+                print(f"{current_time} : [DEBUG] {text}")
+                print("-" * 50)
 
 except Exception as e:
     print(f"エラー: {e}")
