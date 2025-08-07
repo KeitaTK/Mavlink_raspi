@@ -1,232 +1,135 @@
-from pymavlink import mavutil
-import time
-import signal
-import sys
+#!/usr/bin/env python3
+import re
 import csv
 import os
+import signal
+import sys
 from datetime import datetime
-import re
+from pymavlink import mavutil
 
+# グローバルフラグ
 running = True
-csv_writer = None
-csv_file = None
-file_closed = False
 message_buffer = ""
 expecting_quat_line = False
 
-
 def signal_handler(sig, frame):
     global running
-    print('\n終了中...')
     running = False
-
+    print("\n終了信号受信, 停止します…")
 
 signal.signal(signal.SIGINT, signal_handler)
 
+def create_csv_filepath():
+    now = datetime.now().strftime("%Y%m%d_%H%M%S")
+    directory = os.path.expanduser("~/LOGS_Pixhawk6c")
+    os.makedirs(directory, exist_ok=True)
+    return os.path.join(directory, f"{now}_EFandQ.csv")
 
-def parse_force_and_quat(text):
+def process_statustext_line(text):
     """
-    外力と補正クオータニオンデータの解析
-    CORRECTION: Force=[x,y,z] Quat_RPY=[roll,pitch,yaw]deg 形式
-    """
-    try:
-        force_match = re.search(r'Force=\[(.*?)\]', text)
-        quat_match = re.search(r'Quat_RPY=\[(.*?)\]deg', text)
-
-        if not force_match or not quat_match:
-            return None
-
-        force_vals = list(map(float, force_match.group(1).split(',')))
-        quat_vals = list(map(float, quat_match.group(1).split(',')))
-
-        return {
-            'Force_X': force_vals[0],
-            'Force_Y': force_vals[1],
-            'Force_Z': force_vals[2],
-            'Quat_Roll': quat_vals[0],
-            'Quat_Pitch': quat_vals[1],
-            'Quat_Yaw': quat_vals[2]
-        }
-    except Exception as e:
-        return None
-
-
-def process_correction_message(text):
-    """
-    分割されたCORRECTIONメッセージを処理
+    2 行に分かれた EF=... と Q=... を組み立て、
+    完全な一文にして返す。組み立て中は None。
     """
     global message_buffer, expecting_quat_line
-    
+
     text = text.strip()
-    
-    # CORRECTIONで始まり Quat_RPY=[ で終わる場合（分割の第1部）
-    if text.startswith('CORRECTION:') and text.endswith('Quat_RPY=['):
+    # 1行目: EF=..., expecting Q line next
+    if text.startswith("EF="):
         message_buffer = text
         expecting_quat_line = True
         return None
-    
-    # 前の行がCORRECTION分割第1部で、今の行がクオータニオン値の場合
-    elif expecting_quat_line and re.match(r'^[0-9\-\.\,\s]+\]deg$', text):
-        complete_message = message_buffer + text
+    # 2行目: Q=... のみ
+    if expecting_quat_line and text.startswith("Q="):
+        complete = message_buffer + " " + text
         message_buffer = ""
         expecting_quat_line = False
-        return complete_message
-    
-    # その他は無視またはリセット
-    else:
-        message_buffer = ""
-        expecting_quat_line = False
+        return complete
+    # その他
+    message_buffer = ""
+    expecting_quat_line = False
+    return None
+
+def parse_ef_q(msg):
+    """
+    完全な「EF=..., Q=...」を受け取り、
+    各数値を辞書で返す。
+    """
+    m = re.match(r"EF=([\-\d\.]+),([\-\d\.]+),([\-\d\.]+) Q=([\d\.]+),([\d\.\-]+),([\d\.\-]+),([\d\.\-]+)", msg)
+    if not m:
         return None
+    fx, fy, fz, q1, q2, q3, q4 = map(float, m.groups())
+    # 外力大きさ
+    magnitude = (fx*fx + fy*fy + fz*fz)**0.5
+    return {
+        "Force_X": fx,
+        "Force_Y": fy,
+        "Force_Z": fz,
+        "Force_Mag": magnitude,
+        "Q1": q1,
+        "Q2": q2,
+        "Q3": q3,
+        "Q4": q4
+    }
 
+def main():
+    # CSV 設定
+    csv_path = create_csv_filepath()
+    with open(csv_path, "w", newline="", encoding="utf-8") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow([
+            "Timestamp",
+            "Force_X_N", "Force_Y_N", "Force_Z_N", "Force_Magnitude_N",
+            "Quat_Q1", "Quat_Q2", "Quat_Q3", "Quat_Q4"
+        ])
+        print(f"CSV 保存先: {csv_path}")
 
-def create_csv_filename():
-    """
-    日時_EFandQ.csv形式のファイル名を生成
-    """
-    current_time = datetime.now()
-    timestamp = current_time.strftime("%Y%m%d_%H%M%S")
-    
-    log_dir = os.path.expanduser("~/LOGS_Pixhawk6c")
-    os.makedirs(log_dir, exist_ok=True)
-    
-    filename = f"{timestamp}_EFandQ.csv"
-    filepath = os.path.join(log_dir, filename)
-    
-    return filepath
+        # MAVLink 接続 (ポート名は環境に合わせて変更)
+        master = mavutil.mavlink_connection("/dev/ttyAMA0", baud=1000000, rtscts=True)
+        master.wait_heartbeat(timeout=5)
+        print("Heartbeat 受信: 接続完了")
 
+        # データストリームを 10Hz で要求
+        master.mav.request_data_stream_send(
+            master.target_system,
+            master.target_component,
+            mavutil.mavlink.MAV_DATA_STREAM_EXTENDED_STATUS,
+            10, 1
+        )
+        print("監視開始… Ctrl+C で終了")
 
-def safe_write_csv(writer, file_handle, row):
-    """安全なCSV書き込み"""
-    global file_closed
-    try:
-        if not file_closed and file_handle and not file_handle.closed:
+        record_count = 0
+        while running:
+            msg = master.recv_match(type="STATUSTEXT", blocking=True, timeout=1)
+            if not msg:
+                continue
+            line = msg.text.decode('utf-8', errors='ignore')
+            complete = process_statustext_line(line)
+            if not complete:
+                continue
+            data = parse_ef_q(complete)
+            if not data:
+                continue
+
+            # タイムスタンプ
+            ts = datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")[:-3]
+            row = [
+                ts,
+                data["Force_X"], data["Force_Y"], data["Force_Z"], data["Force_Mag"],
+                data["Q1"], data["Q2"], data["Q3"], data["Q4"]
+            ]
             writer.writerow(row)
-            file_handle.flush()
-            return True
-        else:
-            return False
-    except Exception as e:
-        print(f"CSV書き込みエラー: {e}")
-        return False
+            csvfile.flush()
+            record_count += 1
 
+            # 5件ごとにコンソール出力
+            if record_count % 5 == 0:
+                print(f"{ts} : 記録 #{record_count} EF=({data['Force_X']:.3f},{data['Force_Y']:.3f},{data['Force_Z']:.3f}) Q=({data['Q1']:.4f},{data['Q2']:.4f},{data['Q3']:.4f},{data['Q4']:.4f})")
 
-try:
-    print("外力と補正クオータニオンデータ記録開始（シンプル分割対応版）")
-    
-    # CSVファイル準備
-    csv_filepath = create_csv_filename()
-    print(f"記録先: {csv_filepath}")
-    
-    csv_file = open(csv_filepath, 'w', newline='', encoding='utf-8')
-    csv_writer = csv.writer(csv_file)
-    
-    # CSVヘッダー書き込み
-    csv_writer.writerow(['Timestamp', 'Force_X_N', 'Force_Y_N', 'Force_Z_N', 'Force_Magnitude_N', 
-                         'Quat_Roll_deg', 'Quat_Pitch_deg', 'Quat_Yaw_deg'])
-    csv_file.flush()
-    
-    # MAVLink接続
-    master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=1000000, rtscts=True)
-    master.wait_heartbeat(timeout=5)
-    print(f"Heartbeat received from system {master.target_system}, component {master.target_component}")
-    
-    # データストリーム要求
-    master.mav.request_data_stream_send(
-        master.target_system,
-        master.target_component,
-        mavutil.mavlink.MAV_DATA_STREAM_EXTENDED_STATUS,
-        10,  # 10Hz
-        1    # start
-    )
-    
-    print("外力と補正クオータニオンデータ監視中... (Ctrl+Cで終了)")
-    print("2行分割メッセージ結合システム稼働中...")
-    print("=" * 60)
-    
-    record_count = 0
-    
-    while running:
-        try:
-            msg = master.recv_match(blocking=True, timeout=1)
-            
-            if msg is not None:
-                msg_type = msg.get_type()
-                
-                if msg_type == 'STATUSTEXT':
-                    text = msg.text.strip()
-                    
-                    # 分割メッセージを処理
-                    complete_message = process_correction_message(text)
-                    
-                    if complete_message:
-                        current_time = datetime.now()
-                        timestamp = current_time.strftime("%Y/%m/%d %H:%M:%S.%f")[:-3]
-                        
-                        # データ解析
-                        data = parse_force_and_quat(complete_message)
-                        
-                        if data:
-                            # 外力の大きさ計算
-                            force_x = data['Force_X']
-                            force_y = data['Force_Y']
-                            force_z = data['Force_Z']
-                            
-                            force_magnitude = (force_x**2 + force_y**2 + force_z**2)**0.5
-                            
-                            # CSV書き込み
-                            row = [
-                                timestamp,
-                                force_x,
-                                force_y,
-                                force_z,
-                                force_magnitude,
-                                data['Quat_Roll'],
-                                data['Quat_Pitch'],
-                                data['Quat_Yaw']
-                            ]
-                            
-                            # 安全な書き込み
-                            if safe_write_csv(csv_writer, csv_file, row):
-                                record_count += 1
-                                
-                                # コンソール表示（5回に1回）
-                                if record_count == 1 or record_count % 5 == 0:
-                                    print(f"{timestamp} : データ記録 #{record_count}")
-                                    print(f"  Force: X:{force_x:.3f}N  Y:{force_y:.3f}N  Z:{force_z:.3f}N")
-                                    print(f"  Magnitude: {force_magnitude:.3f}N")
-                                    print(f"  Quat_RPY: Roll:{data['Quat_Roll']:.2f}deg  Pitch:{data['Quat_Pitch']:.2f}deg  Yaw:{data['Quat_Yaw']:.2f}deg")
-                                    print("-" * 60)
-                                elif record_count % 20 == 0:
-                                    print(f"記録継続中... #{record_count}")
-        
-        except Exception as e:
-            print(f"データ処理エラー: {e}")
-            continue
+        # 終了処理
+        print("\n停止中…")
+        master.close()
+        print(f"総記録数: {record_count}")
+        print("CSV ファイルを保存しました。")
 
-
-except Exception as e:
-    print(f"初期化エラー: {e}")
-
-
-finally:
-    # 安全なクリーンアップ
-    print(f"\n記録終了処理中...")
-    
-    try:
-        if 'master' in locals():
-            master.close()
-    except:
-        pass
-    
-    # ファイルクローズの安全な処理
-    if csv_file and not csv_file.closed:
-        try:
-            file_closed = True
-            csv_file.close()
-            print("CSVファイルを正常に保存しました")
-        except Exception as e:
-            print(f"ファイルクローズエラー: {e}")
-    
-    print(f"総記録数: {record_count}")
-    print(f"保存先: {csv_filepath}")
-    print("プログラム終了")
+if __name__ == "__main__":
+    main()
