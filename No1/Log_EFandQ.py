@@ -3,11 +3,9 @@ import re
 import csv
 import os
 import signal
-import sys
 from datetime import datetime
 from pymavlink import mavutil
 
-# グローバルフラグ
 running = True
 message_buffer = ""
 expecting_quat_line = False
@@ -27,38 +25,36 @@ def create_csv_filepath():
 
 def process_statustext_line(text):
     """
-    2 行に分かれた EF=... と Q=... を組み立て、
-    完全な一文にして返す。組み立て中は None。
+    2行に分割された EF=... と Q=... を組み立てる
     """
     global message_buffer, expecting_quat_line
 
     text = text.strip()
-    # 1行目: EF=..., expecting Q line next
     if text.startswith("EF="):
         message_buffer = text
         expecting_quat_line = True
         return None
-    # 2行目: Q=... のみ
     if expecting_quat_line and text.startswith("Q="):
         complete = message_buffer + " " + text
         message_buffer = ""
         expecting_quat_line = False
         return complete
-    # その他
     message_buffer = ""
     expecting_quat_line = False
     return None
 
 def parse_ef_q(msg):
     """
-    完全な「EF=..., Q=...」を受け取り、
-    各数値を辞書で返す。
+    完全な EF=..., Q=... 文字列を解析して辞書で返す
     """
-    m = re.match(r"EF=([\-\d\.]+),([\-\d\.]+),([\-\d\.]+) Q=([\d\.]+),([\d\.\-]+),([\d\.\-]+),([\d\.\-]+)", msg)
+    m = re.match(
+        r"EF=([\-\d\.]+),([\-\d\.]+),([\-\d\.]+) "
+        r"Q=([\d\.\-]+),([\d\.\-]+),([\d\.\-]+),([\d\.\-]+)",
+        msg
+    )
     if not m:
         return None
     fx, fy, fz, q1, q2, q3, q4 = map(float, m.groups())
-    # 外力大きさ
     magnitude = (fx*fx + fy*fy + fz*fz)**0.5
     return {
         "Force_X": fx,
@@ -72,7 +68,7 @@ def parse_ef_q(msg):
     }
 
 def main():
-    # CSV 設定
+    # CSV準備
     csv_path = create_csv_filepath()
     with open(csv_path, "w", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
@@ -83,12 +79,12 @@ def main():
         ])
         print(f"CSV 保存先: {csv_path}")
 
-        # MAVLink 接続 (ポート名は環境に合わせて変更)
+        # MAVLink接続
         master = mavutil.mavlink_connection("/dev/ttyAMA0", baud=1000000, rtscts=True)
         master.wait_heartbeat(timeout=5)
         print("Heartbeat 受信: 接続完了")
 
-        # データストリームを 10Hz で要求
+        # データストリーム要求 (10Hz)
         master.mav.request_data_stream_send(
             master.target_system,
             master.target_component,
@@ -102,8 +98,9 @@ def main():
             msg = master.recv_match(type="STATUSTEXT", blocking=True, timeout=1)
             if not msg:
                 continue
-            line = msg.text.decode('utf-8', errors='ignore')
-            complete = process_statustext_line(line)
+            # msg.text は既に str
+            text = msg.text.strip()
+            complete = process_statustext_line(text)
             if not complete:
                 continue
             data = parse_ef_q(complete)
@@ -121,9 +118,10 @@ def main():
             csvfile.flush()
             record_count += 1
 
-            # 5件ごとにコンソール出力
             if record_count % 5 == 0:
-                print(f"{ts} : 記録 #{record_count} EF=({data['Force_X']:.3f},{data['Force_Y']:.3f},{data['Force_Z']:.3f}) Q=({data['Q1']:.4f},{data['Q2']:.4f},{data['Q3']:.4f},{data['Q4']:.4f})")
+                print(f"{ts} : 記録 #{record_count} "
+                      f"EF=({data['Force_X']:.3f},{data['Force_Y']:.3f},{data['Force_Z']:.3f}) "
+                      f"Q=({data['Q1']:.4f},{data['Q2']:.4f},{data['Q3']:.4f},{data['Q4']:.4f})")
 
         # 終了処理
         print("\n停止中…")
