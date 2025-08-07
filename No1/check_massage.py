@@ -219,9 +219,6 @@
     
 #     print("診断終了")
 
-
-
-
 from pymavlink import mavutil
 import time
 import signal
@@ -238,13 +235,13 @@ def signal_handler(sig, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 try:
-    print("MAVLinkメッセージ受信プログラム開始")
+    print("MAVLinkメッセージ受信プログラム開始 (AP_Observerデバッグ対応)")
     master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=1000000, rtscts=True)
 
     master.wait_heartbeat(timeout=5)
     print(f"Heartbeat received from system {master.target_system}, component {master.target_component}")
 
-    # データストリームを要求（元のプログラムを参考）
+    # データストリームを要求（すべてのストリーム）
     master.mav.request_data_stream_send(
         master.target_system,
         master.target_component,
@@ -253,13 +250,13 @@ try:
         1    # start
     )
 
-    # システム情報を要求（元のプログラムを参考）
+    # システム情報を要求
     master.mav.autopilot_version_request_send(
         master.target_system,
         master.target_component
     )
 
-    print("メッセージ受信中... (すべてのメッセージを表示)")
+    print("メッセージ受信中... (AP_Observerデバッグメッセージを強調)")
     print("=" * 70)
     
     while running:
@@ -271,6 +268,16 @@ try:
             print(f"{current_time} : [MSG] Type: {msg_type}")
             print(f"    └── Content: {msg}")
             print("-" * 50)
+            
+            # AP_Observer関連のデバッグメッセージを捕捉 (STATUSTEXTの場合)
+            if msg_type == 'STATUSTEXT':
+                text = msg.text.strip()
+                # キーワードチェック (C++コードの出力に合わせる)
+                keywords = ["AP_Observer", "DEBUG", "CORRECTION", "Force=", "Quat_RPY="]
+                if any(keyword in text for keyword in keywords):
+                    print(f"{current_time} : [AP_OBSERVER_DEBUG] {text}")
+                    print(f"    └── Extracted: {text}")
+                    print("=" * 50)  # 強調のための区切り
 
 except Exception as e:
     print(f"エラー: {e}")
