@@ -1,7 +1,6 @@
 from pymavlink import mavutil
 import time
 
-input("USB接続を行いますか (y/n): ").strip().lower()
 if input("USB接続を行いますか (y/n): ").strip().lower() == 'y':
     # USB接続の場合
     master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)  # USB接続
