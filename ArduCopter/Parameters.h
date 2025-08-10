@@ -376,6 +376,9 @@ public:
         k_param_arming, // 252  - AP_Arming
         k_param_logger = 253, // 253 - Logging Group
 
+        // AP_Observer サブオブジェクト
+        k_param_observer = 254,   // OBS_ グループ用
+
         // 254,255: reserved
 
         k_param_vehicle = 257, // vehicle common block of parameters

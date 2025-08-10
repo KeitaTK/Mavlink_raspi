@@ -690,7 +690,12 @@ const AP_Param::Info Copter::var_info[] = {
     GOBJECT(_gcs,           "MAV",  GCS),
 #endif
 
+    // @Group: OBS_
+    // @Path: ../libraries/AP_Observer/AP_Observer.cpp
+    GOBJECT(observer, "OBS_", AP_Observer),
+
     AP_VAREND
+
 };
 
 /*
