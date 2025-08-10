@@ -1,8 +1,13 @@
 from pymavlink import mavutil
 import time
 
-master = mavutil.mavlink_connection('/dev/ttyAMA0', 921600, rtscts=True)  # フロー制御
-# master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)  # USB接続
+
+if input("USB接続を行いますか (y/n): ").strip().lower() == 'y':
+    # USB接続の場合
+    master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)  # USB接続
+else:
+    # UART接続の場合
+    master = mavutil.mavlink_connection('/dev/ttyAMA0', 921600, rtscts=True)  # フロー制御
 
 # ハートビートを待機（接続確認）
 print("接続を待機中...")
@@ -104,6 +109,9 @@ params_to_set = {
     'ATC_RAT_PIT_D': 0.0012, # Pitch D
     'ATC_RAT_YAW_P': 0.2,    # Yaw P
     'ATC_RAT_YAW_I': 0.02,   # Yaw I
+
+    # --- 吊荷制御のゲイン ---
+    'OBS_CORR_GAIN': 0.0,  # 吊荷補正ゲイン
     
     # --- IMUフィルタ（応答性向上） ---
     'INS_GYRO_FILTER': 20,   # ジャイロフィルタ（30→20、応答性向上）

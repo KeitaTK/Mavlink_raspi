@@ -6,7 +6,6 @@ if input("USB接続を行いますか (y/n): ").strip().lower() == 'y':
     master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)  # USB接続
 else:
     # UART接続の場合
-    print("UART接続を行います (RTS/CTS有効)")
     master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=1000000, rtscts=True) # フロー制御
 
 # ハートビートを待機（接続確認）
