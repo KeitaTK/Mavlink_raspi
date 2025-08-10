@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
+# encoding: utf-8
+
 import re
 import csv
 import os
 import signal
+import math
 from datetime import datetime
 from pymavlink import mavutil
 
@@ -39,7 +42,6 @@ def process_statustext_line(text):
         message_buffer = ""
         expecting = None
         return complete
-    # それ以外
     message_buffer = ""
     expecting = None
     return None
@@ -54,7 +56,7 @@ def parse_ef_q_gain(msg):
     if not m:
         return None
     fx, fy, fz, q1, q2, q3, q4, gain = map(float, m.groups())
-    magnitude = (fx*fx + fy*fy + fz*fz)**0.5
+    magnitude = math.sqrt(fx*fx + fy*fy + fz*fz)
     return {
         "Force_X": fx,
         "Force_Y": fy,
@@ -103,6 +105,7 @@ def main():
             if not data:
                 continue
 
+            # CSV 書き込み
             ts = datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")[:-3]
             row = [
                 ts,
@@ -114,11 +117,24 @@ def main():
             csvfile.flush()
             record_count += 1
 
+            # コンソール表示: Roll, Pitch に変換して表示
             if record_count % 5 == 0:
-                print(f"{ts} : 記録 #{record_count} "
-                      f"EF=({data['Force_X']:.3f},{data['Force_Y']:.3f},{data['Force_Z']:.3f}) "
-                      f"Q=({data['Q1']:.4f},{data['Q2']:.4f},{data['Q3']:.4f},{data['Q4']:.4f}) "
-                      f"Gain={data['Gain']:.2f}")
+                q0, q1, q2, q3 = data["Q1"], data["Q2"], data["Q3"], data["Q4"]
+                # Roll = atan2(2*(q0*q1+q2*q3), 1-2*(q1^2+q2^2))
+                roll = math.degrees(math.atan2(
+                    2*(q0*q1 + q2*q3),
+                    1 - 2*(q1*q1 + q2*q2)
+                ))
+                # Pitch = asin(2*(q0*q2 - q3*q1))
+                pitch = math.degrees(math.asin(
+                    max(-1, min(1, 2*(q0*q2 - q3*q1)))
+                ))
+                print(
+                    f"{ts} : 記録 #{record_count} "
+                    f"EF=({data['Force_X']:.3f},{data['Force_Y']:.3f},{data['Force_Z']:.3f}) "
+                    f"Roll={roll:.2f}°, Pitch={pitch:.2f}° "
+                    f"Gain={data['Gain']:.2f}"
+                )
 
         print("\n停止中…")
         master.close()
