@@ -1,0 +1,978 @@
+[33mfbbaf1d486[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mUmemotolab2[m[33m, [m[1;31morigin/Umemotolab2[m[33m, [m[1;31morigin/HEAD[m[33m)[m 編集
+[33m2fc1ad2c89[m 編集
+[33m6bbfebc833[m 編集
+[33m4f5fbc6059[m 編集
+[33m21e50c1b1e[m 編集中
+[33m4323c31f8a[m 編集中
+[33me9e007e7e6[m 補正を実装
+[33md3d4b40c86[m 66 　外乱補正オブザーバーをフィードバックで実装　ドリフト発生
+[33m2abef26af9[m 補正クオータニオン実装。補正はしていない
+[33m577d4bc8c7[m 64　上の機能に加え、値を共有変数として使えるようにした
+[33mb8c003c592[m 外力推定ノイズフィルタなし（V62）
+[33m335a810b45[m 100Hzでスロットル値取得（V57）メッセージは非送信
+[33m67ba5f6f69[m 推力を10㎐で取得（V49）
+[33mb95e95faf1[m モータ正規化０１横に並べて表示
+[33ma12f1bb8cb[m モータの数をカウントできるようになった
+[33m45e5afe829[m 編集中
+[33m7ed9daf905[m 編集中
+[33m40da006c34[m AP_Obsewrberの動作確認（枠組みのみ）
+[33m0d5bfadcb3[m itizi
+[33m8b76ed7c87[m 失敗
+[33m71808010c0[m エラーは出るが、AP_Obserberのプログラム自体は動いている。 いったん保存
+[33mb18c92c130[m 送信
+[33mf1344c5e40[m 推力推定（未完成）
+[33mf7b5cbc6ab[m Mocapで飛行させようとしたが失敗。もとに戻す前にいったん保存しておく。
+[33m0eb3a13b0f[m 196に変更
+[33m499c1f70e5[m 位置情報の送信実装
+[33m0ec2feaf57[m Merge remote-tracking branch 'refs/remotes/origin/Umemotolab2' into Umemotolab2 Merge remote-tracking branch 'origin/Umemotolab2' into local Umemotolab2
+[33m351226b3ac[m g
+[33m0eac961eb3[m Merge pull request #3 from KeitaTK/TAKI_CUSTOME1
+[33m3af7ef14fc[m[33m ([m[1;32mTAKI_CUSTOME1[m[33m)[m カスタムメッセージ追加完了
+[33m9cbdc233cc[m 単純化
+[33m1ff5038c10[m TAKI_CUSTOME1
+[33ma46a1cb06f[m 独自のメッセージの型枠を作成
+[33mdec071053a[m カスタムハンドラの追加
+[33m211a55f9b9[m ビルド設定の追加
+[33m603e4b45a6[m リクエストの送信ができるようになった
+[33m29ef1f16df[m TAKI_CUSTOMEの追加 コンパイル成功
+[33m4b46d2fc02[m 190番の変更変更
+[33m131c0c7906[m Merge pull request #2 from KeitaTK/Mavlink追加
+[33m569a59b747[m へこ
+[33mb15169bb1d[m[33m ([m[1;32mMavlink追加[m[33m)[m メッセージの変更
+[33m0922849f46[m 変更
+[33mb925564238[m なんかの変更？
+[33m0b2a60c332[m uid_takiの変更
+[33me225d6acff[m コンパイルした時の変更
+[33m07b2f235c8[m もともとのメッセージを編集して、好きなメッセージを送信できた
+[33m71d95690c5[m いらない部分の削除
+[33mbe46724965[m 一応カスタムモジュールの追加ができた。 動作確認はしていない
+[33ma619e396ac[m AP_HAL_ChibiOS: Support 32MHz HSE on H7 MCUs
+[33mbc6be03d40[m GCS_MAVLink: add timeline for removal of MISSION_REQUEST handling
+[33ma0e2581730[m bootloaders: add bootloader for UAV-DEV GmbH M10S GNSS
+[33md4965fd1bd[m AP_HAL_ChibiOS: add hwdef for UAV-DEV GmbH M10S GNSS
+[33m3b5d8859e7[m Copter: Consolidate processing
+[33m3e12cb4f8d[m AP_HAL_ESP32: During task creation, the others indicate which core they were created on, but _storage_thread does not indicate this. This PR adds this indication to printf.
+[33md56da13a84[m Sub: remove stale comment
+[33m1680a71c09[m ArduSub: rename ArduSub.cpp to Sub.cpp
+[33m7d5e73fa08[m ArduSub: move contents of Sub.cpp into ArduSub.cpp
+[33mfcbeb6351b[m Plane: 4.6.0-beta6 release notes
+[33m3fa1ad8e4d[m Copter: 4.6.0-beta6 release notes
+[33m895b3fd129[m Rover: 4.6.0-beta6 release notes
+[33m81025b06e0[m Tracker: 4.6.0-beta6 release notes
+[33m8e9a568a55[m hwdef: build fixes for omnibusf4pro-bdshot and revo-mini-i2c-bdshot
+[33mb030bea64d[m AP_HAL_ChibiOS: fix SkystarsH7HD-bdshot build
+[33md0b310668c[m AP_Scripting: fix cast-local-type in Rockblock and MAVLinkHL
+[33m4fe87ef67a[m AP_Notify: correct initialisation check for ToshibaLED example
+[33mba7aa9e0b2[m AP_Notify: avoid segfaults in ToshibaLED example
+[33maf6fef9457[m SITL: avoid nullptr deref in SIM_Aircraft
+[33m9ed9ae0aab[m AP_HAL_SITL: avoid use of baro library in SITL
+[33m9cfa8a1121[m AP_GPS: log altitude above ellipsoid instead of undulation
+[33m46bdc83cc7[m Replay: add option to show progress of log file processed
+[33m2afc682995[m CI: revert "build CubeRed-EKF2 not CubeOrange-EKF2 in CI"
+[33m9734ef19d7[m Copter: Shorten the lifetime of stack variables
+[33m57c0c24733[m ArduPlane: Factor out guided airspeed change logic
+[33mf43a277706[m AP_Proximity: PROXIMITY is optional, so the number of devices can be specified
+[33m4e1457e86b[m AP_Scripting: temporarily ignore lua language server issues
+[33mb990429907[m Tools: scripts: update lua language check for new version of server
+[33m1c4c06851e[m actions: update scripting autotest
+[33m6e85a9180f[m SITL: SIM_Vicon: add explicit get to replace no-longer-allowed implicit double cast
+[33m5f0c266a75[m AP_HAL_ChibiOS: UPDATE NarinFC-H5 (hwdef.dat)   - ICM45686 SPI MAX SPEED UPDATE.(8*MHZ -> 16*MHZ)
+[33m42eee53956[m Tools: add NarinFC-H5
+[33m8183c2cbf4[m AP_HAL_ChibiOS: add NarinFC-H5
+[33me9cbd59621[m Sub: add units and frames to AC_AttitudeControl methods
+[33mdd63a5f923[m Plane: add units and frames to AC_AttitudeControl methods
+[33mce2bb06cf7[m Copter: add units and frames to AC_AttitudeControl methods
+[33m36950b101c[m AC_Autotune: add units and frames to AC_AttitudeControl methods
+[33m48ed2ae8dc[m AC_Autorotation: add units and frames to AC_AttitudeControl methods
+[33m28a3bfeb6b[m AC_AttitudeControl: add units and frames to AC_AttitudeControl methods
+[33mc05a0eefff[m AC_AttitudeControl: Internal Units and Comments
+[33m6a225d4801[m Plane: use AP_Enum for throttle_fs_enabled
+[33md305d17b2a[m Plane: move ThrFailsafe definition into Parameters
+[33m017a9e75f3[m AP_Param: add AP_ParamT specialization for float to avoid truncation
+[33m9e55e3062a[m AP_DAL: move non-conversion AP_ParamT methods to AP_ParamTBase
+[33m452c35723c[m AP_Param: move non-conversion AP_ParamT methods to AP_ParamTBase
+[33md50406d43b[m SITL: use param `.get()` method to allow C type conversion
+[33m8a9575d282[m AP_RCTelemetry: use param `.get()` method to allow C type conversion
+[33me9a149e9c2[m AP_NavEKF3: use param `.get()` method to allow C type conversion
+[33mb349d391ca[m AP_NavEKF2: use param `.get()` method to allow C type conversion
+[33m4e71b07bff[m ArduPlane: avoid truncating failsafe time on GCS failsafe exit test
+[33ma0a1444b68[m AP_Compass: mark backend detection methods as initfunc
+[33m6525b0b725[m Rover: add _cm to get_vector_from_origin_NEU
+[33m427d1412b9[m ArduSub: add _cm to get_vector_from_origin_NEU
+[33m6a06efa8d7[m ArduPlane: add _cm to get_vector_from_origin_NEU
+[33me696676589[m ArduCopter: add _cm to get_vector_from_origin_NEU
+[33m6e72c013f7[m SITL: add _cm to get_vector_from_origin_NEU
+[33mf97ec75771[m GCS_MAVLink: add _cm to get_vector_from_origin_NEU
+[33m16c83007e2[m AR_WPNav: add _cm to get_vector_from_origin_NEU
+[33mbf8a9e5df4[m AP_Scripting: add _cm to get_vector_from_origin_NEU
+[33m3a479a2bd4[m AP_Common: add _cm to get_vector_from_origin_NEU
+[33mf07514ef58[m AC_WPNav: add _cm to get_vector_from_origin_NEU
+[33m3deba9edb4[m AC_Avoidance: add _cm to get_vector_from_origin_NEU
+[33m68f9ade056[m AP_EFI: correct field description
+[33m1be160ef18[m hwdef:add missing OSD_TYPE2 defaults
+[33m892742ff58[m Plane: Change the class description (NFC)
+[33m281c4895dc[m AP_GPS: Define the message IDs for NOVA
+[33m271e1e96b1[m Sub:stop spammin depth sensor messages
+[33m0539cb72a7[m Sub:correct mode enumeration value returned by ModeSurface
+[33ma6420430f0[m Tools: environment_install: handle Ubuntu Plucky, 25.04
+[33mbb0086f289[m Vagrant: add support for Ubuntu Plucky, 25.04
+[33m90dcac334f[m Tools: fixed failing tests
+[33m6c6e7340ac[m Plane: Added rotation complete flag
+[33mb353764c1e[m autotest: Added Plane takeoff level-off test
+[33m9806300a7a[m autotest: Make Plane.TakeoffGround more robust
+[33m701acbefb0[m Tools: size_compare_branches.py: strip elf files for identical comparison
+[33m370330a4f7[m waf: use consistent build ID in header for consistent builds
+[33mabed96cf1a[m waf: don't include rtti in consistent builds
+[33m312e42ecfa[m autotest: add support for adding prefix while launching tmux new-window
+[33m0805156df5[m AP_GPS: NOVA: fix undulation
+[33m1dcef76e89[m AP_Periph: Determine based on the defined value
+[33m3f99c434c9[m AP_DroneCAN: Determine based on the defined value
+[33m10531af846[m Tools: environment_install: make sure Linux Mint dist is always mapped
+[33mddccad888e[m RC_Channel:add Sub Aux Sw metadata
+[33m055a5737ec[m Tools: fix bug in Sub master
+[33m39426ed27a[m ArduSub: fix bug in Sub master
+[33m7eac443150[m Tools: add RC to  Sub
+[33m7486650dd8[m ArduSub: add RC to  Sub
+[33m818f4558ef[m RC_Channel: add RC to  Sub
+[33m7be24009c7[m AP_Networking: fallback to PPP backend when ethernet PHY based backend is unavailable on ChibiOS boards
+[33m32555302de[m Tools: add Networking and CAN Mcast to feature list
+[33m12c1c92aaf[m SRV_Channel: create auxfunction for lights and video switcher
+[33me6c48e8d21[m Sub: turn lights and videoToggle into auxFunctions
+[33m1ae4532e4b[m Tools: fix Starling2Max param file
+[33m2a26d6211e[m AP_TECS: add documentation for TEC3 message
+[33mb634a40ed3[m autotest: CubeOrange and CubeBlack need MS5607 for build options testing
+[33m39ac45a773[m Copter: Throw mode add params for desired ascent alt after throw
+[33m77b9800a79[m AP_DroneCAN: fix for updated libcanard
+[33m980b28a992[m DroneCAN: update libcanard
+[33m7f918b68b8[m AC_Fence: remove frame constraints from some options
+[33mfd4c7c58c6[m AC_Fence: control notification interval for margn breaches
+[33mdd202fda5d[m autotest: cater for new margin breach messages
+[33m8a24a519c8[m Rover: run_fence_checks() -> fence_checks_async()
+[33m4b5685a3e2[m Sub: run_fence_checks() -> fence_checks_async()
+[33m830c94113a[m Plane: run_fence_checks() -> fence_checks_async()
+[33ma86be418f0[m Copter: run_fence_checks() -> fence_checks_async()
+[33mae7cb492a2[m AP_Vehicle: run_fence_checks() -> fence_checks_async()
+[33m05bb2c6845[m AC_Fence: give fence distance in margin warning. correct message timing.
+[33m1e7c5b23c2[m Copter: stop passing control in value to get_pilot_desired_climb_rate
+[33ma823d8a1a7[m SITL: SITL_Airspeed: add linefeed
+[33m8306d92875[m SITL: correct dos line endings in SITL_Airspeed
+[33m1eed87b267[m ArduSub: add units and frames to AC_AttitudeControl methods
+[33m706d8d97a4[m ArduPlane: add units and frames to AC_AttitudeControl methods
+[33mc11d93b36f[m ArduCopter: add units and frames to AC_AttitudeControl methods
+[33m10081f1954[m AC_WPNav: add units and frames to AC_AttitudeControl methods
+[33me2ce5650c0[m AC_AutoTune: add units and frames to AC_AttitudeControl methods
+[33m772751ada0[m AC_AttitudeControl: add units and frames to AC_AttitudeControl methods
+[33m6094910087[m autotest: Test disabling EK3 lane switching
+[33me45a7540af[m AP_NavEKF3: Allow disabling lane Switching
+[33m722bd8704b[m libraries: SRV_Channel: specify Sub values for SERVOn_FUNCTIONs
+[33m3cb7c4a881[m AP_BattMonitor: handle_scripting nullptr check
+[33m2c81004811[m AC_AttitudeControl: AC_PosControl: Move get_fwd_pitch_is_limited out of update_xy_controller
+[33m41019ec421[m Tools: support loading SITL plane aero coefficients through JSON
+[33ma5ee3b7a25[m SITL: support loading SITL plane aero coefficients through JSON
+[33m3dd91f7eaf[m AP_JSON: support loading SITL plane aero coefficients through JSON
+[33m5173d36804[m autotest: augment quadplane test to check distance at landing
+[33m1bf7592497[m AP_Follow: tidy reset of offsets_were_zero
+[33mf7377a91bc[m Copter: ModeFollow: simplify ModeFollow::get_wp
+[33mb5e74c2c28[m AP_Follow: change to using position-from-origin internally
+[33mb42b031c14[m autotest: augment ModeFollow tests
+[33m825d0b5650[m hwdef: arkv6x: DEFAULT_SERIAL8_PROTOCOL SerialProtocol_RCIN
+[33m1186ef1d04[m AP_Logger: correct parameter metadata
+[33m9f7491b6a1[m Rover: make ArmingChecks enum class AP_Arming::Check
+[33m1b166b8c85[m Blimp: make ArmingChecks enum class AP_Arming::Check
+[33m5ccd98c9de[m ArduSub: make ArmingChecks enum class AP_Arming::Check
+[33ma2f26564d0[m ArduPlane: make ArmingChecks enum class AP_Arming::Check
+[33m19597abf7d[m ArduCopter: make ArmingChecks enum class AP_Arming::Check
+[33m9417f80269[m AP_Arming: make ArmingChecks enum class AP_Arming::Check
+[33m4f666a1ae1[m Tools: ros2: Add airspeed test with plane fixtures
+[33m0687b5be9e[m AP_Mount: XFRobot enabled on 2mb boards
+[33me66d57cd57[m Tools: XFRobot image and video download script
+[33md74a457d7e[m AP_NavEKF3: check if using GPS before scaling observation noise based on sats
+[33m4490e462e9[m hwdef: recompiled bootloaders for MatekH743
+[33m7c743f265a[m hwdef: add flash-from-SD support for MatekH743
+[33m114bbf1a58[m AP_Proximity: Add more proximity backends
+[33m0d22fdcbe5[m autotest: add self.SET_POSITION_TARGET_GLOBAL_INT_for_altitude
+[33m29db92f8a1[m Plane: correct checking of mask for changing altitude
+[33me3dd966467[m AP_HAL_ChibiOS: Fix using the incorrect pin after checking the correct pin is defined
+[33mbc1a255e2d[m AP_LandingGear: stop dup retract messages,clean up code
+[33m104c7f84bf[m AP_NavEKF3: Use the correct variances for posvel fusion
+[33m1431a08b8d[m Tools: cope with differeent python-argparse package names
+[33m8f7fbc8546[m AP_Scripting: EFI HALO6000 fix
+[33mfe440f4df9[m bootloaders: add uav-dev-powermodule
+[33mfa959c0550[m AP_HAL_ChibiOS: add uav-dev-powermodule hwdef
+[33mc5bcd4cb07[m AP_Bootloader: add UAV-DEV GmbH Powermodule
+[33mc7b3beb846[m Tools: extract_features.py: changte symbol used to probe for AIS
+[33m6d882e14bc[m autotest: Verify methods for requesting MESSAGE_INTERVAL are equivalent
+[33md1b81b1505[m GCS_MAVLink: Support requesting MESSAGE_INTERVAL via REQUEST_MESSAGE cmd
+[33mb0a961ce17[m waf: Delete .pydevproject with legacy Python 2
+[33me202ccbc8a[m AP_Airspeed: Fix typo in wind max param
+[33mdcba349010[m APM_Control: Correct copy-paste error in roll/pitch param docstring
+[33mfc3ade5437[m AP_InertialSensor: Remove unnecessary processing
+[33maeb77564f0[m Modify the measurement range of the sensor IIM42653
+[33m16eabba060[m AP_HAL_ChibiOS: VTX power pin moved on FlywooF405HD
+[33m6d0b011f11[m mavlink: update to master
+[33mba75176551[m Tools: extract_features.py: correct extraction of MS56XX features
+[33m8e34fd1932[m autotest: correct output diagnostic in error path
+[33m78717a84f6[m Tool: generate_manifest: correct output in error path
+[33m1a0e997ac2[m hwdef: correct NarinFC-H7 compilation
+[33mc9661c27a4[m AP_Mission: reset loop counter when loop completed
+[33m260732a2ea[m AP_OSD:fix bug in Inav fonts option
+[33m76184bda8d[m SITL: improve comments on how to test AIS in SITL
+[33mf43ed7e861[m autotest: add test for MAV_CMD_DO_CHANGE_ALTITUDE
+[33m28bc1c782d[m Plane: add support for MAV_CMD_DO_CHANGE_ALTITUDE
+[33m75a448c95f[m Copter: fast rate should be constrained by actual loop rate
+[33ma7032235c8[m bootloaders: add CORVON405V2_1
+[33mf7d4ff0896[m AP_Bootlaoder: add CORVON405V2_1
+[33me6bfa4ab9b[m AP_HAL_ChibiOS: add CORVON405V2_1 Co-authored-by: Henry Wurzburg <hwurzburg@yahoo.com>
+[33me41c11367b[m hwdef:correct default OSD types
+[33mc4cb5802bb[m Tools: factor MS56XX into MS5607, 5611, 5637 and 3847 backends
+[33m110f59539f[m AP_HAL_Linux: factor MS56XX into MS5607, 5611, 5637 and 3847 backends
+[33ma23f082869[m AP_HAL_ChibiOS: factor MS56XX into MS5607, 5611, 5637 and 3847 backends
+[33m2f42bef98e[m AP_Baro: factor MS56XX into MS5607, 5611, 5637 and 3847 backends
+[33m6b896cf861[m autotest: exemptions for AP_MSP_INAV_FONTS_ENABLED
+[33m0401b46853[m AP_Mount: Use logical operator instead of bitwise
+[33m12f2d6c134[m autotest: remove ship params from whitelist
+[33m55a4a377f2[m SITL: ship parameters documentation
+[33mf570804d61[m ArduCopter: avoid use of Location alt field without frame
+[33m92db32fdce[m SITL: avoid use of Location alt field without frame
+[33m3b4a27b140[m AP_GPS: avoid use of Location alt field without frame
+[33m71e2360387[m AP_Common: Location: add copy_alt_from method
+[33m17299bd205[m autotest: test if we revert to primary compass on ground
+[33mc242e557bb[m AP_NavEKF3: revert to primary compass on ground
+[33m5a78067379[m autotest: correct tense on gripper load text
+[33m5b8df9a642[m Tools: fix typos discovered by codespell
+[33m3a9b4b3512[m SITL: fix typos discovered by codespell
+[33m80ac386853[m AP_NavEKF3: fix typos discovered by codespell
+[33m4ce190a1f8[m AP_MSP: fix typos discovered by codespell
+[33mc46870711d[m AP_HAL: fix typos discovered by codespell
+[33m19b78db710[m AP_HAL_ChibiOS: fix typos discovered by codespell
+[33mc5a208795f[m GCS_MAVLink: remove 'No ap_message for mavlink id' warning
+[33m1b6c05bd1f[m SITL: avoid leaking filehandles on unlikely error path
+[33maafc8ca5d6[m AP_DAL: check filehandle for nullptr before returning it
+[33m507a82ed21[m Tools: add BrahamaF4
+[33m5eff816624[m AP_HAL_ChibiOS: add BrahamaF4
+[33m32e3b92b04[m Tools: add PixSurveyA2-IND
+[33mfcc107526d[m AP_HAL_ChibiOS: add PixSurveyA2-IND
+[33m1c1ee32665[m AP_GPS: correct _port array-overread in EAHRS case
+[33m0799343a98[m ArduPlane: avoid creating mission items to convey altitude data in guided-change-alt
+[33mf761a96ac1[m GCS_MAVLink: avoid creating mission items to convey altitude data in guided-change-alt
+[33mf0cd34af2b[m SITL: Add gausian noise and rate to VICON sim
+[33m5fa2603adc[m AP_Scripting: make min speed configurable in rover-quicktune
+[33m21dde91a8e[m Rover: Reduce min circle radius to 0.1m
+[33me031756551[m SITL: correct compilation when doing coverage analysis
+[33md82e92a5b7[m AP_Scripting: Battery monitor: allow setting state of health
+[33m106b48becd[m AP_BatteryMonitor: scripting: add support for setting state of health
+[33mb3b44e2ddd[m AP_Periph: BatteryMonitor: report state of health
+[33mab0d4ada24[m Plane: fixed VTOL takeoff to terrain alt
+[33mf3bca4d3ff[m Plane: fixed incorrect set of location alt fields
+[33m953457d5b8[m Blimp: remove unused EKF_ORIGIN_MAX_DIST_M define
+[33m5b049eceaf[m ArduSub: remove unused EKF_ORIGIN_MAX_DIST_M define
+[33ma9d8add592[m Rover: make GCS library update mavlink system ID
+[33m63568effb3[m ArduSub: make GCS library update mavlink system ID
+[33m0e21302729[m ArduPlane: make GCS library update mavlink system ID
+[33mfba14b941c[m AntennaTracker: make GCS library update mavlink system ID
+[33md824ab1f3a[m GCS_MAVLink: make GCS library update mavlink system ID
+[33m95b7f84b93[m AP_Bootloader: add UAV-DEV GmbH FC-UM982-H7 FC-M10S-H7 UM982-H7
+[33m80edbee7bf[m AP_Bootloader: TBS_LUCID_H7_WING
+[33m6714c311b8[m AP_HAL_ChibiOS: TBS_LUCID_H7_WING
+[33m177122da69[m bootloaders: TBS_LUCID_H7_WING
+[33m5fb7a61700[m ArduPlane: rename get_alt_distance to get_height_above
+[33mcfd0dc1ec9[m AP_Common: rename get_alt_distance to get_height_above
+[33m830e2c2fef[m bootloaders: Brother Hobby F405v3
+[33ma3d5857f54[m AP_HAL_ChibiOS: Brother Hobby F405v3
+[33m2a5e9d916b[m Plane: on wp set or fence disable re-arm fence
+[33mf168d2fc0f[m AP_Vehicle: added FENCE_REENABLE ModeReason
+[33md3da7abfcb[m Tools: try to fix MacOS builds
+[33mbd7e01dd36[m AP_Scripting: added qnh_alt example
+[33m10cc9f57b7[m AP_Scripting: fixed usage of terrain_alt in RockBlock.lua
+[33m2e928f1bd2[m Plane: never allow terrain_alt=1 and relative_alt=0
+[33m31d725ab22[m AP_Common: catch invalid combination of terrain_alt and relative_alt
+[33mb272819f3f[m AP_AHRS: prevent setting of terrain_alt and relative_alt flags directly
+[33mb2c70aa5dd[m Plane: added set_target_altitude_proportion_terrain
+[33m28c2da3fc9[m Plane: fixed double application of terrain offset
+[33m0feb338080[m autotest: test more qguided terrain examples
+[33m06d3f8e6e3[m autotest: added SRTM tiles for SpringValley
+[33mf3bdb54345[m AC_Fence: lock polyloader during fence checking
+[33mea0ea2f4af[m AP_Scripting: add margin breach time to scripting
+[33m0626fbcbf1[m AC_Fence: add margin breach time
+[33m952a648135[m Sub: refactor fence checking into an io callback
+[33mab94852502[m Rover: refactor fence checking into an io callback
+[33m54a78aaae4[m Plane: refactor fence checking into an io callback
+[33m21bd879524[m Copter: refactor fence checking into an io callback
+[33mf023ac82be[m AP_Vehicle: add fence breach check state for fence io callbacks
+[33m8990161c3b[m AC_Fence: address review comments
+[33m14bc825f74[m AP_Math: remove new distance to point code
+[33mb8292ad649[m autotest: change margin warning
+[33mc4f680b2d5[m AC_Fence: change margin warning
+[33m0f1fcb899d[m AC_Fence: use cartesian polygon distance calculator
+[33m61fa005d4b[m AP_Common: test cartesian polygon distance calculator
+[33m385f9de5a2[m AP_Math: re-instate cartesian polygon distance calculator
+[33mabaa64a754[m AP_Math: correct Polygon_closest_distance_point() for use with lat/lng at small distances
+[33m980f4ad45d[m AP_Scripting: expose get_breach_distance()
+[33m23e5b524a1[m AC_Fence: record distance to fence
+[33ma409118b00[m AP_Scripting: add get_breached_margins()
+[33m8bd4a60a79[m autotest: test for fence margin warnings
+[33mf72b620245[m AC_Fence: add support for warnings at fence margins
+[33m33c71b1bc1[m AP_Compass: recover flash on CubeRedPrimary with EKF2
+[33mf00b30e2fc[m AP_HAL_ChibiOS: save 6k of flash on Pixhawk1-1M
+[33m28846c0d13[m hwdef: correct comment around support for dshot on iomcu
+[33m5233716e59[m AP_HAL_ChibiOS: add support hiding Serial parameters for unlisted IOMCU and Empty serial ports
+[33m3d5f925419[m AP_SerialManager: add hide serial parameter define
+[33ma63ce3abd4[m Tools: Added Loweheiser generator build option
+[33m450cfa277c[m autotest: Added Loweheiser generator tests
+[33ma98ea210cd[m RC_Channel: Adding support for Loweheiser generator
+[33mc5ca613cdc[m GCS_MAVLink: Adding support for Loweheiser generator
+[33m39620db285[m AP_Generator: Adding support for Loweheiser generator
+[33m4afadfdf8f[m AP_EFI: Adding support for Loweheiser generator
+[33mbb0c2fde81[m AP_BattMonitor: Adding support for Loweheiser generator
+[33m35ef1c6fc8[m AP_RCTelemetry: check for allocation failure in CRSF scripting
+[33m5dec86f389[m AP_RCProtocol: remove CRSF 11-bit variable frame support since undocumented
+[33m043054306b[m AP_Scripting: add CRSF docs and lua wrapper fixes
+[33m371c0c9d4a[m AP_RCProtocol: add parameter specific debug to CRSF
+[33m129b3b4f5f[m AP_Scripting: AP calibration menu
+[33m63ced56965[m scripts: add AP_CRSF_SCRIPTING_ENABLED to extract features
+[33m1d61a71898[m AP_CRSF_Telem: shut up gcc
+[33mecc5fa1e12[m scripts: add AP_CRSF_SCRIPTING_ENABLED to build options
+[33ma62207298e[m AP_Scripting: rename AP_CRSF_SCRIPTING_ENABLED
+[33m8eefa166e0[m AP_RCTelemetry: rename AP_CRSF_SCRIPTING_ENABLED and address review comments
+[33m17753490ca[m AP_Scripting: update CRSF bindings
+[33madb0a1510f[m AP_RCTelemetry: use correct new in CRSF
+[33m814da063f1[m AP_Scripting: update crsf menu docs
+[33m25f0b7bda5[m AP_Scripting: protect CRSF scripting when there is no scripting
+[33mc54f0c5d1c[m AP_Scripting: enable compilation when no CRSF scripting
+[33m3d28e2fd7f[m AP_RCTelemetry: compile when no scripting
+[33m991dbbd676[m AP_RCProtocol: better CRSF telemetry debug
+[33mc3cff95b9f[m AP_RCTelemetry: add initial CRSF scripting menu options
+[33mfa36e5623d[m AP_Scripting: add CRSF menu bindings
+[33m703d766316[m AP_HAL_ChibiOS: ensure UART6_TX gets defined on BETAFPV-F405-I2C
+[33m56d452e33e[m AP_HAL_ChibiOS: ensure alt pin definitions are removed by undef
+[33m071011eddf[m AP_HAL_ChibiOS: add pullups to I2C bus on TBS LUCID H7
+[33m0ecdae05ba[m AP_Math: split `radians` into float and double variants
+[33m331d8653b3[m Copter: avoid rounding to degree in super-simple bearing calculation
+[33m34e55228b7[m Tools: add locations: St Mary's County (MD,USA) NKRAFA (Thailand), RTAF-UTC (Thailand)
+[33m1d89515275[m SITL: adding @Group tag to BZ_
+[33m040973bb1b[m AP_Common: Location: avoid converting to absolute alt in get_alt_distance
+[33ma9077aee7a[m Tools: add NarinFC-H7 commit.
+[33m1b00055b82[m AP_HAL_ChibiOS: add NarinFC-H7 Co-authored-by: Henry Wurzburg <hwurzburg@yahoo.com>
+[33mdefe4134f5[m AP_RangeFinder: populate last_reading_ms in the backend for some sensors
+[33m2e516475dd[m GCS_MAVLink: move convenience macros into cpp file
+[33meb50096161[m Tools: tweak MAV parameter names
+[33mbd93bd788e[m Rover: tweak MAV parameter names
+[33m59e79a70ae[m Blimp: tweak MAV parameter names
+[33me231fa02b6[m ArduSub: tweak MAV parameter names
+[33m2bd34dc1ca[m ArduPlane: tweak MAV parameter names
+[33m57027b27ea[m ArduCopter: tweak MAV parameter names
+[33md167b88068[m AntennaTracker: tweak MAV parameter names
+[33m8b3d1ecc31[m SITL: tweak MAV parameter names
+[33m0854c067bb[m GCS_MAVLink: tweak MAV parameter names
+[33m4a03c7bc9b[m AP_Scripting: tweak MAV parameter names
+[33m8abdebfefc[m Rover: add parameter conversion for MAV parameters
+[33mb534d383ff[m Blimp: add parameter conversion for MAV parameters
+[33m20bf4f696d[m ArduSub: add parameter conversion for MAV parameters
+[33mc40ce7d0e4[m ArduPlane: add parameter conversion for MAV parameters
+[33m16ddbf65dd[m ArduCopter: add parameter conversion for MAV parameters
+[33me876010a58[m AntennaTracker: add parameter conversion for MAV parameters
+[33m215d1970b4[m GCS_MAVLink: different default rates for different vehicles
+[33m932a4770a6[m Tools: add frames for blimp, sub, tacker and rover in param upgrade
+[33m282a737c5d[m GCS_MAVLink: correct telem delay
+[33m59bbc6bfa1[m Tools: move telem_delay up into MAV_TELEM_DELAY
+[33m3092b11d16[m Rover: move telem_delay up into MAV_TELEM_DELAY
+[33m0525b0d73f[m Blimp: move telem_delay up into MAV_TELEM_DELAY
+[33mf0505417db[m ArduSub: move telem_delay up into MAV_TELEM_DELAY
+[33mf7e47741bb[m ArduPlane: move telem_delay up into MAV_TELEM_DELAY
+[33ma0f67ff171[m ArduCopter: move telem_delay up into MAV_TELEM_DELAY
+[33mf53ce3beda[m AntennaTracker: move telem_delay up into MAV_TELEM_DELAY
+[33m8e51cfe780[m SITL: move telem_delay up into MAV_TELEM_DELAY
+[33mb8ca2688ac[m GCS_MAVLink: move telem_delay up into MAV_TELEM_DELAY
+[33m2b37e65a55[m Tools: SYSID_MYGCS and enforce move up to GCS, change to MAV_MYGCS_ENFRCE
+[33m155ba77b54[m Rover: SYSID_MYGCS and enforce move up to GCS, change to MAV_MYGCS_ENFRCE
+[33m198227090e[m Blimp: SYSID_MYGCS and enforce move up to GCS, change to MAV_MYGCS_ENFRCE
+[33m14b9d50a35[m ArduSub: SYSID_MYGCS and enforce move up to GCS, change to MAV_MYGCS_ENFRCE
+[33m2d95018568[m ArduPlane: SYSID_MYGCS and enforce move up to GCS, change to MAV_MYGCS_ENFRCE
+[33m9ff84dfa5f[m ArduCopter: SYSID_MYGCS and enforce move up to GCS, change to MAV_MYGCS_ENFRCE
+[33m91523f6765[m AntennaTracker: SYSID_MYGCS and enforce move up to GCS, change to MAV_MYGCS_ENFRCE
+[33m86338363bd[m SITL: SYSID_MYGCS and enforce move up to GCS, change to MAV_MYGCS_ENFRCE
+[33m5004002e76[m GCS_MAVLink: SYSID_MYGCS and enforce move up to GCS, change to MAV_MYGCS_ENFRCE
+[33m727eafbcca[m AP_Scripting: SYSID_MYGCS and enforce move up to GCS, change to MAV_MYGCS_ENFRCE
+[33m603bd94d52[m GCS_MAVLink: stream rate fixes for various vehicles
+[33mee21ef0ea1[m GCS_MAVLink: remove un-needed GCS_MAVLINK_Parameters::var_info instantiations
+[33mdc0dbb6e5a[m AP_Scheduler: remove un-needed GCS_MAVLINK_Parameters::var_info instantiations
+[33m35b6238cde[m AP_RTC: remove un-needed GCS_MAVLINK_Parameters::var_info instantiations
+[33m199935ee56[m AP_RCProtocol: remove un-needed GCS_MAVLINK_Parameters::var_info instantiations
+[33me4d8b05109[m AP_RangeFinder: remove un-needed GCS_MAVLINK_Parameters::var_info instantiations
+[33mc37bdfed6f[m AP_NMEA_Output: remove un-needed GCS_MAVLINK_Parameters::var_info instantiations
+[33m3bea5fb9c2[m AP_Module: remove un-needed GCS_MAVLINK_Parameters::var_info instantiations
+[33m7df9986250[m AP_Mission: remove un-needed GCS_MAVLINK_Parameters::var_info instantiations
+[33meb02e4c021[m APM_Control: remove un-needed GCS_MAVLINK_Parameters::var_info instantiations
+[33mb943c5fd79[m AP_Logger: remove un-needed GCS_MAVLINK_Parameters::var_info instantiations
+[33m3d7788d181[m AP_InertialSensor: remove un-needed GCS_MAVLINK_Parameters::var_info instantiations
+[33m05b060c968[m AP_HAL: remove un-needed GCS_MAVLINK_Parameters::var_info instantiations
+[33m2ce76ca3bd[m AP_GyroFFT: remove un-needed GCS_MAVLINK_Parameters::var_info instantiations
+[33mbd25c8e21d[m AP_GPS: remove un-needed GCS_MAVLINK_Parameters::var_info instantiations
+[33m11ad5c0f8b[m AP_FlashIface: remove un-needed GCS_MAVLINK_Parameters::var_info instantiations
+[33mddad45aaac[m AP_Common: remove un-needed GCS_MAVLINK_Parameters::var_info instantiations
+[33mbe17ebcbfa[m AP_Baro: remove un-needed GCS_MAVLINK_Parameters::var_info instantiations
+[33m7a56bdfd48[m AP_Airspeed: remove un-needed GCS_MAVLINK_Parameters::var_info instantiations
+[33m72bacff08c[m AP_AHRS: remove un-needed GCS_MAVLINK_Parameters::var_info instantiations
+[33mab06c5766d[m AP_Periph: move streamrate parameters to GCS_MAVLINK base class
+[33mbaa7403c4c[m Tools: move streamrate parameters to GCS_MAVLINK base class
+[33m05c0fa2c14[m Rover: move streamrate parameters to GCS_MAVLINK base class
+[33m38b7b063ae[m Blimp: move streamrate parameters to GCS_MAVLINK base class
+[33mfe125dd5b1[m ArduSub: move streamrate parameters to GCS_MAVLINK base class
+[33m8ec9afa5e4[m ArduPlane: move streamrate parameters to GCS_MAVLINK base class
+[33me0d7d4ad1c[m ArduCopter: move streamrate parameters to GCS_MAVLINK base class
+[33mec3d94481c[m AntennaTracker: move streamrate parameters to GCS_MAVLINK base class
+[33m6d7b41a277[m GCS_MAVLink: move streamrate parameters to GCS_MAVLINK base class
+[33m7faa735437[m autotest: correct order of expected results
+[33m3dab0ca39c[m Tools: adjust tooling to use MAV_SYSID
+[33m1f256707b5[m AP_Scripting: adjust tooling to use MAV_SYSID
+[33md2d60dbd4f[m AP_HAL_SITL: adjust tooling to use MAV_SYSID
+[33maf63ecca09[m AP_HAL_ChibiOS: adjust tooling to use MAV_SYSID
+[33mae8eb06b13[m AP_Periph: create and use MAV_ parameter namespace
+[33m0bfa1c8710[m SITL: create and use MAV_ parameter namespace
+[33mc0f28cbbde[m Rover: create and use MAV_ parameter namespace
+[33mf22e49c01a[m Blimp: create and use MAV_ parameter namespace
+[33mc757e705d3[m ArduSub: create and use MAV_ parameter namespace
+[33mfe58c922c0[m ArduPlane: create and use MAV_ parameter namespace
+[33m594d78ce6f[m ArduCopter: create and use MAV_ parameter namespace
+[33m7a899ec464[m AntennaTracker: create and use MAV_ parameter namespace
+[33m6e6a39f970[m GCS_MAVLink: create and use MAV_ parameter namespace
+[33m7e88532434[m Tools: correct configure_all script for copying hwdefs around
+[33mfeff9dcf8e[m Tools: added Linux Mint translations for Ubuntu Jammy and Noble
+[33m3b96788cd9[m SITL: adding @Group tag to TA_
+[33m94ea5acade[m vehicle_test_suite: removed TA_ from whitelist
+[33m19972714b1[m AP_Math: drop AP_Matrix3f param mention
+[33mab182b33bb[m AP_Param: drop AP_ParamA
+[33ma1b2014142[m AP_InertialSensor: Fix temperature conversion for SCHA63T
+[33mb40b657d3c[m SITL: adding @Group tag to PARA_
+[33mea7bcddba5[m vehicle_test_suite: removed PARA_ from whitelist
+[33m11d5ac525f[m AP_Bootloader: Add board ID for 3DR Control N1
+[33mb2d6a3485d[m Tools: flake8 fixes for global keyword
+[33me524202f14[m AP_HAL_ChibiOS: Brother Hobby H743
+[33m7ef5a5c08f[m bootloaders: Brother Hobby H743
+[33m2d0b4b2f47[m AP_Bootloader: add Brother Hobby id range
+[33m13519aaabb[m AP_Filesystem: LittleFS: drop LFS_FLASH_BLOCKS_PER_BLOCK support
+[33m86e4487048[m AP_Filesystem: LittleFS: simplify flash read and program functions
+[33mf5f53b586c[m AP_Filesystem: LittleFS: fix JEDEC NOR page read fix
+[33mcc905249a7[m AP_Filesystem: LittleFS: remove redundant death checks
+[33m064f4998e7[m AP_Filesystem: LittleFS: always wait for device before initing
+[33mf1d8d7f72e[m autotest: add hack to avoid sanity checks on AIRSPEED_SENSOR_FLAGS enum
+[33me03222f9b5[m autotest: understand bitmask attribute on enumerations
+[33m11a65438ea[m mavlink: reference master commit inc. airspeed flags fix
+[33m06a31cf666[m GCS_MAVLink: correct airspeed sensor flags
+[33mfccdde63f1[m autotest: add autotest for mavlink AIRSPEED message
+[33m18b6b52936[m Tools: removed special case for old beta-4.3 builds
+[33m9e88e3f711[m hwdef: keep -O2 on CubeBlack
+[33meebe31f4e8[m hwdef: remove -Os overrides
+[33m3bb9349471[m hwdef: remove -O2 optimisation override
+[33mdc8e6af9d1[m Tools: add missing bits to solution_status_change.py
+[33mf15d35d067[m Rover: correct myggcs to mygcs
+[33me88560f8ac[m Blimp: correct myggcs to mygcs
+[33mae04bc55e4[m ArduSub: correct myggcs to mygcs
+[33m08a1d5c681[m ArduPlane: correct myggcs to mygcs
+[33m5b4d80683b[m ArduCopter: correct myggcs to mygcs
+[33m6ac9154172[m GCS_MAVLink: correct myggcs to mygcs
+[33m47f73e3037[m AP_Scripting: correct myggcs to mygcs
+[33mf5d834c65d[m AP_AdvancedFailsafe: correct myggcs to mygcs
+[33m5c1fd5a70e[m AP_ADSB: correct myggcs to mygcs
+[33m407d235e67[m AP_HAL_ESP32: Initial Support for Makerfabs ESP32 IMU Module v1.1
+[33m2b1d7269cb[m AP_HAL: esp32.h & AP_HAL_Boards.h - Initial Support for Makerfabs ESP32 IMU Module v1.1
+[33ma5ca35852d[m AP_HAL_ESP32: esp32s3devkit - rename ADC defines
+[33md300072353[m AP_HAL_ChibiOS: TBS LUCID H7 I2C are both available externally
+[33mcfcd27c35c[m AP_OSD: use transfer_fullduplex() for spi transfers
+[33m6879f3412f[m AP_Baro: use SPI full duplex API for DMA optimisation
+[33mb9c3140522[m AP_InertialSensor: use SPI full duplex API for DMA optimisation
+[33me550059a40[m AP_HAL_SITL: SPI full duplex implementation
+[33m96770bd1ea[m AP_HAL_ESP32: SPI full duplex implementation
+[33m8dc091ffa1[m AP_HAL:Linux: SPI full duplex implementation
+[33m4897b0c791[m AP_HAL_ChibiOS: SPI full duplex implementation
+[33md2a5c88c31[m AP_HAL: SPI full duplex API
+[33m78ac72d089[m Tools: Bootlaoders: remove PixsurveyA2
+[33m2f59423884[m AP_HAL_ChibiOS: remove PixsurveyA2
+[33m1d3862bab2[m AP_AHRS: avoid use of location .alt field
+[33mbd95d3057f[m AP_Common: add guarantee that return parameter unmodified upon failure
+[33me0c3234b1b[m AP_InertialSensor: don't do gyro rate prearm check for external ahrs (DEVTYPE_SERIAL)
+[33m78fa2db2cb[m AP_Arming: prearm check to validate backend read rates against scheduler loop rate
+[33mee7fb8825a[m AP_InertialSensor: prearm check to validate backend read rates against scheduler loop rate
+[33me2fc648cb0[m AP_GPS: speed up ublox configuration
+[33m72fa9e8aa7[m AP_AHRS: fixed initial attitude for non-zero AHRS_ORIENTATION
+[33me177ca0924[m AP_InertialSensor: support SIM_IMU_ORIENT
+[33m5d29f48077[m SITL: added SIM_IMU_ORIENT parameter
+[33m36b0bfb708[m SCurve: Clarify segment names
+[33m26d5ad5107[m Tools: autotest: copter: AutoContinueOnRCFailsafe: increase waypoint tolerance
+[33m56b99d4aa5[m SCurve: Fix speed and accel checks to include z component when transitioning fast waypoints
+[33mdd98f8954c[m AP_ExternalAHRS: Protect against un-init loc and origin
+[33mb6dff2e0fd[m AP_GPS: Protect against nullptr port
+[33m7a1630c93f[m Plane: added comment on type and param slot re-use
+[33m34072fc19e[m Plane: use circular angle for assistance
+[33m599641b059[m autotest: improved autotest
+[33md3a6cc2269[m Plane: improved VTOL recovery and added spin recovery
+[33mac0d458319[m autotest: improved QLoiterRecovery test
+[33m3ab0e9322f[m Plane: reset pos control on recovery if high speed
+[33mdf400330af[m Plane: fixed clear of inverted flight for tailsitters
+[33m8079af4014[m Plane: fixed the force_fw_control_recovery logic for tiltrotors
+[33m4d112e01e5[m Plane: ensure tiltrotors use consistent FW/VTOL rates
+[33mfb7c40cadf[m APM_Control: avoid indecision in the roll controller
+[33mb57e9e9d9f[m Plane: use input_rate_bf_roll_pitch_yaw_no_shaping()
+[33mf6e12c01a3[m AC_AttitudeControl: added input_rate_bf_roll_pitch_yaw_no_shaping()
+[33m8dfb98242b[m Plane: added fast attitude recovery in Q modes
+[33m49b00cefae[m Plane: cancel inverted when entering Q mode
+[33m6ee5685ada[m autotest: added fast attitude recovery test
+[33m6e8b0e637f[m autotest: added test showing bad QLOITER recovery
+[33mf3506c6481[m AP_Scripting: added gyro to set_pose
+[33mc78a5acfa6[m SITL: added gyro to set_pose
+[33m25ebd12c9f[m Plane: 4.6.0-beta5 release notes
+[33m50cbd6aabc[m Copter: 4.6.0-beta5 release notes
+[33m81c4b9551b[m Rover: 4.6.0-beta5 release notes
+[33mc52c799fbf[m Tracker: 4.6.0-beta5 release notes
+[33md348ac0c62[m AP_SerialManager: move serial port init of SBusOut protocol into SBusOut library
+[33m532f70461e[m AP_SBusOut: move serial port init of SBusOut protocol into SBusOut library
+[33m867e70e236[m AP_Airspeed: correct defaults when MS4525 not compiled in
+[33mf9964e3740[m AP_Airspeed: remove more code with #ifs
+[33m8364140f03[m AP_DDS: provide clock_gettime only for HAL_BOARD_CHIBIOS
+[33m61ba6aea88[m DroneCAN: update libcanard for semaphore bug fix
+[33m212c751933[m Plane: tailsitter: ensure none-masked motors are zeroed in forward flight
+[33me8b5f82a0f[m SITL: handle case where servo is disabled in servo angle filtering
+[33m0e8cfe65c8[m AP_HAL_SITL: avoid use of ternary operator with AP_Parm object
+[33m55cc174230[m Tools:add build option for DisplayPort INAV font translation
+[33mfd888e0066[m AP_OSD: split out the new multi-page font tables into cpp file
+[33mebf0c22912[m AP_OSD: add support for INAV multi page font tables Co-authored-by:    yaapu <alex.apostoli@gmail.com>
+[33m9390ba05e7[m AP_MSP: add support for INAV multi page font tables Co-authored-by:    yaapu <alex.apostoli@gmail.com>
+[33mbeb4cd62b2[m AP_HAL_ChibiOS: fix dshot cancel race with waiter
+[33m3b4dc13825[m Tools: Added INA2xx parameters to ModalAI Sentinel M0065 frame params
+[33m464115149f[m AP_BattMonitor: use state rather than params for type
+[33m89481e02d0[m AP_BattMonitor: make _type AP_Enum
+[33m5b498fca13[m Tools: AP_RangeFinder: add extract_features entry for AP_RANGEFINDER_HEXSOONRADAR_ENABLED
+[33me40b05fd41[m autotest: test_build_options.py: plane's systemid is only on Plane
+[33m1512492b70[m Tools: build_options.py: Plane systemid requires quadplane
+[33md93d8941fa[m Plane: add missing include for AP_Param.h
+[33m60e92d022a[m autotest: exempt follow from various vehicles in test_build_options
+[33m2a5bc6223e[m AP_Networking: parm fix for ipaddr 3rd octet
+[33m65eed0a044[m autotest: exempt AP_PROXIMITY_HEXSOONRADAR_ENABLED from sanity checks
+[33md977f318c6[m AP_GPS: sanity-check location before consuming from EAHRS
+[33m15069c88fc[m Tools: adding necessary packages to prereqs script for macos
+[33m2dae0475a1[m AP_Logger: improve LOG_FILE_BUFSIZE param docs
+[33m8af16379f2[m AP_Mount: XFRobot only enabled on large flash boards
+[33m4f6189e765[m Tools: build option for XFRobot mount
+[33mf623e60478[m AP_Mount: XFRobot mount driver
+[33mc4b6568ab2[m autotest: Added test monitoring GUIDED->AUTO during terrain follow
+[33m4f7c19b30b[m autotest: expand DoRepositionTerrain quadplane test
+[33m396d639518[m Plane: fixed terrain alt target guided
+[33m78d8a11688[m AP_LandingGear: update LGR_OPTIONS description
+[33m5e34fe600a[m Plane: auto-deploy landing gear on fixed wing landing
+[33mc43141a5ed[m AP_HAL_ChibiOS: use correct define for TBS-L431-BattMon
+[33mf5af2f769b[m AP_DAC: clean-up defines for MCP40D1
+[33mc84db33336[m AP_DAC: add support for MCP40D1x devices
+[33m6515c8b523[m AP_HAL_ChibiOS: add adc support to TBS-L431-BattMon
+[33mf45207097b[m AP_HAL_ChibiOS: TBS-L431-CurrMon scale corrected
+[33me4997b5baf[m AP_Periph: add DAC support for variable supplies
+[33m1362bd2122[m AP_Periph: added DAC support
+[33m6e3a614ee9[m AP_DAC: added DAC support
+[33mfe1eb3b93f[m AP_HAL_ChibiOS: remove PWM output from current monitor
+[33m324f7615c9[m AP_BattMonitor: support current-only analog devices
+[33m4b598fbf06[m AP_HAL_ChibiOS: TBS-L431-PWM adapter
+[33m52fb2b616b[m AP_HAL_ChibiOS: TBS-L431-BattMon adapter
+[33m4616e048d1[m AP_HAL_ChibiOS: TBS-L431-CurrMon adapter
+[33m776ddf1f8d[m bootloaders: TBS-L431-Airspeed bootloader
+[33m3b464926b6[m AP_HAL_ChibiOS: break out DMA mapping for L431 so that parsing works correctly
+[33mf77ceb2504[m AP_HAL_ChibiOS: add PWM outputs to TBS airspeed sensor
+[33m26410d4d8e[m bootloaders: TBS-L431-BattMon bootloader
+[33m272ca56961[m bootloaders: TBS-L431-CurrMon bootloader
+[33m34d37338cf[m bootloaders: TBS-L431-PWM bootloader
+[33m3c012218de[m Tools: add CubeOrangePlus-ODID bootloader.bin file
+[33m566a397973[m hwdef: Add CubeOrangePlus-ODID hwdef support files
+[33m3c4b9f48fa[m AC_Avoidance: avoid use of location.alt in logging
+[33m791b19aed2[m Tools: fix building environment on macos
+[33m087270a3c0[m AP_Baro: consolidate MS5611 probes in feature-detect
+[33mefbb1cf06f[m AP_Scripting: added set_pose SITL binding
+[33ma03d442272[m SITL: added set_pose() method
+[33mb1d0273384[m AP_Scripting: AR_AttitudeControl docs typo fix
+[33m594d44708d[m AP_Scripting: remove AR_PosControl slew rate binding
+[33maa0c23d441[m AR_PosControl: remove velocity slew rate accessor
+[33me8649c8bf6[m AC_PID: remove calls to SlewCalculator2D
+[33m584c8f16f9[m Filter: remove SlewCalculator2D
+[33m51f2b79efc[m Sub: remove call to control monitor logging
+[33m39c34efd31[m Plane: remove call to control monitor logging
+[33m695949ef4f[m Copter: remove call to control monitor logging
+[33med4c570ed4[m AC_AttitudeControl: remove ControlMonitor
+[33m9a1ceb586c[m AP_Periph: use boolean for AP_PERIPH_HAVE_LED_WITHOUT_NOTIFY
+[33mc09c4621f1[m AP_HAL: avoid shadowed _last_options state variable
+[33m23403d0342[m AP_HAL_ChibiOS: avoid shadowed _last_options state variable
+[33ma4a718d031[m Sub: add do-set-roi-location and do-set-roi-none support
+[33mc50d6bd513[m Plane: add do-set-roi-location and do-set-roi-none support
+[33m3c072b625f[m Rover: add do-set-roi-location and do-set-roi-none support
+[33mcea2810f8f[m Copter: support do-set-roi-location and do-set-roi-none
+[33md033dba664[m AP_Mission: do-set-roi-location support
+[33m73d8f1b7cd[m AP_SerialManager: fix baudrate metadata
+[33m70000fca6c[m AP_HAL_Linux: remove unused RCInput_UART
+[33mc1d14ce93d[m autotest: add test for gps fallback in AFS
+[33mef8eb5e433[m AP_AdvancedFailsafe: avoid direct use of location.alt
+[33m22aeb27413[m AP_BattMonitor: stop using OwnPtr for various i2c backends
+[33m0b6a14b083[m AP_Logger: retitle LOG_MAV_Stats to log_DMS
+[33m6cf31825a0[m bootloaders: rebuild bootloaders for Holybro for software-switchable CAN termination
+[33mf39d58799d[m AP_HAL_ChibiOS: add Software CAN Terminiation Support to Holybro CAN Products
+[33md5098c6b0c[m hwdef: Lumenier LUX F765 - NDAA RCinput fix
+[33mf6bcd54fb4[m SITL: SIM_FlightAxis: use an objectbuffer for holding connections to FlightAxis
+[33m8300348398[m Plane: added support for down sampling logging for sysid
+[33mb90ceb7efb[m Plane: remove logging of Attitude from systemid
+[33mc8ca17d673[m Plane: make Iampete suggested changes
+[33m8675b18aa5[m Plane: enable systemID via custom build server
+[33m23f33cd3dd[m Tools: allow plane systemID to be selected in custom build
+[33m113736f9d3[m RC_Channel: add description for SystemID Option 184
+[33me431b1eaf9[m Plane: ATT and RATE logging in sysid log at full rate
+[33m18a9c5bddb[m Plane: add system ID to quadplane
+[33me9ac6bd269[m AC_AttitudeControl: added set_xy_control_scale_factor()
+[33mca723dc2aa[m RC_Channel: added SYSTEMID AUX switch
+[33mcc3a5d0c96[m autotest: fix race in getting statustext
+[33mf0ee26847f[m AC_Fence: Fixed wording in error messages
+[33m0fee38557c[m waf: embed.py: add sanity check for non-zero-lenght-contents
+[33m318e5dbd8d[m autotest: avoid use of non-ascii characters in test output
+[33mf7f4f9758d[m autotest: rename check_parameter_value to assert_parameter_value_pct
+[33m46645f707c[m AC_Fence: rename load_from_eeprom to load_from_storage
+[33mb29de34a23[m AP_TemperatureSensor: correct default enablement of MLX90614 backend
+[33m22a70a9287[m GCS_MAVLink: avoid use of OwnPtry during DeviceOp read/write
+[33mb841b832e8[m GCS_MAVLink: correct compilation on heavy-periph
+[33m8b0128f95b[m AP_Scripting: Docs: document logging of booleans
+[33m2576c48637[m GCS_MAVLink: log sent named value floats
+[33md206c91379[m autotest: add test for NVF logging
+[33m72f63fb200[m ArduPlane: add is_landing to AUTOLAND
+[33m420e115616[m AP_HAL_Linux: correct undefing of spdev lines
+[33mbcc7886ad0[m AP_Camera: avoid SITL panic if pic taken with no pos estimate
+[33mfce6de1516[m AP_RCProtocol: fix bug that at least two serial configs are needed
+[33m1aacdc53ba[m AP_SerialManager: support 12500 baud rate
+[33mef6b95da1d[m Tools: disable PID logging for fast logging test
+[33mb8b1b79b5a[m Copter: added PID logging by default
+[33m22de072ab3[m AP_Scripting: Follow binding enabled for Rover
+[33m4a602df45b[m AP_TemperatureSensor: avoid use of OwnPtr
+[33m530bce63d6[m Plane: Add tkoff. and land. to landed_state method
+[33m3e486e6854[m Tools: add AUTOLAND fence action test Co-authored-by: Peter Barker <pb-gh@barker.dropbear.id.au>
+[33m44a18f7917[m AP_Airspeed: allow skipping startup calibration but requiring manual calibration with skip cal param
+[33mdf5e240225[m AP_Arming: move airspeed check down to airspeed lib
+[33m609099f309[m AP_Airspeed: add arming check
+[33m239f399783[m GCS_MAVLink: common: AirspeedCal: deal with new calibration state
+[33m0bff627e30[m AP_Airspeed: Rework offset calibration states
+[33m211428d063[m RC_Channel: make pwm_to_angle_dz_trim and pwm_to_range_dz full resolution
+[33mdbe1943380[m GCS_MAVLink: add mavlink commands for testing nullptr deref catching
+[33m18c02d77f8[m AP_HAL: use RASR to protect memory as compile-time option
+[33mb838f7a705[m HAL_ChibiOS: added code for finding null ptr write errors
+[33mafc70a7936[m AP_Scripting: Generalize SoC model for more chems.
+[33mfd2d82dab2[m Tools: Generalize SoC model for more batt. chems.
+[33mbda83db799[m Tools: Handle both Inst, Instance in batt. fitting
+[33m852888d486[m ArduPlane:make heading lock upon gnd speed consistent
+[33mcadb4d307b[m Plane: fixed guided VTOL command in terrain mode
+[33m26f30ec62d[m autotest: added Q_GUIDED_MODE terrain test
+[33m7e6ddc5b7e[m autotest: fixed GUIDED alt test for plane
+[33m3ec0f93605[m HAL_ChibiOS: fixed cork/push
+[33mf328a659ef[m Tools: Add FLIGHT_INFORMATION to build_options.py and extract_features.py
+[33mbd767c3d0b[m AP_HAL_ChibiOS: Disable FLIGHT_INFORMATION msg in minimize_common.inc
+[33me746ae13db[m GCS_MAVLink: Add FLIGHT_INFORMATION message
+[33m12aea3d8f7[m AP_Arming: Record arming time and add accessor for it
+[33m6cfaebc994[m AP_NavEKF3: Add table to read EKF states and covarainces limits
+[33m8a8c9ab31a[m hwdef: add StellarF4
+[33m15a9eeac02[m Tools:add StellarF4
+[33m4637cb93da[m hwdef: add StellarF4V2
+[33m4ae93b3a52[m Tools: add StellarF4V2
+[33m88d4852b29[m AC_Fence: do not store radius as integers if they look like integers
+[33m4251f91142[m autotest: correct GCSRally autotest
+[33mbfb9341172[m autotest: change uses of recv_match to assert_receive_message
+[33m83b2a255c5[m AP_InertialSensor: remove unused define SENSOR_RATE_DEBUG
+[33m6648b58092[m Tools:add build option for baro thrust correction
+[33m68d9f2f577[m Plane: Output rudder in VTOL modes
+[33m285369ed74[m AP_Scripting: fixed Halo6000 checksum
+[33m0d071e0991[m Tools: added name to GIT_Success.txt
+[33m3b358d7854[m AP_InertialSensor: Remove the variable _accel_max_abs_offsets its is not more used
+[33m170a063335[m Tools: correct task stringification
+[33m7601c8388e[m HWDEF: Fix IMU rotation for Stellar H7V2
+[33md4389d1279[m hwdef: remove unused HAL_NO_RCIN_THREAD define
+[33maaf6e3a2a9[m hwdef: remove unused HAL_NO_MONITOR_THREAD defines
+[33m2c207703ef[m hwdef: remove '-define HAL_USE_RTC FALSE' - it is the default
+[33mefe6e85fa4[m AP_NavEKF3: added in a check for high velocity innovation
+[33maa43a5688c[m HWDEF: add StellarH7V2
+[33m77f8346d15[m Tools: add StellarH7V2
+[33m1007081bb1[m AP_HAL_ChibiOS: enable baro thrust scaling on BETAFPV-F405
+[33me71fcefd9c[m AP_Baro: baro thrust scaling
+[33m74127caee3[m Plane: Use stall speed for roll stall prevention
+[33m9dcb6aeff9[m AP_Beacon: construct locations using Location constructor
+[33mab1c62e920[m AP_HAL_Linux: avoid use of OwnPtr in PCA9685 RCOU driver
+[33m0e5fbaf8d7[m AP_DroneCAN: Serial: Track stats
+[33m4c32f4173a[m AP_Networking: Port: track stats
+[33m03ee7f5a04[m AP_SerialManager: add stats and logging for registered ports
+[33m6ab403169d[m AP_Vehicle: call SerialManager `registered_ports_log` at 1Hz
+[33me8ca84f8e5[m Motors: `output_test_seq` return bool and set output to min if test fails
+[33m5b314cf348[m Copter: allow motors to cancel a motor test
+[33m09d87f5915[m Plane: Quadplane: allow motors to cancel a motor test
+[33mde420818bc[m Plane: Quadplane: allow motor test if armed and motor test is already running
+[33me3845592d5[m AP_RAMTRON: stop using OwnPtr
+[33m9fb1e2b9f7[m Tools: correct gathering of intermediate results in parallel size-compare-branches
+[33m6e9772a809[m Tools: tidy-up sitl_periph_xx defines assignment
+[33m4d551aa600[m Tools: correct nm argument to extract_features.py
+[33mf887711e61[m AP_HAL_ChibiOS: add logging of dropped incoming serial data
+[33m444cc3c8db[m AP_HAL: add logging of dropped incoming serial data
+[33m434c2b3efa[m AP_GPS: remove SBP raw logging
+[33m74d8bf0694[m AP_HAL_ChibiOS: use AP_HAL SPI get_device_ptr interface for SPI SDCard
+[33m3927d18482[m AP_HAL_SITL: add get_device-ptr to HAL DeviceMananger API
+[33m8e6e475788[m AP_HAL_QURT: add get_device-ptr to HAL DeviceMananger API
+[33mbe99f5452f[m AP_HAL_Linux: add get_device-ptr to HAL DeviceMananger API
+[33ma6794d5ec0[m AP_HAL: add get_device-ptr to HAL DeviceMananger API
+[33m222584fe13[m AP_HAL_ESP32: add get_device-ptr to HAL DeviceMananger API
+[33mf9954d4ee0[m AP_HAL_Empty: add get_device-ptr to HAL DeviceMananger API
+[33m97f7076e0e[m AP_HAL_ChibiOS: add get_device-ptr to HAL DeviceMananger API
+[33m149641cabc[m AP_HAL_ESP32: init esp32s3m5stampfly
+[33mf1da4c57f0[m Tools: add Lumenier LUX F765 - NDAA bootloader
+[33m940613901f[m hwdef: add Lumenier LUX F765 - NDAA
+[33m17299a7bb4[m ArduPlane: add AUTOLAND as FENCE_ACTION
+[33mbdd84b974a[m AC_Fence: add AUTOLAND as FENCE_ACTION
+[33m6b7445fd39[m AP_HAL_ChibiOS: remove follow library on minimized boards
+[33m2cd8b3162b[m Tools: add AP_FOLLOW to build_options.py
+[33m65e09c73be[m waf: build the AP_Follow library
+[33m3bf5073428[m Copter: let GCS_MAVLink handle follow packets
+[33m8c3ffb6e97[m Rover: let GCS_MAVLink handle follow packets
+[33m6f631920b3[m ArduPlane: let GCS_MAVLink handle follow packets
+[33m8c7940ac60[m GCS_MAVLink: let GCS_MAVLink handle follow packets
+[33mce9efd625c[m AP_HAL_ChibiOS: Update README to clarify DShot support on MAIN outputs
+[33mea10b48b81[m Vagrant: remove bionic clause from initvagrant.sh
+[33mb3be69cf03[m Vagrant: remove ancient machines from config
+[33me352025315[m Tools: use new AP_PERIPH_BUZZER_XX_ENABLED defines
+[33mfb95142953[m AP_HAL_ChibiOS: use new AP_PERIPH_BUZZER_XX_ENABLED defines
+[33mb3581ba185[m AP_Baro: Determine the result of the device data reading process
+[33me761edfcce[m AP_Motors: MOT_THST_HOVER param desc min/max fixed
+[33mf63f46e969[m AP_Airspeed: move calibration state into calibration state struct
+[33m954feda85d[m Tools: size_compare_branches.py: use a Task object for storing tasks
+[33m3530f288e8[m Tools: size_compare_branches.py: do not try to compile bl for CubeRedSecondary-IO
+[33m05ee94c586[m SITL: correct instructions on how to use JSON interface
+[33m7dcac52204[m Tools: remove duplication in ardupilotwaf.py
+[33m1284f460cd[m Tools: add Hexsoon 24G radar build option
+[33m0dc5f7829a[m AP_RangeFinder: add Hexsoon 24G Radar support
+[33mba755f6909[m AP_InertialSensor: Remove two unused defines
+[33mfad4516f76[m hwdef:SULILGH7-P1-P2 BMI088_DRDY Pin
+[33md35acbb231[m hwdef:SULILGH7-P1-P2 LED_ON 0
+[33me9e4a207af[m Tools: drop Ubuntu Bionic and Debian Buster
+[33m1ca1c57016[m AC_Fence: Remove redundant steps
+[33mf30d262aaf[m Tools: use new AP_PERIPH_XX_LED_WITHOUT_NOTIFY_ENABLED defines
+[33m908223f699[m AP_HAL_ChibiOS: use new AP_PERIPH_XX_LED_WITHOUT_NOTIFY_ENABLED defines
+[33ma50efd984e[m AP_Periph: correct function name for detected protocol name
+[33mec18cf3614[m SITL: add simulated AS5600 sensor
+[33mf707488707[m Tools: correct extraction of Hexsoon and MR72 Radars
+[33mc0c2a87acd[m AP_Scripting: don't provide handle_external_position_estimate if not AP_AHRS_EXTERNAL_ENABLED
+[33me93594c486[m AP_Proximity: correct compialtion when hexsoon radar not compiled in
+[33mc0fd999e45[m Sub: correct build when rangefinder not anabled
+[33m1f51cb395e[m AP_HAL: drop HAL_FORWARD_OTG2_SERIAL
+[33m731e75b059[m AP_HAL_ChibiOS: drop HAL_FORWARD_OTG2_SERIAL
+[33m1f4a2cb4c5[m AP_Bootloader: fix BOOTLOADER_FORWARD_OTG2_SERIAL comments
+[33m1eb64914d8[m Plane: prevent learning bad ARSPD_RATIO
+[33mf72c4a888c[m AP_ADSB: clarify ADSB_LIST_ALT docs
+[33me86cd5e5d5[m autotest: add test for payload place when gripper was open
+[33m75be83954a[m AP_RangeFinder: mark _add_backend, init and detetct_instance as __INITFUNC__
+[33me68be1cdb9[m AP_OpticalFlow: mark Pixart init data as __INITFUNC__
+[33meb9e6cc3de[m AP_HAL_ChibiOS: define mav sys id 2 for CubeRedSecondary in hwdef
+[33mefef2a7443[m hwdef: Update ZeroOneX6 README.md
+[33me86d419fc1[m hwdef: Make ZeroOneX6 supports Bi-directional DShot
+[33m9be7d8323d[m AP_RCProtocol: use NEW_NOTHROW on emlid RCIO backend
+[33mc2ea8d3bac[m GCS_MAVLink: remove unused dsmMode param from start_bind methods
+[33m8a835bd28e[m AP_RCProtocol: remove unused dsmMode param from start_bind methods
+[33me3a462a22a[m AP_IOMCU: remove unused dsmMode param from start_bind methods
+[33mb6a7441b70[m AP_HAL_SITL: rely on AP_RCProtocol to provide protocol name
+[33m4411e56b04[m AP_HAL_ESP32: leave protocol announcements to the GCS
+[33m4d510e2204[m AP_Logger: use AP::RC() directly to get detected protocol name
+[33madf0e81d97[m AP_HAL_QURT: adjust for RCProtocol detected protocol name changes
+[33mb54972312e[m AP_RCProtocol: examples: instantiate GCS object
+[33m9b40defc8b[m AP_HAL_ESP32: cope with RC binding moving to AP_RCProtocol
+[33m8c706f0388[m RC_Channel: bind receivers directly via AP_RCProtocol library
+[33m089c4933ba[m GCS_MAVLink: bind receivers directly via AP_RCProtocol library
+[33m772599290b[m AP_HAL: bind receivers directly via AP_RCProtocol library
+[33m1ac1510cec[m AP_HAL_ChibiOS: bind receivers directly via AP_RCProtocol library
+[33m5d40d06074[m AP_RCProtocol: move RC Protocol announcements to AP_RCProtocol
+[33ma59755f7ca[m AP_Logger: move RC Protocol announcements to AP_RCProtocol
+[33mf365b0f0f0[m AP_HAL_ChibiOS: move RC Protocol announcements to AP_RCProtocol
+[33mc6e18a73c7[m AP_RCProtocol: move IOMCU RC input handling down into AP_RCProtocol
+[33m0f6b6ce51b[m AP_HAL_ChibiOS: move IOMCU RC input handling down into AP_RCProtocol
+[33m8c1da9a087[m autotest: add copter autotest for mission clearing after reboot
+[33m080dc64512[m AP_Mission: fix option_is_set
+[33m0189c6f1bb[m AP_Notify: stop using OwnPtr in IS31FL3195
+[33mb9699b46a7[m autotest: add simple test for SHT3X temperature sensor
+[33ma87e6eb707[m Tools: add support for SHT3x-DIS temperature sensor
+[33mb1f704cf76[m AP_TemperatureSensor: add support for SHT3x-DIS temperature sensor
+[33m8df29a3960[m SITL: add simulated SHT3x temperature sensor
+[33m0ae3e7cdcb[m AP_Math: allow initial value to be specified for crc8_generic
+[33ma514af1b2e[m AP_TemperatureSensor: mark init() functions as __INITFUNC__
+[33m13cbd76651[m Tools: update AHRS AutoTrim build option description
+[33m02ab06ff05[m RC_Channel: rename rc option to AHRS AutoTrim
+[33ma313c2a063[m Tools: use new AP_PERIPH_ESC_APD_ENABLED define
+[33m3798d6fd32[m AP_HAL_ChibiOS: use new AP_PERIPH_ESC_APD_ENABLED define
+[33mc814c05532[m Tools: update error message to use new AP_PERIPH_RELAY_ENABLED define
+[33m0d0bc93428[m AP_NavEKF3: document variance state fields
+[33m4c17f092ee[m AP_DDS: Navsat sending all available instances
+[33ma115886abd[m AP_OpticalFlow: correct includes for AP_OpticalFlow_MSP
+[33ma2e0e28263[m Plane: fence: refactor action cases
+[33m478b47caa2[m hwdef: update comments on APJ_BOARD_ID
+[33m5cff6c02a1[m AP_HAL_ChibiOS: Fix regression in MCU max and min volt logging
+[33m40ed9f6e64[m AP_NavEKF3: correct the scope of posErr
+[33md6bda7362f[m AP_Filesystem: LittleFS: tune for JEDEC NOR
+[33m7e90503245[m AP_Filesystem: LittleFS: use 64K blocks for JEDEC_NOR
+[33mabea5309f3[m AP_Filesystem: LittleFS: add erase counts to debug
+[33m25792f9997[m AP_Filesystem: LittleFS: fix JEDEC NOR page reads
+[33mf5858ebca0[m AP_Filesystem: LittleFS: support GD25Q16E flash
+[33md4ea44d23d[m AP_HAL_ChibiOS: KakuteH7Mini: enable LittleFS and scripting
+[33m75e4775f1a[m AP_HAL_ChibiOS: add JEDEC NOR support to hwdef.dat DATAFLASH
+[33m3532d6d5ad[m AP_Filesystem: AP_FILESYSTEM_FLASH_W25QXX -> AP_FILESYSTEM_FLASH_JEDEC_NOR
+[33mc47a208b8b[m AP_GPS: SBF: send debug output to GCS_SEND_TEXT not console
+[33mf1cbfa0363[m AP_GPS: discard SBF packets with claimed length > 256 bytes
+[33mc986a9543a[m AP_Airspeed: avoid use of ownptr
+[33mc9d932cca8[m Plane: autoland: climb above ground not current location
+[33md4f0d400b2[m AP_Generator: FuelCell: increase max data rate limit
+[33madcee3cdde[m Tools: use new AP_PERIPH_DEVICE_TEMPERATURE_ENABLED define
+[33m0e0e68c984[m AP_HAL_ChibiOS: use new AP_PERIPH_DEVICE_TEMPERATURE_ENABLED define
+[33mcf68e52a99[m Plane: Change glide slope to altitude slope
+[33mf7ec2e7420[m autotest: Change glide slope to altitude slope
+[33mb885bfadb4[m SITL: Change glide slope to altitude slope
+[33m3f11aa7bf7[m Tools: Change glide slope to altitude slope
+[33m67cc6dd612[m hwdef: use board_config names rather than numbers in hwdefs
+[33mabec8a838e[m board_types.txt: add missing board IDs
+[33mb648b55640[m Plane: Tiltrotor: fix `has_vtol_motor` function
+[33m89cc25ca81[m AP_Filesystem: LittleFS: clarify fsync bytes logic
+[33m9cc6e25fd4[m AP_Filesystem: LittleFS: inline fsync bytes calculation
+[33m076951f003[m matrix_alg: Probable redundancy
+[33md24da9e854[m ArduCopter: correct typos and mis-spellings
+[33m43bf73000f[m Replay: fixed --force-ekf2 in Replay
+[33m6602f0b085[m AC_Avoidance: add missing AP_AHRS.h include
+[33m25c5cf13de[m AP_AccelCal: Remove an unusable return
+[33mf9ca319aad[m Plane: log throttle throttle suppressed into STAT message
+[33me100db3596[m AP_HAL_ChibiOS: use new AP_PERIPH_PWM_HARDPOINT_ENABLED define
+[33me6e3b58f18[m Tools: use new AP_PERIPH_PWM_HARDPOINT_ENABLED define
+[33m1f208d5664[m AP_Bootloader: reserve board id for X-MAV-AP-F405Mini
+[33m80c8bda2f1[m hwdef: MFT-SEMA100 Change compass orientation
+[33m03519ac2ef[m hwdef: specify AUTOBUILD_TARGETS for CubeRedSecondary-IO
+[33mfba40313ce[m AP_Math: add get_twos_complement() from betaflight
+[33m1b9b24e347[m AP_Baro: move get_twos_complement() to AP_Math
+[33m7b29cade3f[m scripts: decode SPA06
+[33mf9f0bfe08e[m AP_Baro: identify SPA06 in devid
+[33m51efee283a[m AP_Baro: rework SPL06 to do background updates compliant with the spec.
+[33mba35528150[m AP_GPS: correct GNSS_MODE parameter description
+[33mbfa40f76d8[m AP_HAL_ChibiOS: SpeedyBeeF405AIO
+[33m2f7bf34f57[m bootloaders: SpeedyBeeF405AIO
+[33mf104bd251d[m IO_Firmware: add iofirmware_cubered
+[33m679fa817e6[m AP_HAL: move methods for stack overflow and memguard to AP_HAL/Util
+[33m6b668d0113[m AP_InternalError: move methods for stack overflow and memguard to AP_HAL/Util
+[33mdd5b5847f6[m AP_HAL_ChibiOS: remove unused define HAL_RCIN_PULSE_PPM_ONLY from CubeRedSecondary hwdef.dat
+[33me63909567f[m AP_OSD: add option for IOMCU SerialProtocol
+[33md1f7695244[m AP_SerialManager: add support for SerialProtocol_IOMCU
+[33me75f2ecf07[m AP_IOMCU: ignore call to shutdown if iomcu not initialised
+[33m5cd8a3a429[m AP_Vehicle: set iomcu serialmanager protocol if iomcu is enabled
+[33m430f3861fc[m AP_HAL_ChibiOS: use TRBUFF define instead of hardcoding
+[33m369f59050a[m scripts: add cuberedsecondary-io build to IOFirmware build script
+[33mf2f98da3ef[m AP_IOMCU: remove heater polarity setting for IOMCU without heater
+[33m9933b47087[m hwdef: add env variable to set IOMCU Heater feature
+[33m4603dbc3c3[m AP_HAL_ChibiOS: fix CubeRedPrimary-PPPGW build
+[33md117253c8f[m AP_HAL_ChibiOS: add CubeRedSecondary-IO hwdef.dat
+[33m38cf0b9453[m AP_IOMCU: add support for running IOFW on CubeRedSecondary
+[33m180e74241f[m AP_IOMCU: add support for custom uart options and iomcu flash size
+[33m697ee76b0e[m AP_IOMCU: add support for new version of Bootloader
+[33me832bccac9[m AP_HAL_ChibiOS: add support for using hal serial as IOMCU Serial
+[33m71e24cf42d[m AP_HAL_ChibiOS: add support for IOMCU on Secondary
+[33m92adaccdc0[m modules: update ChibiOS
+[33m7ee0232d83[m AP_Scripting: Better mavlink parsing for MAVLinkHL and Rockblock
+[33m450ffd1520[m AP_HAL_ChibiOS: use new AP_PERIPH_PROXIMITY_ENABLED define
+[33me1bcd39040[m Tools: use new AP_PERIPH_PROXIMITY_ENABLED define
+[33me4b9f5b474[m Tools: size_compare_branches.py: blacklist bootloader build for base linux target
+[33mf2442f6b3e[m AP_InertialSensor: correct compilation of the Aero board
+[33m23ffc39afa[m AP_HAL_Linux: correct compilation of the Aero board
+[33m87bc4f2e53[m waf: dynamically create board classes for Linux boards
+[33me834cbc372[m waf: factor out a self.add_dynamic_boards_from_hwdef_dir
+[33m7c78f05388[m waf: remove unused get_chibios_board_cls method
+[33me77aa96ef2[m Tools: allow linux hwdefs to specify WITH_CAN in hwdef env
+[33md005e9cfbc[m AP_HAL_Linux: allow linux hwdefs to specify WITH_CAN in hwdef env
+[33me733cf2cc5[m waf: move definition of CONFIG_HAL_BOARD_SUBTYPE into hwdefs
+[33m4147e4fc7b[m AP_HAL_Linux: move definition of CONFIG_HAL_BOARD_SUBTYPE into hwdefs
+[33m6a54d871f3[m AP_HAL: move definition of CONFIG_HAL_BOARD_SUBTYPE into hwdefs
+[33ma518c3aa1c[m Tools: board_list.py: magically find Linux boards via hwdefs
+[33m2adb40c922[m waf: extract toolchain from hwdef
+[33m7c95668fd6[m AP_HAL_Linux: extract toolchain from hwdef
+[33mf451f83d68[m AP_HAL_Linux: make linux hwdef write out env.py
+[33m3ff4ed3b4f[m AP_HAL: make linux hwdef write out env.py
+[33mb3c1abe935[m AP_HAL_ChibiOS: make linux hwdef write out env.py
+[33m7286813d1f[m Tools: Vagrant: modify test instructions to make copy of arudpilot
+[33m5d053d6722[m Tools: sim_vehicle.py: increase number of mavproxy connection retries
+[33m4e872be75a[m Vagrant: use login shell on Oracular and use TMPDIR
+[33m59c7ed0ad7[m Vagrant: use alvistack 24.10
+[33mb295a47b87[m Vagrant: add support for oracular
+[33m3863535bdb[m AP_Proximity: LD19/LD06 data length sanity check fix
+[33m3f5cde4bb1[m Tools: generate_manifest.py: make flake8 clean
+[33m4008df1314[m AP_HAL: Socket: check return value of getsockname
+[33m353744e3f0[m AP_GPS: UBLOX: fix memory leak when "F9" GNSS configuration is used
+[33m12c4617641[m Tools: size_compare_branches.py: improve process failure output file content
+[33m4dd6b93011[m AP_HAL_ChibiOS: use new AP_PERIPH_SERIAL_OPTIONS_ENABLED define
+[33mce66335f10[m Tools: use new AP_PERIPH_SERIAL_OPTIONS_ENABLED define
+[33m4726484c6c[m SPRacingH7: pin SPRacingH7 to 128kB of program space
+[33m6338d10b5f[m global: create and use HAL_PROGRAM_SIZE_LIMIT_KB
+[33m41b5f796b5[m waf: remove Python print_function import
+[33m07b0ac9ffe[m Tools: remove Python print_function import
+[33mbbf7b4ceb6[m AP_Math: remove Python print_function import
+[33m67c7958f4c[m AP_HAL: remove Python print_function import
+[33maef8f9d4dd[m AP_HAL_Linux: remove vestiges of board sensor specifications
+[33m0d05814d30[m AP_HAL_Linux: move BARO lines to hwdef
+[33m1fa2cf38d5[m AP_HAL_Linux: move parsing of BARO lines up to AP_HAL hwdef.py
+[33m34735b30df[m AP_HAL: move parsing of BARO lines up to AP_HAL hwdef.py
+[33mb9ad86943d[m AP_HAL_ChibiOS: move parsing of BARO lines up to AP_HAL hwdef.py
+[33m0714b3abc2[m AP_HAL_Linux: move COMPASS definitions to hwdef
+[33mbdce6f2779[m AP_HAL_Linux: move parsing of COMPASS hwdef lines up to hwdef.py
+[33m5d7e5b1aff[m AP_HAL: move parsing of COMPASS hwdef lines up to hwdef.py
+[33m0a485f9902[m AP_HAL_ChibiOS: move parsing of COMPASS hwdef lines up to hwdef.py
+[33m2998190c4b[m AP_HAL_Linux: hwdef: best-guess IMU fix on rst-zynq
+[33m687e870edd[m AP_HAL_Linux: move IMU line parsing up into hwdef.py, use it for Linux HAL
+[33m8fb665914e[m AP_HAL: move IMU line parsing up into hwdef.py, use it for Linux HAL
+[33mf93e637c2c[m AP_HAL_ChibiOS: move IMU line parsing up into hwdef.py, use it for Linux HAL
+[33m0f59e9b2bb[m AP_HAL_Linux:tidy bebop defines
+[33me2fdb81ff6[m AP_NavEKF3: remove unused assignments of posCheckPassed
+[33mcfa145940a[m AP_NavEKF3: remove duplicate assignment of posCheckPassed
+[33m6a77d56053[m RC_Channel: correct AUX func 182 comment
+[33ma7341aa317[m Tools:tweak autotrim test
+[33m44e7d48058[m Copter:fixes bugs in autotrim and add Loiter and PosHold as valid autotrim modes
+[33mac55b111dd[m hwdef: remove un-needed AP_NOTIFY_TONEALARM_ENABLED
+[33mf72022f606[m AP_Scripting: call reset_all_aux_auths on start
+[33m7b3a6434de[m AP_Arming: add reset_all_aux_auths
+[33m71be1194cb[m AP_Filesystem: FATFS: clean up error handling
+[33mb9cad62acf[m AP_Filesystem: FATFS: combine file allocations
+[33m30ffcaa8bd[m autotest: test terarangeri2c
+[33mdbffd74fb5[m AP_RangeFinder: stop using ownptr for i2c device
+[33mcf1a1ec88b[m AP_Rangefinder: request measurement for timer routine to collect
+[33me17c3127b1[m add teraranger simulator
+[33m0862ec445f[m SITL: sort i2c include list
+[33m500d190df3[m AP_GPS: prevent NULL ptr deref
+[33m69c540a0de[m AP_GPS: fixed the check for disabling CONFIG_RATE_SOL config
+[33m6ad05dc2c3[m Plane: don't switch to RTL on battery failsafe if in autoland
+[33md84a3ec26f[m Plane: allow `Failsafe_Action_AUTOLAND_OR_RTL` without `MODE_AUTOLAND_ENABLED` and defualt to RTL
+[33m9b7c88152b[m ArduPlane: add AUTOLAND as LOW volt batt failsafe
+[33m2ba548bb27[m AP_BattMonitor: add AUTOLAND as LOW volt batt failsafe
+[33m19e10577df[m SRV_Channel: initialize focus and zoom with 1000 range
+[33m4bdcb2883e[m AP_Camera: allow focus and zoom control with servos
+[33m827c8d5f88[m AP_Airspeed: inline get_pressure
+[33md0824a8d9b[m AP_BattMonitor: add Copter brake/land failsafe action to parameter metadata
+[33mfc47d7c2d0[m AP_BoardConfig: `SAFETY_MASK` include full  32 channels in docs
+[33mae55f9a020[m autotest: add a test for brake/land failsafe
+[33m5f1d3dac68[m AP_HAL_ChibiOS: use new AP_PERIPH_MSP_ENABLED define
+[33mdabd9ba73e[m Tools: use new AP_PERIPH_MSP_ENABLED define
+[33me1e074bc09[m AP_HAL_ChibiOS: use new AP_PERIPH_RELAY_ENABLED define
+[33m873abe3fd3[m Tools: use new AP_PERIPH_RELAY_ENABLED define
+[33me696a83371[m AP_Filesystem: LittleFS: avoid leaking directory on close error
+[33m0246b03424[m AP_Filesystem: LittleFS: use NEW_NOTHROW instead of new
+[33m232f6524f6[m AP_Scripting: patch vendored Lua to 5.3.6
+[33m297ec3fa7c[m AP_Scripting: use new AP_PERIPH_RC_OUT_ENABLED define
+[33m11e42a94d0[m AP_HAL_ChibiOS: use new AP_PERIPH_RC_OUT_ENABLED define
+[33m6a429b887a[m Tools: use new AP_PERIPH_RC_OUT_ENABLED define
+[33m1793c4c5f1[m AP_HAL_ChibiOS_hwdef : Modify the LED on the SULILGH7-P1-P2 flight controller
+[33m8d427dd229[m GCS_Common: fix missing #if for CAMERA_FOV_STATUS
+[33m922f86a7ed[m AP_GPS: correct uBlox config debugging
+[33m76aed8f89c[m Tools: use new AP_PERIPH_HOBBYWING_ESC define
+[33m0197220bc5[m AP_HAL_ChibiOS: use new AP_PERIPH_HOBBYWING_ESC define
+[33m2b6bbedce6[m Tools: use new AP_PERIPH_NOTIFY_ENABLED define
+[33m44d07c8f79[m AP_Scripting: use new AP_PERIPH_NOTIFY_ENABLED define
+[33m85b3d6a625[m AP_HAL_ChibiOS: use new AP_PERIPH_NOTIFY_ENABLED define
+[33m82a0347657[m Tools: use new AP_PERIPH_EFI_ENABLED define
+[33m49755d6212[m AP_HAL_ChibiOS: use new AP_PERIPH_EFI_ENABLED define
+[33m9b226edf3a[m Tools: use new AP_PERIPH_ADSB_ENABLED define
+[33mab725360c1[m AP_HAL_ChibiOS: use new AP_PERIPH_ADSB_ENABLED define
+[33m6dcb350b72[m Copter: save a few bytes in variance check
+[33mb0c31d865e[m ArduPlane: mark many functions as __INITFUNC__
+[33m4bd5bb27c9[m ArduCopter: mark many functions as __INITFUNC__
+[33mdac5269af1[m AP_RangeFinder: mark many functions as __INITFUNC__
+[33m2ec34d1b05[m AP_Proximity: mark many functions as __INITFUNC__
+[33ma6d88fd25e[m AP_Compass: mark many functions as __INITFUNC__
