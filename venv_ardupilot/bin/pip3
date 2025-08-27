@@ -1,4 +1,4 @@
-#!/home/memoto/UMEMOTO2/venv_ardupilot/bin/python3
+#!/home/umemoto/UMEMOTO2/venv_ardupilot/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys

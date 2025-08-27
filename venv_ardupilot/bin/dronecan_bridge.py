@@ -1,4 +1,4 @@
-#!/home/memoto/UMEMOTO2/venv_ardupilot/bin/python3
+#!/home/umemoto/UMEMOTO2/venv_ardupilot/bin/python
 '''
 bridge between two CAN interfaces
 this can be used to bridge a hardware device with SLCAN to a SITL vcan0 environment
