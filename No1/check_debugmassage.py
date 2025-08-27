@@ -25,8 +25,8 @@ try:
         master.target_system,
         master.target_component,
         mavutil.mavlink.MAV_DATA_STREAM_ALL,  # すべてのストリームを要求
-        10,  # 10Hz
-        1    # start
+        10,   # 10Hz
+        1     # start
     )
 
     # システム情報を要求
@@ -35,21 +35,17 @@ try:
         master.target_component
     )
 
-    print("デバッグメッセージ受信中... (STATUSTEXTのみを表示)")
+    print("デバッグメッセージ受信中... (すべてのメッセージを表示)")
     print("=" * 70)
     
     while running:
         msg = master.recv_match(blocking=True, timeout=1)
-        
         if msg is not None:
             current_time = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
             msg_type = msg.get_type()
-            
-            # STATUSTEXT（デバッグメッセージ）のみを表示
-            if msg_type == 'STATUSTEXT':
-                text = msg.text.strip()
-                print(f"{current_time} : [DEBUG] {text}")
-                print("-" * 50)
+            # すべての受信メッセージを表示
+            print(f"{current_time} : [{msg_type}] {msg}")
+            print("-" * 50)
 
 except Exception as e:
     print(f"エラー: {e}")
