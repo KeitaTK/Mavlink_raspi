@@ -881,9 +881,97 @@ void AC_AttitudeControl::update_attitude_target()
     }
 }
 
+// // Calculates the body frame angular velocities to follow the target attitude
+// void AC_AttitudeControl::attitude_controller_run_quat()
+// {
+//     // This represents a quaternion rotation in NED frame to the body
+//     Quaternion attitude_body;
+//     _ahrs.get_quat_body_to_ned(attitude_body);
+
+//     // This vector represents the angular error to rotate the thrust vector using x and y and heading using z
+//     Vector3f attitude_error;
+//     thrust_heading_rotation_angles(_attitude_target, attitude_body, attitude_error, _thrust_angle_rad, _thrust_error_angle_rad);
+
+//     // Compute the angular velocity corrections in the body frame from the attitude error
+//     Vector3f ang_vel_body_rads = update_ang_vel_target_from_att_error(attitude_error);
+
+//     // ensure angular velocity does not go over configured limits
+//     ang_vel_limit(ang_vel_body_rads, radians(_ang_vel_roll_max_degs), radians(_ang_vel_pitch_max_degs), radians(_ang_vel_yaw_max_degs));
+
+//     // rotation from the target frame to the body frame
+//     Quaternion rotation_target_to_body = attitude_body.inverse() * _attitude_target;
+
+//     // target angle velocity vector in the body frame
+//     Vector3f ang_vel_body_feedforward = rotation_target_to_body * _ang_vel_target_rads;
+//     Vector3f gyro = get_latest_gyro();
+//     // Correct the thrust vector and smoothly add feedforward and yaw input
+//     _feedforward_scalar = 1.0f;
+//     if (_thrust_error_angle_rad > AC_ATTITUDE_THRUST_ERROR_ANGLE_RAD * 2.0f) {
+//         ang_vel_body_rads.z = gyro.z;
+//     } else if (_thrust_error_angle_rad > AC_ATTITUDE_THRUST_ERROR_ANGLE_RAD) {
+//         _feedforward_scalar = (1.0f - (_thrust_error_angle_rad - AC_ATTITUDE_THRUST_ERROR_ANGLE_RAD) / AC_ATTITUDE_THRUST_ERROR_ANGLE_RAD);
+//         ang_vel_body_rads.x += ang_vel_body_feedforward.x * _feedforward_scalar;
+//         ang_vel_body_rads.y += ang_vel_body_feedforward.y * _feedforward_scalar;
+//         ang_vel_body_rads.z += ang_vel_body_feedforward.z;
+//         ang_vel_body_rads.z = gyro.z * (1.0 - _feedforward_scalar) + ang_vel_body_rads.z * _feedforward_scalar;
+//     } else {
+//         ang_vel_body_rads += ang_vel_body_feedforward;
+//     }
+
+//     // Record error to handle EKF resets
+//     _attitude_ang_error = attitude_body.inverse() * _attitude_target;
+//     // finally update the attitude target
+//     _ang_vel_body_rads = ang_vel_body_rads;
+// }
+
 // Calculates the body frame angular velocities to follow the target attitude
 void AC_AttitudeControl::attitude_controller_run_quat()
 {
+    // ==================================================================
+    // ★★★★★【最終デバッグテスト】★★★★★
+    gcs().send_text(MAV_SEVERITY_INFO, "ATTITUDE_CONTROLLER_IS_RUNNING");
+    // ==================================================================
+
+    extern AP_Observer ap_observer;
+    if (ap_observer.is_correction_valid()) {
+        // 補正用のクォータニオンを取得
+        const Quaternion& correction_quat = ap_observer.get_correction_quaternion();
+
+        // 1Hzデバッグメッセージ送信のためのタイマー処理
+        uint32_t now = AP_HAL::millis();
+        bool send_msg = (now - _last_correction_msg_ms >= 1000);
+        Quaternion pre_correction_quat; // 補正前の値を一時保存する変数
+
+        if (send_msg) {
+            // 送信タイミングの場合のみ、補正前の値を保存
+            pre_correction_quat = _attitude_target;
+        }
+
+        // 目標姿勢に対して補正を適用する
+        _attitude_target = correction_quat * _attitude_target;
+        _attitude_target.normalize();
+
+        if (send_msg) {
+            // タイマーを更新
+            _last_correction_msg_ms = now;
+
+            // 補正前のクォータニオンを"PreQ"として送信
+            gcs().send_text(MAV_SEVERITY_INFO, "PreQ=%.4f,%.4f,%.4f,%.4f",
+                            pre_correction_quat.q1,
+                            pre_correction_quat.q2,
+                            pre_correction_quat.q3,
+                            pre_correction_quat.q4);
+            
+            // 補正後のクォータニオンを"PostQ"として送信
+            gcs().send_text(MAV_SEVERITY_INFO, "PostQ=%.4f,%.4f,%.4f,%.4f",
+                            _attitude_target.q1,
+                            _attitude_target.q2,
+                            _attitude_target.q3,
+                            _attitude_target.q4);
+        }
+    }
+    // ==================================================================
+
     // This represents a quaternion rotation in NED frame to the body
     Quaternion attitude_body;
     _ahrs.get_quat_body_to_ned(attitude_body);
@@ -1130,6 +1218,53 @@ void AC_AttitudeControl::reset_yaw_target_and_rate(bool reset_rate)
         euler_rate_to_ang_vel(_attitude_target, _euler_rate_target_rads, _ang_vel_target_rads);
     }
 }
+
+//　ここに補正しても意味ない
+// void AC_AttitudeControl::reset_yaw_target_and_rate(bool reset_rate)
+// {
+//     // 1) 現在の機体ヨー角との差分を適用して目標姿勢を更新
+//     float yaw_shift = _ahrs.yaw - _euler_angle_target_rad.z;
+//     Quaternion attitude_target_update;
+//     attitude_target_update.from_axis_angle(Vector3f{0.0f, 0.0f, yaw_shift});
+//     _attitude_target = attitude_target_update * _attitude_target;
+//     _attitude_target.normalize();
+
+//     // 2) AP_Observer から補正クォータニオンを取得し適用
+//     extern AP_Observer ap_observer;
+//     if (ap_observer.is_correction_valid()) {
+//         // 補正前を保存
+//         Quaternion before = _attitude_target;
+//         // 補正適用
+//         Quaternion correction = ap_observer.get_correction_quaternion();
+//         _attitude_target = correction * _attitude_target;
+//         _attitude_target.normalize();
+
+//         // 3) 1 Hz間隔で GCS に PreQ/PostQ を送信
+//         uint32_t now = AP_HAL::millis();
+//         if (now - _last_correction_msg_ms >= 1000) {
+//             _last_correction_msg_ms = now;
+//             // 補正前
+//             gcs().send_text(MAV_SEVERITY_INFO,
+//                 "PreQ=%.3f,%.3f,%.3f,%.3f",
+//                 before.q1, before.q2, before.q3, before.q4
+//             );
+//             // 補正後
+//             gcs().send_text(MAV_SEVERITY_INFO,
+//                 "PostQ=%.3f,%.3f,%.3f,%.3f",
+//                 _attitude_target.q1, _attitude_target.q2, _attitude_target.q3, _attitude_target.q4
+//             );
+//         }
+//     }
+
+//     // 4) レートリセット処理
+//     if (reset_rate) {
+//         // ヨーレートをゼロに
+//         _euler_rate_target_rads.z = 0.0f;
+//         // フィードフォワード用体軸角速度に変換
+//         euler_rate_to_ang_vel(_attitude_target, _euler_rate_target_rads, _ang_vel_target_rads);
+//     }
+// }
+
 
 // Shifts the target attitude to maintain the current error in the event of an EKF reset
 void AC_AttitudeControl::inertial_frame_reset()

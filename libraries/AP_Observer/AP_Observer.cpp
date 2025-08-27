@@ -9,7 +9,7 @@ const AP_Param::GroupInfo AP_Observer::var_info[] = {
     // @Param: CORR_GAIN
     // @DisplayName: Observer Correction Gain
     // @Description: Gain for attitude correction based on external force estimation
-    // @Range: 0.0 1.0
+    // @Range: 0.0 100
     // @Increment: 0.01
     // @User: Advanced
     AP_GROUPINFO("CORR_GAIN", 0, AP_Observer, _correction_gain, 0.3f),
@@ -43,28 +43,28 @@ void AP_Observer::update() const {
     current_correction_quat = calculate_correction_from_force(payload);
     last_update_ms          = AP_HAL::millis();
 
-    if ((++counter % 10) == 0) {
-        // EF出力
-        gcs().send_text(MAV_SEVERITY_INFO,
-            "EF=%.3f,%.3f,%.3f",
-            current_filtered_force.x,
-            current_filtered_force.y,
-            current_filtered_force.z
-        );
-        // Q出力
-        gcs().send_text(MAV_SEVERITY_INFO,
-            "Q=%.6f,%.6f,%.6f,%.6f",
-            current_correction_quat.q1,
-            current_correction_quat.q2,
-            current_correction_quat.q3,
-            current_correction_quat.q4
-        );
-        // 補正ゲイン出力
-        gcs().send_text(MAV_SEVERITY_INFO,
-            "Gain=%.2f",
-            _correction_gain.get()
-        );
-    }
+    // if ((++counter % 10) == 0) {
+    //     // EF出力
+    //     gcs().send_text(MAV_SEVERITY_INFO,
+    //         "EF=%.3f,%.3f,%.3f",
+    //         current_filtered_force.x,
+    //         current_filtered_force.y,
+    //         current_filtered_force.z
+    //     );
+    //     // Q出力
+    //     gcs().send_text(MAV_SEVERITY_INFO,
+    //         "Q=%.6f,%.6f,%.6f,%.6f",
+    //         current_correction_quat.q1,
+    //         current_correction_quat.q2,
+    //         current_correction_quat.q3,
+    //         current_correction_quat.q4
+    //     );
+    //     // 補正ゲイン出力
+    //     gcs().send_text(MAV_SEVERITY_INFO,
+    //         "Gain=%.2f",
+    //         _correction_gain.get()
+    //     );
+    // }
 }
 
 Quaternion AP_Observer::calculate_correction_from_force(const Vector3f& force) const {
@@ -78,8 +78,8 @@ Quaternion AP_Observer::calculate_correction_from_force(const Vector3f& force) c
     float roll  =  force.y * correction_gain / UAV_mass;
     float pitch =  force.x * correction_gain / UAV_mass;
 
-    roll  = constrain_float(roll,  -MAX_CORRECTION_ANGLE, MAX_CORRECTION_ANGLE);
-    pitch = constrain_float(pitch, -MAX_CORRECTION_ANGLE, MAX_CORRECTION_ANGLE);
+    roll = constrain_value(roll, -MAX_CORRECTION_ANGLE, MAX_CORRECTION_ANGLE);
+    pitch = constrain_value(pitch, -MAX_CORRECTION_ANGLE, MAX_CORRECTION_ANGLE);
 
     Quaternion q;
     q.from_euler(roll, pitch, 0.0f);

@@ -547,6 +547,9 @@ protected:
     // attitude used in the attitude controller.
     Quaternion          _attitude_target;
 
+    // 追加：補正前後クォータニオン送信のタイマー（ms）
+    mutable uint32_t    _last_correction_msg_ms = 0;
+
     // This represents the angular velocity of the target (setpoint) attitude used in
     // the attitude controller as an angular velocity vector, in radians per second in
     // the target attitude frame.

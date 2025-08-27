@@ -36,7 +36,7 @@ private:
 
     // その他の定数
     static constexpr float FORCE_THRESHOLD     = 0.2f;
-    static constexpr float MAX_CORRECTION_ANGLE = 0.5f;
+    static constexpr float MAX_CORRECTION_ANGLE = 1.0f;
     static constexpr float g                   = 9.7985f;
     static constexpr float THRUST_SCALE        = 6.3157f;
     static constexpr float THRUST_OFFSET       = -0.9995f;
