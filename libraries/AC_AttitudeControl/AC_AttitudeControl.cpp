@@ -927,12 +927,20 @@ void AC_AttitudeControl::update_attitude_target()
 // Calculates the body frame angular velocities to follow the target attitude
 void AC_AttitudeControl::attitude_controller_run_quat()
 {
-    // ==================================================================
-    // ★★★★★【最終デバッグテスト】★★★★★
-    gcs().send_text(MAV_SEVERITY_INFO, "ATTITUDE_CONTROLLER_IS_RUNNING");
-    // ==================================================================
+    // // ==================================================================
+    // // ★★★★★【最終デバッグテスト】★★★★★
+    // gcs().send_text(MAV_SEVERITY_INFO, "ATTITUDE_CONTROLLER_IS_RUNNING");
+    // // ==================================================================
 
     extern AP_Observer ap_observer;
+    
+    // if (ap_observer.is_correction_valid()) {
+    //     gcs().send_text(MAV_SEVERITY_INFO, "AP_OBSERVER_CORRECTION_IS_VALID");
+    // } else {
+    //     gcs().send_text(MAV_SEVERITY_INFO, "AP_OBSERVER_CORRECTION_IS_NOT_VALID");
+    // }
+
+
     if (ap_observer.is_correction_valid()) {
         // 補正用のクォータニオンを取得
         const Quaternion& correction_quat = ap_observer.get_correction_quaternion();
