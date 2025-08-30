@@ -933,7 +933,6 @@ void AC_AttitudeControl::attitude_controller_run_quat()
     // // ==================================================================
 
     extern AP_Observer ap_observer;
-    
     // if (ap_observer.is_correction_valid()) {
     //     gcs().send_text(MAV_SEVERITY_INFO, "AP_OBSERVER_CORRECTION_IS_VALID");
     // } else {
