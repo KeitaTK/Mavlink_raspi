@@ -110,7 +110,7 @@ params_to_set = {
     'ATC_RAT_YAW_I': 0.02,   # Yaw I
 
     # --- 吊荷制御のゲイン ---
-    'OBS_CORR_GAIN': 0,  # 吊荷補正ゲイン
+    'OBS_CORR_GAIN': -0.003,  # 吊荷補正ゲイン
 
     # --- IMUフィルタ（応答性向上） ---
     'INS_GYRO_FILTER': 20,   # ジャイロフィルタ（30→20、応答性向上）
