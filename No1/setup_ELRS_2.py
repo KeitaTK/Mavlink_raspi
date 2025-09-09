@@ -208,7 +208,11 @@ for param_name, param_value in params_to_set.items():
     
     # 確認メッセージを待機
     message = master.recv_match(type='PARAM_VALUE', blocking=True).to_dict()
-    print(f'パラメータ設定: {param_name} = {message["param_value"]}')
+    if param_name == 'OBS_CORR_GAIN':
+        # 赤色で強調表示
+        print(f'\033[91mパラメータ設定: {param_name} = {message["param_value"]}  # 吊荷補正ゲイン\033[0m')
+    else:
+        print(f'パラメータ設定: {param_name} = {message["param_value"]}')
     # time.sleep(0.1)
 
 time.sleep(5)
