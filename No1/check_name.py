@@ -26,7 +26,8 @@ def list_param_names(master):
             msg = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=1)
             if not msg:
                 continue
-            name = msg.param_id.decode('utf-8').rstrip('\x00')
+            # msg.param_id は既に文字列なのでそのまま扱う
+            name = msg.param_id.rstrip('\x00')
             print(name)
     except KeyboardInterrupt:
         print("パラメータ名取得を終了")
