@@ -111,7 +111,7 @@ params_to_set = {
 
     # --- 吊荷制御のゲイン ---
     'OBS_CORR_GAIN': 0.008,  # 吊荷補正ゲイン
-    'OBS_FILT_CUTOFF': 20,  # フィルタのカットオフ周波数
+    'OBS_FILT_CUTOFF': 30,  # フィルタのカットオフ周波数
 
     # --- IMUフィルタ（応答性向上） ---
     'INS_GYRO_FILTER': 20,   # ジャイロフィルタ（30→20、応答性向上）
