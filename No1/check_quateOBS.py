@@ -61,6 +61,10 @@ try:
                     print("-" * 50)
                 except Exception as e:
                     print(f"OBS_posパースエラー: {e}")
+            elif 'input_pos_NEU_cm called' in text:
+                current_time = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+                print(f"{current_time} : input_pos_NEU_cm called")
+                print("-" * 50)
 
 except Exception as e:
     print(f"エラー: {e}")
