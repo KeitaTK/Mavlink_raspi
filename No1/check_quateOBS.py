@@ -51,6 +51,16 @@ try:
                 current_time = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
                 print(f"{current_time} : Roll={roll_deg:.2f}°, Pitch={pitch_deg:.2f}°")
                 print("-" * 50)
+            elif text.startswith('OBS_pos='):
+                # テキストから座標をパース
+                try:
+                    parts = text.split('OBS_pos=')[-1].split(',')
+                    x, y, z = map(float, parts)
+                    current_time = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+                    print(f"{current_time} : X={x:.6f}, Y={y:.6f}, Z={z:.6f}")
+                    print("-" * 50)
+                except Exception as e:
+                    print(f"OBS_posパースエラー: {e}")
 
 except Exception as e:
     print(f"エラー: {e}")
