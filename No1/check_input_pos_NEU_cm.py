@@ -42,6 +42,15 @@ try:
                     print("-" * 50)
                 except Exception as e:
                     print(f"OBS_posパースエラー: {e}")
+            elif text.startswith('OBS_accel='):
+                try:
+                    parts = text.split('OBS_accel=')[-1].split(',')
+                    ax, ay, az = map(float, parts)
+                    current_time = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+                    print(f"{current_time} : OBS_accel X={ax:.6f}, Y={ay:.6f}, Z={az:.6f}")
+                    print("-" * 50)
+                except Exception as e:
+                    print(f"OBS_accelパースエラー: {e}")
 
 except Exception as e:
     print(f"エラー: {e}")
