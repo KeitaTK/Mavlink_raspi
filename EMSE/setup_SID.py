@@ -58,16 +58,18 @@ params_to_set = {
     # --- システムIDモード ---
     'SID_AXIS': 10,
 
-    # --- フライトモード切替チャンネル ---
-    'FLTMODE_CH': 5,     # Channel 5 をフライトモードスイッチに
 
-    # --- Channel5 の 6ポジション割り当て ---
-    'FLTMODE1': 5,       # ポジション1 = Loiter
-    'FLTMODE2': 16,      # ポジション2 = Guided
-    'FLTMODE3': 25,      # ポジション3 = SystemID
-    'FLTMODE4': 0,       # ポジション4 = Stabilize (フォールバック)
-    'FLTMODE5': 0,       # ポジション5 = Stabilize (フォールバック)
-    'FLTMODE6': 0,       # ポジション6 = Stabilize (フォールバック)
+    # フライトモード切替チャンネル
+    'FLTMODE_CH': 5,    
+
+    # Channel5 のPWMレンジとポジション割り当て
+    'FLTMODE1': 5,    # ≤1230 → Loiter
+    'FLTMODE2': 16,   # 1230–1360 → Guided
+    'FLTMODE3': 25,   # 1360–1490 → SystemID
+    'FLTMODE4': 0,    # 1490–1620 → Stabilize
+    'FLTMODE5': 0,    # 1620–1750 → Stabilize
+    'FLTMODE6': 0,    # 1750–2000 → Stabilize
+
 
     # --- その他の設定はそのまま保持 ---
     'WPNAV_SPEED_UP': 40,
