@@ -148,7 +148,7 @@ params_to_set = {
     'GUID_OPTIONS': 0,
 
     # --- System Identification（システムID）設定 ---
-    'RC7_OPTION': 84,     # RC7を System Identification モード切替スイッチに割り当て
+    'SCR_ENABLE': 1,     # System Identification 有効化
     'SID_AXIS': 10,       # （例）Roll角を入力に加える。必要に応じて変更
     'SID_F_START_HZ': 0.05,
     'SID_F_STOP_HZ': 8.0,
