@@ -18,130 +18,157 @@ params_to_set = {
     'AHRS_EKF_TYPE': 3.0,
     'EK3_ENABLE': 1.0,
     'EK3_IMU_MASK': 3,
-    # --- ハイブリッド設定 ---
-    'EK3_SRC1_POSXY': 3,
-    'EK3_SRC1_VELXY': 3,
-    'EK3_SRC1_POSZ': 3,
-    'EK3_SRC1_VELZ': 3,
-    'EK3_SRC1_YAW': 3,
-    # --- EKF3精度設定 ---
-    'EK3_GPS_CHECK': 1,
-    'EK3_POS_I_GATE': 8.0,
-    'EK3_VEL_I_GATE': 8.0,
-    'EK3_HGT_I_GATE': 10.0,
-    # --- ノイズ調整 ---
-    'EK3_POSNE_M_NSE': 0.2,
-    'EK3_VELNE_M_NSE': 0.3,
-    'EK3_VELD_M_NSE': 0.5,
-    'EK3_YAW_M_NSE': 0.2,
-    # --- センサーノイズ ---
-    'EK3_ALT_M_NSE': 10.0,
-    'EK3_GYRO_P_NSE': 0.02,
-    # --- コンパス設定 ---
-    'COMPASS_ENABLE': 1,
-    'COMPASS_USE': 1.0,
-    'COMPASS_USE2': 0.0,
-    'COMPASS_USE3': 0.0,
-    'COMPASS_AUTODEC': 1,
-    'COMPASS_LEARN': 1,
-    # --- ハイブリッド設定（重要） ---
-    'EK3_MAG_CAL': 3,
-    'EK3_SRC_OPTIONS': 1,
-    # --- EKF安定化 ---
-    'EK3_GLITCH_RAD': 5,
-    'EK3_CHECK_SCALE': 100,
-    'EK3_PRIMARY': -1,
+    
+    # --- ハイブリッド設定：GPS位置+コンパスヨー角（GPS補助）、速度はIMU推定 ---
+    'EK3_SRC1_POSXY': 3,     # GPS (水平位置)
+    'EK3_SRC1_VELXY': 3,     # None (水平速度をGPSから推定)
+    'EK3_SRC1_POSZ': 3,      # GPS (垂直位置)
+    'EK3_SRC1_VELZ': 3,      # None (垂直速度をGPSから推定)
+    'EK3_SRC1_YAW': 3,       # GPS with compass fallback（ハイブリッド）[1]
+    
+    # --- EKF3精度設定（適正化） ---
+    'EK3_GPS_CHECK': 1,      # GPS健全性チェック
+    'EK3_POS_I_GATE': 8.0,  # 位置ゲート(デフォルト5)
+    'EK3_VEL_I_GATE': 8.0,   # 速度ゲート（IMU推定精度向上）
+    'EK3_HGT_I_GATE': 10.0,  # 高度ゲート
+    
+    # --- ノイズパラメータ（ハイブリッド用調整） --- これを小さくするとGPS情報をより信用
+    'EK3_POSNE_M_NSE': 0.2,  # 水平位置ノイズ:
+    'EK3_VELNE_M_NSE': 0.3,  # 水平速度ノイズ: 50cm/s
+    'EK3_VELD_M_NSE': 0.5,   # 垂直速度ノイズ: 50cm/s
+    'EK3_YAW_M_NSE': 0.2,    # ヨー角ノイズ（ハイブリッド用に緩和）
+    
+    # --- センサーノイズ調整 ---
+    'EK3_ALT_M_NSE': 10.0,   # 気圧センサーノイズ
+    'EK3_GYRO_P_NSE': 0.02,  # ジャイロプロセスノイズ
+    
+    # --- コンパス設定（ハイブリッド用有効化） ---
+    'COMPASS_ENABLE': 1,     # コンパス有効化[1]
+    'COMPASS_USE': 1.0,      # 内蔵コンパス使用[1]
+    'COMPASS_USE2': 0.0,     # 外付コンパス2無効
+    'COMPASS_USE3': 0.0,     # 外付コンパス3無効
+    'COMPASS_AUTODEC': 1,    # 自動磁気偏角有効[1]
+    'COMPASS_LEARN': 1,      # コンパス学習有効[1]
+    
+    # --- ハイブリッド設定（重要）[4] ---
+    'EK3_MAG_CAL': 3,        # 地上でheading fusion、空中で3-axis fusion[4]
+    'EK3_SRC_OPTIONS': 1,    # Fuse all velocity sources[1]
+    
+    # --- EKF安定化設定（適正化） ---
+    'EK3_GLITCH_RAD': 5,    # GPS Glitch検出半径緩和
+    'EK3_CHECK_SCALE': 100,  # EKFチェックスケール（200→100に適正化）
+    'EK3_PRIMARY': -1, # 自動切り替え無効
+    
     # --- GPS設定 ---
-    'GPS1_TYPE': 14,
-    'GPS_AUTO_CONFIG': 0,
+    'GPS1_TYPE': 14,         # MAVLink GPS Input
+    'GPS_AUTO_CONFIG': 0,    # 自動設定無効
     'GPS_PRIMARY': 0,
-    # --- システムIDモード ---
-    'SID_AXIS': 10,
+    
+    # --- Guidedモード設定 ---
+    'WPNAV_SPEED_UP': 40,    # 上昇速度: m/s
+    'WPNAV_SPEED_DN': 30,   # 下降速度:  m/s
+    'WPNAV_ACCEL_Z': 70,     # 加速度: m/s^2
+    'WPNAV_SPEED': 500,     # 水平速度:  m/s
+    'WPNAV_ACCEL': 500,     # 水平加速度: m/s^2
+    'WPNAV_RADIUS': 5,      # 到達半径: cm
 
-
-    # フライトモード切替チャンネル
-    'FLTMODE_CH': 5,    
-
-    # Channel5 のPWMレンジとポジション割り当て
-    'FLTMODE1': 5,    # ≤1230 → Loiter
-    'FLTMODE2': 16,   # 1230–1360 → Guided
-    'FLTMODE3': 25,   # 1360–1490 → SystemID
-    'FLTMODE4': 0,    # 1490–1620 → Stabilize
-    'FLTMODE5': 0,    # 1620–1750 → Stabilize
-    'FLTMODE6': 0,    # 1750–2000 → Stabilize
-
-
-    # --- その他の設定はそのまま保持 ---
-    'WPNAV_SPEED_UP': 40,
-    'WPNAV_SPEED_DN': 30,
-    'WPNAV_ACCEL_Z': 70,
-    'WPNAV_SPEED': 500,
-    'WPNAV_ACCEL': 500,
-    'WPNAV_RADIUS': 5,
+    # --- Loiterモード設定 ---
     'LOIT_SPEED': 50,
     'LOIT_ACC_MAX': 50,
     'LOIT_BRK_ACCEL': 50,
     'LOIT_BRK_DELAY': 0.3,
     'LOIT_BRK_JERK': 300,
     'LOIT_ANG_MAX': 10,
-    'PILOT_SPEED_UP': 250,
-    'PILOT_SPEED_DN': 150,
-    'PILOT_ACCEL_Z': 250,
-    'PSC_POSZ_P': 1,
-    'PSC_VELZ_P': 4.0,
-    'PSC_VELZ_I': 8.0,
-    'PSC_VELZ_D': 0.01,
-    'PSC_ACCZ_P': 0.3,
-    'PSC_ACCZ_I': 1.0,
-    'PSC_POSXY_P': 5.0,
-    'PSC_VELXY_P': 3,
-    'PSC_VELXY_I': 2.5,
-    'PSC_VELXY_D': 0.5,
-    'ATC_ANG_RLL_P': 4.5,
-    'ATC_ANG_PIT_P': 4.5,
-    'ATC_ANG_YAW_P': 4.5,
-    'ATC_RAT_RLL_P': 0.04,
-    'ATC_RAT_RLL_I': 0.0,
-    'ATC_RAT_RLL_D': 0.0012,
-    'ATC_RAT_RLL_FF': 0.0,
-    'ATC_RAT_PIT_P': 0.05,
-    'ATC_RAT_PIT_I': 0.0,
-    'ATC_RAT_PIT_D': 0.0012,
-    'ATC_RAT_PIT_FF': 0.0,
-    'ATC_RAT_YAW_P': 0.2,
-    'ATC_RAT_YAW_I': 0.0,
-    'ATC_RAT_YAW_FF': 0.0,
-    'INS_GYRO_FILTER': 20,
-    'INS_ACCEL_FILTER': 20,
-    'FS_EKF_ACTION': 2,
-    'FS_EKF_THRESH': 0.8,
-    'FS_THR_ENABLE': 3,
-    'FS_THR_VALUE': 975,
-    'FS_OPTIONS': 0,
-    'FS_CRASH_CHECK': 0,
-    'FS_VIBE_ENABLE': 0,
-    'FS_DR_ENABLE': 0,
-    'RTL_ALT': 50,
+    
+    # --- パイロット制御速度 ---
+    'PILOT_SPEED_UP': 250,   # パイロット上昇: 2.5m/s
+    'PILOT_SPEED_DN': 150,   # パイロット下降: 1.5m/s
+    'PILOT_ACCEL_Z': 250,    # パイロット加速度: 2.5m/s²
+    
+    # --- 垂直制御PID ---
+    'PSC_POSZ_P': 1,       # 高度位置制御P
+    'PSC_VELZ_P': 4.0,       # 垂直速度制御P
+    'PSC_VELZ_I': 8.0,       # 垂直速度制御I
+    'PSC_VELZ_D': 0.01,      # 垂直速度制御D
+    'PSC_ACCZ_P': 0.3,       # 垂直加速度制御P
+    'PSC_ACCZ_I': 1.0,       # 垂直加速度制御I
+    
+    # --- 水平制御PID ---
+    'PSC_POSXY_P': 5.0,      # 水平位置制御P
+    'PSC_VELXY_P': 3,      # 水平速度制御P
+    'PSC_VELXY_I': 2.5,      # 水平速度制御I
+    'PSC_VELXY_D': 0.5,      # 水平速度制御D  増やせるかも
+    
+    # --- 姿勢制御PID ---
+    'ATC_RAT_RLL_P': 0.04,  # Roll P
+    'ATC_RAT_RLL_I': 0.05,  # Roll I
+    'ATC_RAT_RLL_D': 0.0012, # Roll D
+    'ATC_RAT_PIT_P': 0.05,  # Pitch P
+    'ATC_RAT_PIT_I': 0.05,  # Pitch I
+    'ATC_RAT_PIT_D': 0.0012, # Pitch D
+    'ATC_RAT_YAW_P': 0.2,    # Yaw P
+    'ATC_RAT_YAW_I': 0.02,   # Yaw I
+
+    # --- 吊荷制御のゲイン ---
+    # 'OBS_CORR_GAIN': 0.004,  # 吊荷補正ゲイン(角度補正の強さ) ～0.01まで
+    'OBS_CORR_GAIN': 0.01,  # 吊荷補正ゲイン(位置補正の強さ)
+    'OBS_FILT_CUTOFF': 20,  # フィルタのカットオフ周波数
+
+    # --- IMUフィルタ（応答性向上） ---
+    'INS_GYRO_FILTER': 20,   # ジャイロフィルタ（30→20、応答性向上）
+    'INS_ACCEL_FILTER': 20,  # 加速度フィルタ（30→20、応答性向上）
+    
+    # --- フェイルセーフ設定（適正化） ---
+    'FS_EKF_ACTION': 2,      # EKF失敗時Stabilizeモード
+    'FS_EKF_THRESH': 0.8,    # EKF信頼度閾値（1.0→0.8に適正化）
+    'FS_THR_ENABLE': 3,      # 送信機喪失時着陸
+    'FS_THR_VALUE': 975,     # 失効検出値
+    'FS_OPTIONS': 0,         # フェイルセーフオプション緩和
+    'FS_CRASH_CHECK': 0,     # クラッシュ検出無効化
+    'FS_VIBE_ENABLE': 0,     # 振動検出無効化
+    'FS_DR_ENABLE': 0,       # Dead Reckoning無効化
+    'RTL_ALT': 50,          # RTL高度: 50cm
+    
+    # --- シリアル設定 ---
     'SERIAL1_PROTOCOL': 2,
     'SERIAL1_BAUD': 1000000,
-    'BRD_SER1_RTSCTS': 2,
-    'SERIAL2_PROTOCOL': 23,
-    'RC10_OPTION': 56,  # Guided 用 AUX10 設定
-    'RC11_OPTION': 55,  # Loiter 用 AUX11 設定
+    'BRD_SER1_RTSCTS': 2,    # ハードウェアフロー制御有効
+    'SERIAL2_PROTOCOL': 23,  # ELRSレシーバー
+    
+    # --- RC設定 ---
+    'RC10_OPTION': 56,
+    'RC11_OPTION': 55,
     'THR_DZ': 200,
     'RC_OPTIONS': 10336,
-    'RSSI_TYPE': 3,
-    'RC9_OPTION': 153,
+    'RSSI_TYPE': 3,  # ELRSレシーバー
+    'RC9_OPTION': 153,  # ELRSレシーバー
+    
+    # --- GUIDEDモード設定 ---
     'GUID_TIMEOUT': 3,
     'GUID_OPTIONS': 0,
-    'LOG_DISARMED': 0,
-    'LOG_FILE_DSRMROT': 1,
-    'LOG_FILE_TIMEOUT': 5,
-    'LOG_BACKEND_TYPE': 1,
-    'LOG_BITMASK': 176126,
-    'MOT_THST_HOVER': 0.223,
-    'MOT_THST_EXPO': 0,
-    'MOT_HOVER_LEARN': 0,
+
+    # --- System Identification（システムID）設定 ---
+    'RC5_OPTION': 92,     # RC5を System Identification モード切替スイッチに割り当て
+    'SID_AXIS': 10,       # （例）Roll角を入力に加える。必要に応じて変更
+    'SID_F_START_HZ': 0.05,
+    'SID_F_STOP_HZ': 8.0,
+    'SID_MAGNITUDE': 15,
+    'SID_T_FADE_IN': 5,
+    'SID_T_FADE_OUT': 5,
+    'SID_T_REC': 130,
+
+    # --- ログ制御設定（アーム時のみ記録、ファイルローテーション） ---
+    'LOG_DISARMED': 0,        # 非アーム時はログを記録しない
+    'LOG_FILE_DSRMROT': 1,    # ディスアーム時にログファイルをローテーション
+    'LOG_FILE_TIMEOUT': 5,    # ログファイルのタイムアウト（秒）
+    'LOG_BACKEND_TYPE': 1,    # デフォルトのログバックエンド（ファイル）
+
+    # # 推力推定に必要な設定
+    'MOT_THST_HOVER': 0.223,    # ホバリングスロットル比
+    'MOT_THST_EXPO': 0,      # 推力曲線指数
+    'MOT_HOVER_LEARN': 0,       # ホバリング学習（0:無効）
+
+    # --- モーター・安全設定 ---
     'SERVO1_FUNCTION': 0,
     'SERVO2_FUNCTION': 0,
     'SERVO3_FUNCTION': 0,
@@ -154,6 +181,7 @@ params_to_set = {
     'SERVO_DSHOT_ESC': 2,
     'SERVO_BLH_MASK': 3840,
     'SERVO_BLH_AUTO': 1,
+    
     'BRD_SAFETY_DEFLT': 0,
     'BRD_SAFETYOPTION': 0,
     'ARMING_CHECK': 80,
@@ -161,6 +189,8 @@ params_to_set = {
     'DISARM_DELAY': 0,
     'MOT_SPIN_ARM': 0.02,
     'MOT_SPIN_MIN': 0.02,
+    
+    # --- バッテリー設定 ---
     'BATT_MONITOR': 3,
     'BATT_ARM_VOLT': 16.0,
     'BATT_CRT_VOLT': 14.0,
@@ -172,7 +202,6 @@ params_to_set = {
     'MOT_BAT_VOLT_MAX': 21.0,
     'MOT_BAT_VOLT_MIN': 13.5,
 }
-
 
 
 # パラメータを設定
