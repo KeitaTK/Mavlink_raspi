@@ -149,8 +149,6 @@ params_to_set = {
 
     # --- System Identification（システムID）設定 ---
     'SCR_ENABLE': 1,     # System Identification 有効化
-    'SCR_SAFETY':      0,    # アーム前でもスクリプト実行可
-    'SCR_SHUTDOWN':    0,    # 通信切断後もスクリプト継続実行
     'SID_AXIS': 10,       # （例）Roll角を入力に加える。必要に応じて変更
     'SID_F_START_HZ': 0.05,
     'SID_F_STOP_HZ': 8.0,
