@@ -14,35 +14,29 @@ master.wait_heartbeat()
 print(f"接続完了 (システム: {master.target_system}, コンポーネント: {master.target_component})")
 
 params_to_set = {
-    
     # --- EKF3基本設定 ---
     'AHRS_EKF_TYPE': 3.0,
     'EK3_ENABLE': 1.0,
     'EK3_IMU_MASK': 3,
-    
     # --- ハイブリッド設定：GPS位置+コンパスヨー角（GPS補助）、速度はIMU推定 ---
     'EK3_SRC1_POSXY': 3,
     'EK3_SRC1_VELXY': 3,
     'EK3_SRC1_POSZ': 3,
     'EK3_SRC1_VELZ': 3,
     'EK3_SRC1_YAW': 3,
-    
     # --- EKF3精度設定（適正化） ---
     'EK3_GPS_CHECK': 1,
     'EK3_POS_I_GATE': 8.0,
     'EK3_VEL_I_GATE': 8.0,
     'EK3_HGT_I_GATE': 10.0,
-    
     # --- ノイズパラメータ（ハイブリッド用調整） ---
     'EK3_POSNE_M_NSE': 0.2,
     'EK3_VELNE_M_NSE': 0.3,
     'EK3_VELD_M_NSE': 0.5,
     'EK3_YAW_M_NSE': 0.2,
-    
     # --- センサーノイズ調整 ---
     'EK3_ALT_M_NSE': 10.0,
     'EK3_GYRO_P_NSE': 0.02,
-    
     # --- コンパス設定（ハイブリッド用有効化） ---
     'COMPASS_ENABLE': 1,
     'COMPASS_USE': 1.0,
@@ -50,33 +44,26 @@ params_to_set = {
     'COMPASS_USE3': 0.0,
     'COMPASS_AUTODEC': 1,
     'COMPASS_LEARN': 1,
-    
     # --- ハイブリッド設定（重要） ---
     'EK3_MAG_CAL': 3,
     'EK3_SRC_OPTIONS': 1,
-    
     # --- EKF安定化設定（適正化） ---
     'EK3_GLITCH_RAD': 5,
     'EK3_CHECK_SCALE': 100,
     'EK3_PRIMARY': -1,
-    
     # --- GPS設定 ---
     'GPS1_TYPE': 14,
     'GPS_AUTO_CONFIG': 0,
     'GPS_PRIMARY': 0,
-    
     # --- システムID（System Identification）モード設定 ---
     'SID_AXIS': 10,
-    
-    # --- フライトモード設定（SystemIDを7番目のみ登録） ---
-    'FLTMODE1': 0,
-    'FLTMODE2': 2,
-    'FLTMODE3': 5,
-    'FLTMODE4': 6,
-    'FLTMODE5': 9,
-    'FLTMODE6': 4,
-    'FLTMODE7': 26,   # SystemID
-    
+    # --- フライトモード設定（SystemIDを5番目に登録） ---
+    'FLTMODE1': 0,    # Stabilize
+    'FLTMODE2': 2,    # AltHold
+    'FLTMODE3': 5,    # Loiter
+    'FLTMODE4': 6,    # RTL
+    'FLTMODE5': 25,   # SystemID (モード番号25)
+    'FLTMODE6': 9,    # Land
     # --- Guidedモード設定 ---
     'WPNAV_SPEED_UP': 40,
     'WPNAV_SPEED_DN': 30,
@@ -84,7 +71,6 @@ params_to_set = {
     'WPNAV_SPEED': 500,
     'WPNAV_ACCEL': 500,
     'WPNAV_RADIUS': 5,
-    
     # --- Loiterモード設定 ---
     'LOIT_SPEED': 50,
     'LOIT_ACC_MAX': 50,
@@ -92,12 +78,10 @@ params_to_set = {
     'LOIT_BRK_DELAY': 0.3,
     'LOIT_BRK_JERK': 300,
     'LOIT_ANG_MAX': 10,
-    
     # --- パイロット制御速度 ---
     'PILOT_SPEED_UP': 250,
     'PILOT_SPEED_DN': 150,
     'PILOT_ACCEL_Z': 250,
-    
     # --- 垂直制御PID ---
     'PSC_POSZ_P': 1,
     'PSC_VELZ_P': 4.0,
@@ -105,13 +89,11 @@ params_to_set = {
     'PSC_VELZ_D': 0.01,
     'PSC_ACCZ_P': 0.3,
     'PSC_ACCZ_I': 1.0,
-    
     # --- 水平制御PID ---
     'PSC_POSXY_P': 5.0,
     'PSC_VELXY_P': 3,
     'PSC_VELXY_I': 2.5,
     'PSC_VELXY_D': 0.5,
-    
     # --- 姿勢制御PID（システムID用に調整） ---
     'ATC_ANG_RLL_P': 4.5,
     'ATC_ANG_PIT_P': 4.5,
@@ -127,11 +109,9 @@ params_to_set = {
     'ATC_RAT_YAW_P': 0.2,
     'ATC_RAT_YAW_I': 0.0,
     'ATC_RAT_YAW_FF': 0.0,
-    
     # --- IMUフィルタ（応答性向上） ---
     'INS_GYRO_FILTER': 20,
     'INS_ACCEL_FILTER': 20,
-    
     # --- フェイルセーフ設定（適正化） ---
     'FS_EKF_ACTION': 2,
     'FS_EKF_THRESH': 0.8,
@@ -142,38 +122,32 @@ params_to_set = {
     'FS_VIBE_ENABLE': 0,
     'FS_DR_ENABLE': 0,
     'RTL_ALT': 50,
-    
     # --- シリアル設定 ---
     'SERIAL1_PROTOCOL': 2,
     'SERIAL1_BAUD': 1000000,
     'BRD_SER1_RTSCTS': 2,
     'SERIAL2_PROTOCOL': 23,
-    
     # --- RC設定 ---
-    'RC10_OPTION': 56,   # Guided
-    'RC11_OPTION': 55,   # Loiter
-    'RC12_OPTION': 57,   # SystemID on 7th switch
+    'RC10_OPTION': 56,  # Guided
+    'RC11_OPTION': 55,  # Loiter
+    'RC12_OPTION': 57,  # (AUX7 用、必要に応じて)
     'THR_DZ': 200,
     'RC_OPTIONS': 10336,
     'RSSI_TYPE': 3,
     'RC9_OPTION': 153,
-    
     # --- GUIDEDモード設定 ---
     'GUID_TIMEOUT': 3,
     'GUID_OPTIONS': 0,
-    
     # --- ログ制御設定（システムID用強化） ---
     'LOG_DISARMED': 0,
     'LOG_FILE_DSRMROT': 1,
     'LOG_FILE_TIMEOUT': 5,
     'LOG_BACKEND_TYPE': 1,
     'LOG_BITMASK': 176126,
-    
     # 推力推定に必要な設定
     'MOT_THST_HOVER': 0.223,
     'MOT_THST_EXPO': 0,
     'MOT_HOVER_LEARN': 0,
-    
     # --- モーター・安全設定 ---
     'SERVO1_FUNCTION': 0,
     'SERVO2_FUNCTION': 0,
@@ -194,7 +168,6 @@ params_to_set = {
     'DISARM_DELAY': 0,
     'MOT_SPIN_ARM': 0.02,
     'MOT_SPIN_MIN': 0.02,
-    
     # --- バッテリー設定 ---
     'BATT_MONITOR': 3,
     'BATT_ARM_VOLT': 16.0,
