@@ -101,13 +101,13 @@ params_to_set = {
     
     # --- 姿勢制御PID ---
     'ATC_RAT_RLL_P': 0.04,  # Roll P
-    'ATC_RAT_RLL_I': 0.05,  # Roll I
+    'ATC_RAT_RLL_I': 0,  # Roll I
     'ATC_RAT_RLL_D': 0.0012, # Roll D
     'ATC_RAT_PIT_P': 0.05,  # Pitch P
-    'ATC_RAT_PIT_I': 0.05,  # Pitch I
+    'ATC_RAT_PIT_I': 0,  # Pitch I
     'ATC_RAT_PIT_D': 0.0012, # Pitch D
     'ATC_RAT_YAW_P': 0.2,    # Yaw P
-    'ATC_RAT_YAW_I': 0.02,   # Yaw I
+    'ATC_RAT_YAW_I': 0,   # Yaw I
 
     # # --- 吊荷制御のゲイン ---
     # # 'OBS_CORR_GAIN': 0.004,  # 吊荷補正ゲイン(角度補正の強さ) ～0.01まで
@@ -147,15 +147,14 @@ params_to_set = {
     'GUID_TIMEOUT': 3,
     'GUID_OPTIONS': 0,
 
-    # --- System Identification（システムID）設定 ---
-    'SCR_ENABLE': 1,     # System Identification 有効化
-    'SID_AXIS': 10,       # （例）Roll角を入力に加える。必要に応じて変更
-    'SID_F_START_HZ': 0.05,
-    'SID_F_STOP_HZ': 8.0,
-    'SID_MAGNITUDE': 15,
-    'SID_T_FADE_IN': 5,
-    'SID_T_FADE_OUT': 5,
-    'SID_T_REC': 130,
+    # --- System Identification Mode 設定（追加）---
+    'SID_AXIS':       10,     # Mixer Roll 出力にチャープ注入（必須：0以外）
+    'SID_MAGNITUDE':  0.15,   # チャープ信号振幅（推奨0.15）
+    'SID_F_START_HZ': 0.05,   # チャープ開始周波数（推奨0.05Hz）
+    'SID_F_STOP_HZ':  5.0,    # チャープ終了周波数（推奨5Hz）
+    'SID_T_FADE_IN':  5,      # フェードイン時間（推奨5秒）
+    'SID_T_REC':      130,    # 記録時間（推奨130秒）
+    'SID_T_FADE_OUT': 5,      # フェードアウト時間（推奨5秒）
 
     # --- ログ制御設定（アーム時のみ記録、ファイルローテーション） ---
     'LOG_DISARMED': 0,        # 非アーム時はログを記録しない
@@ -200,7 +199,7 @@ params_to_set = {
     'BATT_CRT_MAH': 0,
     'BATT_LOW_MAH': 0,
     'MOT_BAT_VOLT_MAX': 21.0,
-    'MOT_BAT_VOLT_MIN': 13.5,
+    'MOT_BAT_VOLT_MIN': 13.5,    
 }
 
 
