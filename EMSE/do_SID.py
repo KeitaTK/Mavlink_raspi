@@ -4,14 +4,10 @@ from pymavlink import mavutil
 import time
 
 # --- 設定項目 ---
-# 使用するシリアルポートに合わせて変更してください
-# Raspberry Pi 3/4/5: '/dev/serial0' or '/dev/ttyAMA0'
-# USB接続: '/dev/ttyACM0' など
 CONNECTION_STRING = '/dev/ttyAMA0'
 BAUD_RATE = 1000000
 
 # ArduCopterのフライトモード番号
-# https://ardupilot.org/copter/docs/parameters.html#fltmode1
 STABILIZE_MODE = 0
 SYSTEM_ID_MODE = 25
 
@@ -37,60 +33,61 @@ def main():
         master.close()
         return
 
-    # モード変更が完了したかどうかのフラグ
-    mode_change_requested = False
-    
-    # 最後に表示したモードIDを保持する変数
-    last_printed_mode = -1
-
-    print("--- Stabilizeモードで飛行を開始してください ---")
-    print("スクリプトは現在のモードを常時監視します。")
+    print("--- Mode change script started ---")
+    print("Waiting for Stabilize mode...")
 
     try:
+        # まずはStabilizeモードになるまで待機
         while True:
-            # Heartbeatメッセージを受信して現在のモードを確認
             msg = master.recv_match(type='HEARTBEAT', blocking=True, timeout=5)
             if not msg:
                 print("No heartbeat received for 5 seconds. Checking connection...")
-                continue # ループを継続
+                continue
+            
+            if msg.custom_mode == STABILIZE_MODE:
+                print("\n✅ Stabilize mode detected.")
+                break # Stabilizeモードを検出したらループを抜ける
+            
+            time.sleep(1)
+
+        # ユーザーにEnterキーの入力を促す
+        input("Press Enter to request switch to System ID mode...")
+
+        # モード変更コマンドを送信
+        print("Requesting switch to System ID mode...")
+        master.mav.command_long_send(
+            master.target_system,
+            master.target_component,
+            mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+            0,  # confirmation
+            mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+            SYSTEM_ID_MODE,
+            0, 0, 0, 0, 0  # unused params
+        )
+
+        # コマンドに対する応答(COMMAND_ACK)を待つ
+        ack = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+        if not ack:
+            print("Error: No COMMAND_ACK received.")
+        elif ack.command == mavutil.mavlink.MAV_CMD_DO_SET_MODE and ack.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
+            print("Success: Flight controller accepted the mode change command.")
+        else:
+            print(f"Error: Mode change command was rejected. Result code: {ack.result}")
+        
+        # モード監視ループを開始
+        print("\n--- Now monitoring flight mode (Ctrl+C to exit) ---")
+        last_printed_mode = -1
+        while True:
+            msg = master.recv_match(type='HEARTBEAT', blocking=True, timeout=5)
+            if not msg:
+                print("No heartbeat...")
+                continue
             
             current_mode = msg.custom_mode
-            
-            # モードIDが変化した時だけ表示する
             if current_mode != last_printed_mode:
                 print(f"Current Mode ID: {current_mode}")
                 last_printed_mode = current_mode
-
-            # まだモード変更をリクエストしておらず、現在のモードがStabilizeの場合
-            if not mode_change_requested and current_mode == STABILIZE_MODE:
-                print("Stabilize mode detected. Requesting switch to System ID mode...")
-                
-                # モード変更コマンドを送信
-                master.mav.command_long_send(
-                    master.target_system,
-                    master.target_component,
-                    mavutil.mavlink.MAV_CMD_DO_SET_MODE,
-                    0,  # confirmation
-                    mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
-                    SYSTEM_ID_MODE,
-                    0, 0, 0, 0, 0  # unused params
-                )
-                
-                # コマンドに対する応答(COMMAND_ACK)を待つ
-                ack = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
-                
-                if not ack:
-                    print("Error: No COMMAND_ACK received from flight controller.")
-                elif ack.command == mavutil.mavlink.MAV_CMD_DO_SET_MODE and ack.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
-                    print("Success: Flight controller accepted the mode change command.")
-                    print("Waiting for mode to be confirmed via Heartbeat...")
-                else:
-                    print(f"Error: Mode change command was rejected. Result code: {ack.result}")
-                
-                # コマンドを再送しないようにフラグを立てる
-                mode_change_requested = True
-
-            # 監視ループの遅延
+            
             time.sleep(0.5)
 
     except KeyboardInterrupt:
