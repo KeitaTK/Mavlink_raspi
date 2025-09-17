@@ -148,7 +148,7 @@ params_to_set = {
     'GUID_OPTIONS': 0,
 
     # --- System Identification Mode 設定（追加）---
-    'SID_AXIS':       10,     # Mixer Roll 出力にチャープ注入（必須：0以外）
+    'SID_AXIS':       1,     # Mixer Roll 出力にチャープ注入（必須：0以外）
     'SID_MAGNITUDE':  0.15,   # チャープ信号振幅（推奨0.15）
     'SID_F_START_HZ': 0.05,   # チャープ開始周波数（推奨0.05Hz）
     'SID_F_STOP_HZ':  5.0,    # チャープ終了周波数（推奨5Hz）

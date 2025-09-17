@@ -39,20 +39,27 @@ def main():
 
     # モード変更が完了したかどうかのフラグ
     mode_change_requested = False
+    
+    # 最後に表示したモードIDを保持する変数
+    last_printed_mode = -1
 
     print("--- Stabilizeモードで飛行を開始してください ---")
-    print("スクリプトは現在のモードを監視し、System IDへの切り替えを試みます。")
+    print("スクリプトは現在のモードを常時監視します。")
 
     try:
         while True:
             # Heartbeatメッセージを受信して現在のモードを確認
-            msg = master.recv_match(type='HEARTBEAT', blocking=True, timeout=3)
+            msg = master.recv_match(type='HEARTBEAT', blocking=True, timeout=5)
             if not msg:
-                print("No heartbeat received for 3 seconds. Exiting.")
-                break
+                print("No heartbeat received for 5 seconds. Checking connection...")
+                continue # ループを継続
             
             current_mode = msg.custom_mode
-            print(f"Current Mode ID: {current_mode}")
+            
+            # モードIDが変化した時だけ表示する
+            if current_mode != last_printed_mode:
+                print(f"Current Mode ID: {current_mode}")
+                last_printed_mode = current_mode
 
             # まだモード変更をリクエストしておらず、現在のモードがStabilizeの場合
             if not mode_change_requested and current_mode == STABILIZE_MODE:
@@ -83,15 +90,11 @@ def main():
                 # コマンドを再送しないようにフラグを立てる
                 mode_change_requested = True
 
-            # モードがSystem IDに切り替わったら、プログラムを終了
-            if current_mode == SYSTEM_ID_MODE:
-                print("Mode successfully changed to System ID. Exiting script.")
-                break
-
-            time.sleep(1) # 1秒ごとにモードをチェック
+            # 監視ループの遅延
+            time.sleep(0.5)
 
     except KeyboardInterrupt:
-        print("Script terminated by user.")
+        print("\nScript terminated by user (Ctrl+C).")
     except Exception as e:
         print(f"An error occurred: {e}")
     finally:
