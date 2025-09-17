@@ -147,14 +147,14 @@ params_to_set = {
     'GUID_TIMEOUT': 3,
     'GUID_OPTIONS': 0,
 
-    # --- System Identification Mode 設定（追加）---
-    'SID_AXIS':      1,     # ロールレートコントローラーにチャープ注入
-    'SID_MAGNITUDE': 20,    # チャープ信号振幅 (まずは20 deg/s から。揺れが大きすぎ/小さすぎたら5～15の範囲で調整)
-    'SID_F_START':   1.0,   # チャープ開始周波数 (1Hzで十分)
-    'SID_F_STOP':    40.0,  # チャープ終了周波数 (5インチ機なら最低でも40Hzは欲しい)
-    'SID_T_FADE_IN': 3,     # フェードイン時間 (3秒)
-    'SID_T_REC':     15,    # 記録時間 (この周波数範囲なら15秒程度でOK)
-    'SID_T_FADE_OUT':1,     # フェードアウト時間 (1秒)
+    # --- System Identification Mode 設定 ---
+    'SID_AXIS':        1,      # ロールレートコントローラーにチャープ注入
+    'SID_MAGNITUDE':   20,     # チャープ信号振幅 (5～15の範囲で調整を推奨)
+    'SID_F_START_HZ':  1.0,    # チャープ開始周波数 (1Hzで十分)
+    'SID_F_STOP_HZ':   40.0,   # チャープ終了周波数 (5インチ機なら最低でも40Hzは欲しい)
+    'SID_T_FADE_IN':   3,      # フェードイン時間 (3秒)
+    'SID_T_FADE_OUT':  1,      # フェードアウト時間 (1秒)
+    'SID_T_REC':       15,     # 記録時間 (この周波数範囲なら15秒程度でOK)
 
     # --- ログ制御設定（アーム時のみ記録、ファイルローテーション） ---
     'LOG_DISARMED': 0,        # 非アーム時はログを記録しない
