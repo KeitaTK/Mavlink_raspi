@@ -104,10 +104,10 @@ params_to_set = {
     # --- 姿勢制御PID ---
     'ATC_RAT_RLL_P': 0.04*1.2,  # Roll P
     'ATC_RAT_RLL_I': 0.05,  # Roll I
-    'ATC_RAT_RLL_D': 0.0012*1.6, # Roll D
+    'ATC_RAT_RLL_D': 0.0012*1.4, # Roll D
     'ATC_RAT_PIT_P': 0.05*1.2,  # Pitch P
     'ATC_RAT_PIT_I': 0.05,  # Pitch I
-    'ATC_RAT_PIT_D': 0.0012*1.6, # Pitch D
+    'ATC_RAT_PIT_D': 0.0012*1.4, # Pitch D
     'ATC_RAT_YAW_P': 0.2,    # Yaw P
     'ATC_RAT_YAW_I': 0.02,   # Yaw I
 
