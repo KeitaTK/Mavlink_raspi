@@ -96,16 +96,16 @@ params_to_set = {
     'PSC_ACCZ_I': 1.0,       # 垂直加速度制御I
     
     # --- 水平制御PID ---
-    'PSC_POSXY_P': 1.2,      # 水平位置制御P（2.0→1.2に弱める）
-    'PSC_VELXY_P': 1.0,      # 水平速度制御P（2→1.0に弱める）
-    'PSC_VELXY_I': 1.0,      # 水平速度制御I（2.0→1.0に弱める）
-    'PSC_VELXY_D': 0.1,      # 水平速度制御D（0.2→0.1に弱める）
+    'PSC_POSXY_P': 2.0,      # 水平位置制御P
+    'PSC_VELXY_P': 2,      # 水平速度制御P
+    'PSC_VELXY_I': 2.0,      # 水平速度制御I
+    'PSC_VELXY_D': 0.2,      # 水平速度制御D  増やせるかも
     
     # --- 姿勢制御PID ---
-    'ATC_RAT_RLL_P': 0.04*1.4,  # Roll P
+    'ATC_RAT_RLL_P': 0.04*1.2,  # Roll P
     'ATC_RAT_RLL_I': 0.05,  # Roll I
     'ATC_RAT_RLL_D': 0.0012*1.6, # Roll D
-    'ATC_RAT_PIT_P': 0.05*1.4,  # Pitch P
+    'ATC_RAT_PIT_P': 0.05*1.2,  # Pitch P
     'ATC_RAT_PIT_I': 0.05,  # Pitch I
     'ATC_RAT_PIT_D': 0.0012*1.6, # Pitch D
     'ATC_RAT_YAW_P': 0.2,    # Yaw P
