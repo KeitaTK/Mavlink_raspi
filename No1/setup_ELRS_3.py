@@ -156,9 +156,10 @@ params_to_set = {
     'LOG_BACKEND_TYPE': 1,    # デフォルトのログバックエンド（ファイル）
 
     # # 推力推定に必要な設定
-    'MOT_THST_HOVER': 0.223,    # ホバリングスロットル比
+    'MOT_THST_HOVER': 0.1
+    ,    # ホバリングスロットル比
     'MOT_THST_EXPO': 0,      # 推力曲線指数
-    'MOT_HOVER_LEARN': 0,       # ホバリング学習（0:無効）
+    'MOT_HOVER_LEARN': 3,    # ホバリング学習（2/3:自動取得＆保存）
 
     # --- モーター・安全設定 ---
     'SERVO1_FUNCTION': 0,
