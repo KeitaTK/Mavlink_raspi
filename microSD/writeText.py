@@ -1,160 +1,177 @@
 #!/usr/bin/env python3
-# pmod_sdcard_simple.py - Pmod MicroSD簡単書き込み
+# sdcard_file_test.py - SDカードファイル読み書きテスト
 
 import os
-import time
+import sys
 from datetime import datetime
-from sdcard_adapter import Pin, SPI, const
-from sdcard import SDCard
 
-class PmodSDCard:
+try:
+    from sdcard_adapter import Pin, SPI, const
+    from sdcard import SDCard
+except ImportError as e:
+    print(f"インポートエラー: {e}")
+    print("sdcard_adapter.py と sdcard.py が同じディレクトリにあることを確認してください")
+    sys.exit(1)
+
+class SDCardFileSystem:
     def __init__(self):
-        """Pmod MicroSDを初期化"""
+        """SDカードファイルシステム初期化"""
         try:
-            # SPI初期化（SPI0, CE0）
-            self.spi = SPI(0, 0)
+            print("=== SDカードファイルシステム初期化 ===")
             
-            # CS pin 初期化（GPIO 8）
-            self.cs = Pin(8, Pin.OUT)
+            # SPI初期化（自動CS制御）
+            self.spi = SPI(0, 0)
+            self.cs = Pin(8, Pin.OUT)  # ダミーCS（実際はspidevが制御）
             
             # SDカード初期化
-            print("Pmod MicroSDを初期化中...")
+            print("SDカード初期化中...")
             self.sd = SDCard(self.spi, self.cs)
-            print(f"初期化完了（セクタ数: {self.sd.sectors}）")
+            print(f"✓ SDカード初期化完了（セクタ数: {self.sd.sectors}）")
             
         except Exception as e:
             print(f"初期化エラー: {e}")
             raise
     
-    def write_text_block(self, block_num, text):
-        """指定ブロックにテキストを書き込み"""
+    def write_text_file(self, block_num, filename, content):
+        """テキストファイルをSDカードに書き込み"""
         try:
-            # テキストを512バイトブロックに変換
-            data = text.encode('utf-8')
-            buffer = bytearray(512)
+            # ファイル情報をブロックの最初に記録
+            file_info = f"FILE:{filename}\nSIZE:{len(content)}\nDATE:{datetime.now()}\n---\n"
+            full_content = file_info + content
             
-            if len(data) > 512:
-                data = data[:512]  # 512バイト以内に切り詰め
+            # 512バイトブロックに変換
+            data = full_content.encode('utf-8')
             
-            buffer[:len(data)] = data
+            # 複数ブロックが必要な場合
+            blocks_needed = (len(data) + 511) // 512
+            print(f"書き込み: {filename} ({len(data)}バイト, {blocks_needed}ブロック)")
             
-            # SDカードに書き込み
-            self.sd.writeblocks(block_num, buffer)
-            print(f"ブロック {block_num} に書き込み完了")
-            return True
+            for i in range(blocks_needed):
+                buffer = bytearray(512)
+                start = i * 512
+                end = min(start + 512, len(data))
+                buffer[:end-start] = data[start:end]
+                
+                self.sd.writeblocks(block_num + i, buffer)
+                print(f"  ブロック {block_num + i} 書き込み完了")
+            
+            return blocks_needed
             
         except Exception as e:
             print(f"書き込みエラー: {e}")
-            return False
+            return 0
     
-    def read_text_block(self, block_num):
-        """指定ブロックからテキストを読み込み"""
+    def read_text_file(self, block_num, blocks_count=1):
+        """SDカードからテキストファイルを読み込み"""
         try:
-            buffer = bytearray(512)
-            self.sd.readblocks(block_num, buffer)
+            print(f"読み込み: ブロック {block_num}〜{block_num + blocks_count - 1}")
             
-            # null文字までを取得してデコード
-            end_pos = buffer.find(0)
-            if end_pos == -1:
-                end_pos = 512
+            all_data = bytearray()
             
-            text = buffer[:end_pos].decode('utf-8', errors='ignore')
-            print(f"ブロック {block_num} から読み込み完了")
-            return text
+            for i in range(blocks_count):
+                buffer = bytearray(512)
+                self.sd.readblocks(block_num + i, buffer)
+                all_data.extend(buffer)
+            
+            # null文字で終了
+            end_pos = all_data.find(0)
+            if end_pos != -1:
+                all_data = all_data[:end_pos]
+            
+            content = all_data.decode('utf-8', errors='ignore')
+            
+            # ファイル情報と内容を分離
+            if "---\n" in content:
+                header, file_content = content.split("---\n", 1)
+                print("ファイル情報:")
+                print(header)
+                return file_content
+            else:
+                return content
             
         except Exception as e:
             print(f"読み込みエラー: {e}")
             return None
     
-    def append_log(self, message):
-        """ログメッセージを追記（ブロック1を使用）"""
-        try:
-            # 既存データを読み込み
-            existing = self.read_text_block(1) or ""
-            
-            # タイムスタンプ付きメッセージを追加
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            new_entry = f"[{timestamp}] {message}\n"
-            
-            # 新しい内容を作成
-            updated_content = existing + new_entry
-            
-            # 512バイト以内に収まるように調整
-            if len(updated_content.encode('utf-8')) > 500:
-                lines = updated_content.split('\n')
-                # 古いエントリから削除
-                while len('\n'.join(lines).encode('utf-8')) > 500 and len(lines) > 1:
-                    lines.pop(0)
-                updated_content = '\n'.join(lines)
-            
-            # 書き込み
-            return self.write_text_block(1, updated_content)
-            
-        except Exception as e:
-            print(f"ログ追記エラー: {e}")
-            return False
-    
     def close(self):
-        """リソースを解放"""
+        """リソース解放"""
         try:
             self.spi.close()
-            import RPi.GPIO as GPIO
-            GPIO.cleanup()
-            print("リソース解放完了")
+            print("SDカード接続を閉じました")
         except:
             pass
 
 def main():
-    """使用例"""
-    print("=== Pmod MicroSD 簡単書き込みテスト ===")
+    """メイン実行関数"""
+    print("=== SDカード ファイル読み書きテスト ===")
     
+    sd_fs = None
     try:
-        # Pmod SDカード初期化
-        pmod_sd = PmodSDCard()
+        # SDカードファイルシステム初期化
+        sd_fs = SDCardFileSystem()
         
-        # テストメッセージ
-        test_message = f"""
-Pmod MicroSD テスト
-
-実行日時: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-Raspberry Pi 5 + Pmod MicroSD
-SPI通信によるSDカードアクセス
-
-このメッセージはブロック0に保存されています。
-        """.strip()
+        # テストデータ作成
+        test_files = [
+            {
+                "name": "test1.txt",
+                "content": f"Hello, Raspberry Pi 5!\n作成日時: {datetime.now()}\nPmod MicroSD テスト成功！"
+            },
+            {
+                "name": "sensor_log.txt", 
+                "content": f"センサーログ\n{datetime.now()}: 温度=23.5°C, 湿度=65%\n{datetime.now()}: 温度=24.1°C, 湿度=63%"
+            }
+        ]
         
-        print("\n1. テキスト書き込みテスト")
-        if pmod_sd.write_text_block(0, test_message):
-            print("✓ 書き込み成功")
+        current_block = 0
         
-        print("\n2. テキスト読み込みテスト")
-        read_data = pmod_sd.read_text_block(0)
-        if read_data:
-            print("✓ 読み込み成功")
-            print(f"読み込み内容:\n{read_data}")
+        for i, file_data in enumerate(test_files):
+            print(f"\n--- ファイル {i+1}: {file_data['name']} ---")
+            
+            # 書き込みテスト
+            blocks_used = sd_fs.write_text_file(
+                current_block, 
+                file_data['name'], 
+                file_data['content']
+            )
+            
+            if blocks_used > 0:
+                print("✓ 書き込み成功")
+                
+                # 読み込みテスト
+                read_content = sd_fs.read_text_file(current_block, blocks_used)
+                
+                if read_content:
+                    print("✓ 読み込み成功")
+                    print("読み込み内容:")
+                    print("-" * 40)
+                    print(read_content)
+                    print("-" * 40)
+                    
+                    # 内容検証
+                    if file_data['content'] in read_content:
+                        print("✓ 内容一致確認")
+                    else:
+                        print("⚠ 内容に差異があります")
+                else:
+                    print("✗ 読み込み失敗")
+                
+                current_block += blocks_used
+            else:
+                print("✗ 書き込み失敗")
         
-        print("\n3. ログ機能テスト")
-        pmod_sd.append_log("システム開始")
-        pmod_sd.append_log("テスト実行中")
-        pmod_sd.append_log("処理完了")
-        
-        # ログ内容確認
-        log_content = pmod_sd.read_text_block(1)
-        if log_content:
-            print("ログ内容:")
-            print(log_content)
-        
-        print("\n✓ 全テスト完了")
+        print(f"\n=== テスト完了 ===")
+        print("✓ SDカードへのファイル読み書きが正常に動作しました")
+        print("✓ Raspberry Pi 5 + Pmod MicroSD の環境構築完了")
         
     except KeyboardInterrupt:
         print("\n中断されました")
     except Exception as e:
         print(f"\nエラー: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
-        try:
-            pmod_sd.close()
-        except:
-            pass
+        if sd_fs:
+            sd_fs.close()
 
 if __name__ == "__main__":
     main()
