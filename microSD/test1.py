@@ -1,57 +1,61 @@
 #!/usr/bin/env python3
-# cs_control_test.py - CS制御付きSPIテスト
+# cs_test_lgpio.py - lgpio使用版
 
 import spidev
-import RPi.GPIO as GPIO
+import lgpio
 import time
 
-def test_with_cs_control():
-    """CS制御付きSPI通信テスト"""
+def test_with_lgpio():
+    """lgpioを使用したCS制御付きSPIテスト"""
     
     # GPIO初期化
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setwarnings(False)
+    try:
+        h = lgpio.gpiochip_open(0)  # GPIO chip 0を開く
+    except Exception as e:
+        print(f"GPIOチップオープンエラー: {e}")
+        return
     
     CS_PIN = 8
-    GPIO.setup(CS_PIN, GPIO.OUT)
-    GPIO.output(CS_PIN, GPIO.HIGH)  # 初期状態はHIGH（非選択）
     
     try:
+        # CS pinを出力として設定
+        lgpio.gpio_claim_output(h, CS_PIN)
+        lgpio.gpio_write(h, CS_PIN, 1)  # 初期状態はHIGH（非選択）
+        
         # SPI初期化
         spi = spidev.SpiDev()
         spi.open(0, 0)  # /dev/spidev0.0 を使用
-        spi.max_speed_hz = 400000  # 400kHz（初期化用の低速）
+        spi.max_speed_hz = 400000  # 400kHz
         spi.mode = 0
         
-        print("=== CS制御付きSPIテスト ===")
+        print("=== lgpio使用 CS制御付きSPIテスト ===")
         print(f"使用SPI: /dev/spidev0.0")
         print(f"速度: {spi.max_speed_hz}Hz")
         print(f"CS Pin: GPIO{CS_PIN}")
         
         # 1. 初期化シーケンス
         print("\n1. 初期化シーケンス開始")
-        GPIO.output(CS_PIN, GPIO.HIGH)
+        lgpio.gpio_write(h, CS_PIN, 1)  # CS HIGH
         time.sleep(0.1)
         
-        # ダミークロック送信（SDカード起動用）
-        print("2. ダミークロック送信（SDカード起動）")
+        # ダミークロック送信
+        print("2. ダミークロック送信")
         dummy_clocks = [0xFF] * 10
         spi.xfer2(dummy_clocks)
         time.sleep(0.01)
         
-        # 3. CMD0 (GO_IDLE_STATE) 送信
+        # 3. CMD0送信
         print("3. CMD0送信開始")
-        GPIO.output(CS_PIN, GPIO.LOW)  # CS LOW（選択）
-        time.sleep(0.001)  # CS setup time
+        lgpio.gpio_write(h, CS_PIN, 0)  # CS LOW（選択）
+        time.sleep(0.001)
         
-        cmd0 = [0x40, 0x00, 0x00, 0x00, 0x00, 0x95]  # CMD0 + 正しいCRC
+        cmd0 = [0x40, 0x00, 0x00, 0x00, 0x00, 0x95]
         print(f"   送信データ: {[hex(x) for x in cmd0]}")
         
-        # CMD0送信
         response = spi.xfer2(cmd0)
         print(f"   即座の応答: {[hex(x) for x in response]}")
         
-        # 4. R1応答待ち（最大8バイト読み込み）
+        # 4. R1応答待ち
         print("4. R1応答待ち")
         valid_response = False
         
@@ -68,28 +72,20 @@ def test_with_cs_control():
                 elif resp_byte == 0x00:
                     print("   ✓ SDカードが正常状態")
                     valid_response = True
-                elif resp_byte & 0x80:
-                    print(f"   ⚠ エラー状態: {bin(resp_byte)}")
                 else:
-                    print(f"   △ 未知の応答: {hex(resp_byte)}")
+                    print(f"   △ 応答: {hex(resp_byte)}")
                     valid_response = True
                 break
         
-        GPIO.output(CS_PIN, GPIO.HIGH)  # CS HIGH（非選択）
-        spi.write([0xFF])  # クリーンアップクロック
+        lgpio.gpio_write(h, CS_PIN, 1)  # CS HIGH（非選択）
+        spi.write([0xFF])
         
         # 5. 結果判定
         print(f"\n=== テスト結果 ===")
         if valid_response:
             print("✓ SDカードとの通信が確認できました")
-            print("  → 配線とSDカードは正常です")
-            print("  → 次のステップ: SDカードライブラリのテスト")
         else:
             print("✗ SDカードからの応答がありません")
-            print("  → 確認項目:")
-            print("    - microSDカードが正しく挿入されているか")
-            print("    - 配線が正しいか（特にMISO線）")
-            print("    - SDカードが動作可能な状態か")
         
         spi.close()
         
@@ -99,7 +95,7 @@ def test_with_cs_control():
         traceback.print_exc()
     
     finally:
-        GPIO.cleanup()
+        lgpio.gpiochip_close(h)
 
 if __name__ == "__main__":
-    test_with_cs_control()
+    test_with_lgpio()
