@@ -15,7 +15,8 @@ signal.signal(signal.SIGINT, signal_handler)
 
 try:
     print("MAVLinkデバッグメッセージ受信プログラム開始")
-    master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=1000000, rtscts=True)
+    # master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=1000000, rtscts=True)
+    master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)  # USB接続
 
     master.wait_heartbeat(timeout=5)
     print(f"Heartbeat received from system {master.target_system}, component {master.target_component}")
