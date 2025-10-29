@@ -25,50 +25,50 @@ def create_csv_filepath():
     return os.path.join(directory, f"{now}_RLS_Observer.csv")
 
 def parse_rls_message(text):
-    """RLSメッセージをパースする"""
+    """RLSメッセージをパースし1行形式で情報抽出"""
     text = text.strip()
     
-    # Cold startメッセージ
+    # Cold start
     m = re.match(r"RLS: Cold start (\d+)/(\d+) time=(\d+)", text)
     if m:
         return {
             "type": "cold_start",
-            "current_count": int(m.group(1)),
-            "total_count": int(m.group(2)),
-            "time_ms": int(m.group(3))
+            "progress": int(m.group(1)),
+            "total": int(m.group(2)),
+            "pixhawk_time_ms": int(m.group(3))
         }
+
+    # 新: 検索用 RLSパラメータ出力 (A/B/C)
+    # "A: %.3f %.3f", "B: %.3f %.3f", "C: %.3f %.3f"
+    mA = re.match(r"A:\s*([-\d\.]+)\s+([-\d\.]+)", text)
+    mB = re.match(r"B:\s*([-\d\.]+)\s+([-\d\.]+)", text)
+    mC = re.match(r"C:\s*([-\d\.]+)\s+([-\d\.]+)", text)
+    if mA:
+        return {"type": "abcA", "A_X": float(mA.group(1)), "A_Y": float(mA.group(2))}
+    if mB:
+        return {"type": "abcB", "B_X": float(mB.group(1)), "B_Y": float(mB.group(2))}
+    if mC:
+        return {"type": "abcC", "C_X": float(mC.group(1)), "C_Y": float(mC.group(2))}
     
-    # RLS運用メッセージ
-    m = re.match(
-        r"RLS: F_curr=\[([-\d\.]+),([-\d\.]+),([-\d\.]+)\] "
-        r"F_pred=\[([-\d\.]+),([-\d\.]+),([-\d\.]+)\] "
-        r"Δt=([\d\.]+)ms time=(\d+)",
-        text
-    )
+    # 外力や予測値のデバッグ出力
+    m = re.match(r"t=([-\d\.]+)\sPL:\s([-\d\.]+)\s([-\d\.]+)\s([-\d\.]+)", text)
     if m:
-        fx_curr, fy_curr, fz_curr = map(float, m.groups()[:3])
-        fx_pred, fy_pred, fz_pred = map(float, m.groups()[3:6])
-        delta_t = float(m.group(7))
-        time_ms = int(m.group(8))
-        
-        # 外力の大きさを計算
-        mag_curr = math.sqrt(fx_curr**2 + fy_curr**2 + fz_curr**2)
-        mag_pred = math.sqrt(fx_pred**2 + fy_pred**2 + fz_pred**2)
-        
         return {
-            "type": "rls_running",
-            "F_curr_X": fx_curr,
-            "F_curr_Y": fy_curr,
-            "F_curr_Z": fz_curr,
-            "F_curr_Mag": mag_curr,
-            "F_pred_X": fx_pred,
-            "F_pred_Y": fy_pred,
-            "F_pred_Z": fz_pred,
-            "F_pred_Mag": mag_pred,
-            "prediction_time_ms": delta_t,
-            "time_ms": time_ms
+            "type": "payload",
+            "pixhawk_time_s": float(m.group(1)),
+            "F_curr_X": float(m.group(2)),
+            "F_curr_Y": float(m.group(3)),
+            "F_curr_Z": float(m.group(4))
         }
-    
+
+    m = re.match(r"PRED:\s([-\d\.]+)\s([-\d\.]+)\s([-\d\.]+)", text)
+    if m:
+        return {
+            "type": "predicted",
+            "F_pred_X": float(m.group(1)),
+            "F_pred_Y": float(m.group(2)),
+            "F_pred_Z": float(m.group(3))
+        }
     return None
 
 def main():
@@ -77,13 +77,14 @@ def main():
         writer = csv.writer(csvfile)
         writer.writerow([
             "Timestamp",
-            "Message_Type",
-            "F_curr_X_N", "F_curr_Y_N", "F_curr_Z_N", "F_curr_Magnitude_N",
-            "F_pred_X_N", "F_pred_Y_N", "F_pred_Z_N", "F_pred_Magnitude_N",
-            "Prediction_Time_ms",
+            "F_curr_X_N", "F_curr_Y_N", "F_curr_Z_N",
+            "A_X", "A_Y",
+            "B_X", "B_Y",
+            "C_X", "C_Y",
+            "F_pred_X_N", "F_pred_Y_N", "F_pred_Z_N",
             "Pixhawk_Time_ms",
-            "Cold_Start_Progress",
-            "Cold_Start_Total"
+            "Prediction_Time_ms",
+            "Cold_Start_Progress"  # cold start時のみ
         ])
         print(f"CSV 保存先: {csv_path}")
 
@@ -99,60 +100,71 @@ def main():
         )
         print("監視開始… Ctrl+C で終了")
 
+        # RLS係数と外力・予測値の記録用キャッシュ
+        abcA = abcB = abcC = None
+        f_curr = f_pred = None
+        pixhawk_time_ms = pred_time_ms = cold_start_progress = None
+        
         record_count = 0
         while running:
             msg = master.recv_match(type="STATUSTEXT", blocking=True, timeout=1)
             if not msg:
                 continue
-            
-            # RLSメッセージかチェック
-            if not msg.text.startswith("RLS:"):
+            text = msg.text.strip()
+            # RLS系以外は除外
+            if not (text.startswith("A:") or text.startswith("B:") or text.startswith("C:") or text.startswith("RLS:") or text.startswith("PL:") or text.startswith("PRED:") or text.startswith("t=")):
                 continue
-            
-            data = parse_rls_message(msg.text)
+            data = parse_rls_message(text)
             if not data:
                 continue
 
-            # CSV 書き込み
-            ts = datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")[:-3]
-            
-            if data["type"] == "cold_start":
+            # データ蓄積
+            if data["type"] == "abcA":
+                abcA = (data["A_X"], data["A_Y"])
+            elif data["type"] == "abcB":
+                abcB = (data["B_X"], data["B_Y"])
+            elif data["type"] == "abcC":
+                abcC = (data["C_X"], data["C_Y"])
+            elif data["type"] == "payload":
+                f_curr = (data["F_curr_X"], data["F_curr_Y"], data["F_curr_Z"])
+                pixhawk_time_ms = int(data["pixhawk_time_s"] * 1000)
+            elif data["type"] == "predicted":
+                f_pred = (data["F_pred_X"], data["F_pred_Y"], data["F_pred_Z"])
+            elif data["type"] == "cold_start":
+                cold_start_progress = f"{data['progress']}/{data['total']}"
+                pixhawk_time_ms = int(data["pixhawk_time_ms"])
+                # cold start出力
+                ts = datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")[:-3]
+                row = [ts] + [""]*12 + [pixhawk_time_ms, "", cold_start_progress]
+                writer.writerow(row)
+                csvfile.flush()
+                print(f"{ts} : Cold Start 進捗 {cold_start_progress}")
+                continue
+
+            # 外力・ABC・予測の全て取得揃ったらCSV記録
+            if (f_curr and f_pred and abcA and abcB and abcC):
+                ts = datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")[:-3]
                 row = [
                     ts,
-                    "Cold_Start",
-                    "", "", "", "",  # F_curr
-                    "", "", "", "",  # F_pred
-                    "",              # Prediction_Time_ms
-                    data["time_ms"],
-                    data["current_count"],
-                    data["total_count"]
+                    f_curr[0], f_curr[1], f_curr[2],
+                    abcA[0], abcA[1],
+                    abcB[0], abcB[1],
+                    abcC[0], abcC[1],
+                    f_pred[0], f_pred[1], f_pred[2],
+                    pixhawk_time_ms if pixhawk_time_ms else "",
+                    pred_time_ms if pred_time_ms else "",
+                    ""  # cold start
                 ]
-                # コンソール表示
-                print(f"{ts} : Cold Start 進捗 {data['current_count']}/{data['total_count']}")
-                
-            elif data["type"] == "rls_running":
-                row = [
-                    ts,
-                    "RLS_Running",
-                    data["F_curr_X"], data["F_curr_Y"], data["F_curr_Z"], data["F_curr_Mag"],
-                    data["F_pred_X"], data["F_pred_Y"], data["F_pred_Z"], data["F_pred_Mag"],
-                    data["prediction_time_ms"],
-                    data["time_ms"],
-                    "",  # Cold_Start_Progress
-                    ""   # Cold_Start_Total
-                ]
-                # コンソール表示（5回に1回）
+                writer.writerow(row)
+                csvfile.flush()
                 if record_count % 5 == 0:
-                    print(
-                        f"{ts} : 記録 #{record_count} "
-                        f"F_curr=({data['F_curr_X']:.3f},{data['F_curr_Y']:.3f},{data['F_curr_Z']:.3f}) "
-                        f"F_pred=({data['F_pred_X']:.3f},{data['F_pred_Y']:.3f},{data['F_pred_Z']:.3f}) "
-                        f"Δt={data['prediction_time_ms']:.1f}ms"
-                    )
-            
-            writer.writerow(row)
-            csvfile.flush()
-            record_count += 1
+                    print(f"{ts} : 記録 #{record_count} "
+                          f"F_curr=({f_curr[0]:.3f},{f_curr[1]:.3f},{f_curr[2]:.3f}) "
+                          f"A=({abcA[0]:.3f},{abcA[1]:.3f}) B=({abcB[0]:.3f},{abcB[1]:.3f}) C=({abcC[0]:.3f},{abcC[1]:.3f}) "
+                          f"F_pred=({f_pred[0]:.3f},{f_pred[1]:.3f},{f_pred[2]:.3f})")
+                record_count += 1
+                # 状態リセット
+                f_curr = f_pred = None
 
         print("\n停止中…")
         master.close()
