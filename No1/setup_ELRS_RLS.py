@@ -110,12 +110,12 @@ params_to_set = {
     'ATC_RAT_YAW_I': 0.02,   # Yaw I
 
     # --- Observer設定 (吊荷制御) ---
-    'CORR_GAIN': 0.004,        # Observer Correction Gain (0.0-1.0)
-    'FILT_CUTOFF': 20.0,       # Observer Filter Cutoff Frequency [Hz] (1.0-100.0)
-    'RLS_LAMBDA': 0.98,        # RLS Forgetting Factor (0.9-0.9999)
-    'RLS_COV_INIT': 100.0,     # RLS Initial Covariance (0.001-1000.0)
-    'DIST_FREQ': 0.6,          # Disturbance Frequency [Hz] (0.1-10.0)
-    'PRED_TIME': 0.01,         # Prediction Time [seconds] (0.0-0.5)
+    'OBS_CORR_GAIN': 0.004,        # Observer Correction Gain (0.0-1.0)
+    'OBS_FILT_CUTOFF': 20.0,       # Observer Filter Cutoff Frequency [Hz] (1.0-100.0)
+    'OBS_RLS_LAMBDA': 0.98,        # RLS Forgetting Factor (0.9-0.9999)
+    'OBS_RLS_COV_INIT': 100.0,     # RLS Initial Covariance (0.001-1000.0)
+    'OBS_DIST_FREQ': 0.6,          # Disturbance Frequency [Hz] (0.1-10.0)
+    'OBS_PRED_TIME': 0.01,         # Prediction Time [seconds] (0.0-0.5)
 
     # --- IMUフィルタ（応答性向上） ---
     'INS_GYRO_FILTER': 20,   # ジャイロフィルタ（30→20、応答性向上）
