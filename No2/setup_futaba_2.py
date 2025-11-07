@@ -86,14 +86,15 @@ params_to_set = {
     'PILOT_SPEED_DN': 150,   # パイロット下降: 1.5m/s
     'PILOT_ACCEL_Z': 250,    # パイロット加速度: 2.5m/s²
     
+
     # --- 垂直制御PID ---
-    'PSC_POSZ_P': 1.0,       # 高度位置制御P
+    'PSC_POSZ_P': 1,       # 高度位置制御P
     'PSC_VELZ_P': 4.0,       # 垂直速度制御P
     'PSC_VELZ_I': 8.0,       # 垂直速度制御I
     'PSC_VELZ_D': 0.01,      # 垂直速度制御D
     'PSC_ACCZ_P': 0.3,       # 垂直加速度制御P
     'PSC_ACCZ_I': 1.0,       # 垂直加速度制御I
-    
+
     # --- 水平制御PID ---
     'PSC_POSXY_P': 5.0,      # 水平位置制御P
     'PSC_VELXY_P': 3,      # 水平速度制御P
@@ -101,21 +102,27 @@ params_to_set = {
     'PSC_VELXY_D': 0.5,      # 水平速度制御D　増やせるかも
     
     # --- 姿勢制御PID ---
-    'ATC_RAT_RLL_P': 0.04,  # Roll P
+    'ATC_RAT_RLL_P': 0.048,  # Roll P（0.04*1.2）
     'ATC_RAT_RLL_I': 0.05,  # Roll I
-    'ATC_RAT_RLL_D': 0.0012, # Roll D
-    'ATC_RAT_PIT_P': 0.05,  # Pitch P
+    'ATC_RAT_RLL_D': 0.00144, # Roll D（0.0012*1.2）
+    'ATC_RAT_PIT_P': 0.06,  # Pitch P（0.05*1.2）
     'ATC_RAT_PIT_I': 0.05,  # Pitch I
-    'ATC_RAT_PIT_D': 0.0012, # Pitch D
+    'ATC_RAT_PIT_D': 0.00144, # Pitch D（0.0012*1.2）
     'ATC_RAT_YAW_P': 0.2,    # Yaw P
     'ATC_RAT_YAW_I': 0.02,   # Yaw I
 
     # --- 吊荷制御のゲイン ---
-    'OBS_CORR_GAIN': 2.0,  # 吊荷補正ゲイン
-    
+    'OBS_CORR_GAIN': 0.0,  # 吊荷補正ゲイン(位置補正の強さ)
+    'OBS_FILT_CUTOFF': 30,  # フィルタのカットオフ周波数
+
     # --- IMUフィルタ（応答性向上） ---
     'INS_GYRO_FILTER': 20,   # ジャイロフィルタ（30→20、応答性向上）
     'INS_ACCEL_FILTER': 20,  # 加速度フィルタ（30→20、応答性向上）
+
+    # --- 推力推定関連 ---
+    'MOT_THST_HOVER': 0.1,    # ホバリングスロットル比（ELRS値）
+    'MOT_THST_EXPO': 0,      # 推力曲線指数（ELRS値）
+    'MOT_HOVER_LEARN': 3,    # ホバリング学習（ELRS値）
     
     # --- フェイルセーフ設定（適正化） ---
     'FS_EKF_ACTION': 2,      # EKF失敗時Stabilizeモード
