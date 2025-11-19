@@ -191,13 +191,15 @@ params_to_set = {
     # 8: 垂直速度コントローラー（Vertical Velocity）
     # 9: 水平速度コントローラー（Horizontal Velocity）
     # 10: 推力コントローラー（Thrust）
-    'SID_AXIS':        1,      # ロールレートコントローラーにチャープ注入
-    'SID_MAGNITUDE':   20,     # チャープ信号振幅 (5～15の範囲で調整を推奨)
-    'SID_F_START_HZ':  1.0,    # チャープ開始周波数 (1Hzで十分)
-    'SID_F_STOP_HZ':   40.0,   # チャープ終了周波数
-    'SID_T_FADE_IN':   3,      # フェードイン時間 (3秒)
-    'SID_T_FADE_OUT':  1,      # フェードアウト時間 (1秒)
-    'SID_T_REC':       15,     # 記録時間
+    'SID_AXIS': 1,               # ロールレート
+    # 励起信号パラメータ
+    'SID_MAGNITUDE': 20,         # チャープ信号振幅
+    'SID_F_START_HZ': 0.5,       # 1.0 → 0.5（低周波カバー）
+    'SID_F_STOP_HZ': 30.0,       # 40.0 → 30.0（帯域内に）
+    # 時間パラメータ
+    'SID_T_FADE_IN': 5,          # 開始
+    'SID_T_FADE_OUT': 3,         # 終了
+    'SID_T_REC': 25,             # データ取得時間
 
     # --- ログ制御設定（アーム時のみ記録、ファイルローテーション） ---
     'LOG_DISARMED': 0,        # 非アーム時はログを記録しない
