@@ -191,7 +191,7 @@ params_to_set = {
     # 8: 垂直速度コントローラー（Vertical Velocity）
     # 9: 水平速度コントローラー（Horizontal Velocity）
     # 10: 推力コントローラー（Thrust）
-    'SID_AXIS': 1,               # ロールレート
+    'SID_AXIS': 2,               # ヨーレート
     # 励起信号パラメータ
     'SID_MAGNITUDE': 20,         # チャープ信号振幅
     'SID_F_START_HZ': 0.5,       # 1.0 → 0.5（低周波カバー）
