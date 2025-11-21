@@ -179,18 +179,27 @@ params_to_set = {
     'GUID_OPTIONS': 0,
 
     # --- System Identification Mode 設定 ---
-    # SID_AXIS 番号と階層・軸の対応表
-    # 0: ピッチレートコントローラー（Pitch Rate）
-    # 1: ロールレートコントローラー（Roll Rate）
-    # 2: ヨーレートコントローラー（Yaw Rate）
-    # 3: ピッチ角コントローラー（Pitch Angle）
-    # 4: ロール角コントローラー（Roll Angle）
-    # 5: ヨー角コントローラー（Yaw Angle）
-    # 6: 高度コントローラー（Altitude）
-    # 7: 水平位置コントローラー（Position XY）
-    # 8: 垂直速度コントローラー（Vertical Velocity）
-    # 9: 水平速度コントローラー（Horizontal Velocity）
-    # 10: 推力コントローラー（Thrust）
+    # SID_AXIS 番号とArduPilot公式対応表
+    # 0: None（なし）
+    # 1: Input Roll Angle（ロール角入力）
+    # 2: Input Pitch Angle（ピッチ角入力）
+    # 3: Input Yaw Angle（ヨー角入力）
+    # 4: Recovery Roll Angle（ロール角リカバリー）
+    # 5: Recovery Pitch Angle（ピッチ角リカバリー）
+    # 6: Recovery Yaw Angle（ヨー角リカバリー）
+    # 7: Rate Roll（ロールレート）
+    # 8: Rate Pitch（ピッチレート）
+    # 9: Rate Yaw（ヨーレート）
+    # 10: Mixer Roll（ミキサーロール）
+    # 11: Mixer Pitch（ミキサーピッチ）
+    # 12: Mixer Yaw（ミキサーヨー）
+    # 13: Mixer Thrust（ミキサースラスト）
+    # 14: Measured Lateral Position（測定横位置）
+    # 15: Measured Longitudinal Position（測定縦位置）
+    # 16: Measured Lateral Velocity（測定横速度）
+    # 17: Measured Longitudinal Velocity（測定縦速度）
+    # 18: Input Lateral Velocity（入力横速度）
+    # 19: Input Longitudinal Velocity（入力縦速度）
     'SID_AXIS': 2,               # ヨーレート
     # 励起信号パラメータ
     'SID_MAGNITUDE': 20,         # チャープ信号振幅
