@@ -141,8 +141,8 @@ params_to_set = {
     'ATC_RAT_YAW_FLTT': 0,   # Yaw Rate Target filter (0=自動)
 
     # # --- 吊荷制御のゲイン ---
-    # # 'OBS_CORR_GAIN': 0.004,  # 吊荷補正ゲイン(角度補正の強さ) ～0.01まで
-    # 'OBS_CORR_GAIN': 0.01,  # 吊荷補正ゲイン(位置補正の強さ)
+    # 'OBS_CORR_GAIN': 0.004,  # 吊荷補正ゲイン(角度補正の強さ) ～0.01まで
+    'OBS_CORR_GAIN': 0.0,  # 吊荷補正ゲイン(位置補正の強さ)
     # 'OBS_FILT_CUTOFF': 20,  # フィルタのカットオフ周波数
 
     # --- IMUフィルタ（応答性向上） ---
@@ -200,7 +200,7 @@ params_to_set = {
     # 17: Measured Longitudinal Velocity（測定縦速度）
     # 18: Input Lateral Velocity（入力横速度）
     # 19: Input Longitudinal Velocity（入力縦速度）
-    'SID_AXIS': 2,               # ヨーレート
+    'SID_AXIS': 7,               # ヨーレート
     # 励起信号パラメータ
     'SID_MAGNITUDE': 20,         # チャープ信号振幅
     'SID_F_START_HZ': 0.5,       # 1.0 → 0.5（低周波カバー）
