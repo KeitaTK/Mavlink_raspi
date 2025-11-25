@@ -200,15 +200,28 @@ params_to_set = {
     # 17: Measured Longitudinal Velocity（測定縦速度）
     # 18: Input Lateral Velocity（入力横速度）
     # 19: Input Longitudinal Velocity（入力縦速度）
+    # 'SID_AXIS': 1,               # ヨーレート
+    # # 励起信号パラメータ
+    # 'SID_MAGNITUDE': 20,         # チャープ信号振幅
+    # 'SID_F_START_HZ': 0.5,       # 1.0 → 0.5（低周波カバー）
+    # 'SID_F_STOP_HZ': 30.0,       # 40.0 → 30.0（帯域内に）
+    # # 時間パラメータ
+    # 'SID_T_FADE_IN': 5,          # 開始
+    # 'SID_T_FADE_OUT': 3,         # 終了
+    # 'SID_T_REC': 25,             # データ取得時間
+
+
     'SID_AXIS': 7,               # ヨーレート
     # 励起信号パラメータ
-    'SID_MAGNITUDE': 20,         # チャープ信号振幅
+    'SID_MAGNITUDE': 60,         # チャープ信号振幅
     'SID_F_START_HZ': 0.5,       # 1.0 → 0.5（低周波カバー）
     'SID_F_STOP_HZ': 30.0,       # 40.0 → 30.0（帯域内に）
     # 時間パラメータ
     'SID_T_FADE_IN': 5,          # 開始
     'SID_T_FADE_OUT': 3,         # 終了
     'SID_T_REC': 25,             # データ取得時間
+
+
 
     # --- ログ制御設定（アーム時のみ記録、ファイルローテーション） ---
     'LOG_DISARMED': 0,        # 非アーム時はログを記録しない
