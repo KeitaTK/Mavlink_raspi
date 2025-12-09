@@ -211,15 +211,15 @@ params_to_set = {
     # 'SID_T_REC': 25,             # データ取得時間
 
 
-    'SID_AXIS': 8,               # ヨーレート
+    'SID_AXIS': 7,               # チャープを入れる軸
     # 励起信号パラメータ
     'SID_MAGNITUDE': 60,         # チャープ信号振幅
     'SID_F_START_HZ': 0.5,       # 1.0 → 0.5（低周波カバー）
-    'SID_F_STOP_HZ': 30.0,       # 40.0 → 30.0（帯域内に）
+    'SID_F_STOP_HZ': 2.0,       # 
     # 時間パラメータ
     'SID_T_FADE_IN': 5,          # 開始
     'SID_T_FADE_OUT': 3,         # 終了
-    'SID_T_REC': 25,             # データ取得時間
+    'SID_T_REC': 60,             # データ取得時間（25→60秒に延長）
 
 
 
