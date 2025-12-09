@@ -211,7 +211,7 @@ params_to_set = {
     # 'SID_T_REC': 25,             # データ取得時間
 
 
-    'SID_AXIS': 7,               # チャープを入れる軸
+    'SID_AXIS': 8,               # チャープを入れる軸
     # 励起信号パラメータ
     'SID_MAGNITUDE': 60,         # チャープ信号振幅
     'SID_F_START_HZ': 0.5,       # 1.0 → 0.5（低周波カバー）
