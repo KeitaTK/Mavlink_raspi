@@ -117,7 +117,7 @@ params_to_set = {
     'ATC_ANG_YAW_P': 4.5,    # Yaw Angle P
     
     # --- 姿勢角速度制御（最下位階層） ---
-    'ATC_RAT_RLL_P': 0.015,   # Roll Rate P
+    'ATC_RAT_RLL_P': 0.035,   # Roll Rate P
     'ATC_RAT_RLL_I': 0,      # Roll Rate I
     'ATC_RAT_RLL_D': 0.0002, # Roll Rate D
     'ATC_RAT_RLL_FF': 0,     # Roll Rate FF (フィードフォワード)
