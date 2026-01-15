@@ -16,7 +16,7 @@ print(f"接続完了 (システム: {master.target_system}, コンポーネン�
 
 # --- 振り子長さをここで設定 ---
 import math
-PENDULUM_LENGTH = 0.74  # [m] ここを書き換えて長さを指定
+PENDULUM_LENGTH = 0.70  # [m] ここを書き換えて長さを指定
 # PENDULUM_LENGTH = 0.74  # [m] ここを書き換えて長さを指定
 def calc_pendulum_freq(length_m):
     g = 9.80665  # 重力加速度[m/s^2]
