@@ -134,7 +134,7 @@ params_to_set = {
     'OBS_DIST_FREQ': obs_dist_freq, # 外乱（吊荷）推定用の周波数 [Hz] (0.1-10.0)
     'OBS_PRED_TIME': 0.00,        # 予測時間 [秒] (0.0-0.5)
     'OBS_PHASE_CORR': 1,          # 位相補正有効化 (0:無効, 1:有効)
-    'OBS_PHASE_THRESH': 0.0,      # 位相補正のしきい値 [rad] (0.0-20.0)
+    'OBS_PHASE_THRESH': -10.0,      # 位相補正のしきい値 [rad] (0.0-20.0)
 
 
     # --- IMUフィルタ（応答性向上） ---
