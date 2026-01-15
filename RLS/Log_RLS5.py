@@ -140,6 +140,7 @@ def main():
         pixhawk_time_ms = pred_time_ms = cold_start_progress = None
         record_count = 0
         phasecorr_cache = None
+        phasecorr_print_count = 0
 
         while running and not stop_event.is_set():
             # 0行追加イベントをチェック
@@ -166,8 +167,11 @@ def main():
                     row = [ts] + [""]*15 + [err, est_freq, corr if corr is not None else "", raw_msg]
                     writer.writerow(row)
                     csvfile.flush()
-                    corr_str = f"corr={corr:.4f}" if corr is not None else "(no correction)"
-                    print(f"{ts} : PhaseCorr err={err:.4f} rad, est_freq={est_freq:.4f} Hz, {corr_str}")
+                    # ログ出力は10回に1回
+                    phasecorr_print_count += 1
+                    if phasecorr_print_count % 10 == 0:
+                        corr_str = f"corr={corr:.4f}" if corr is not None else "(no correction)"
+                        print(f"{ts} : PhaseCorr err={err:.4f} rad, est_freq={est_freq:.4f} Hz, {corr_str}")
                 continue
 
             # RLS系以外は除外
@@ -214,7 +218,8 @@ def main():
                 ]
                 writer.writerow(row)
                 csvfile.flush()
-                if record_count % 5 == 0:
+                # ログ出力は20回に1回
+                if record_count % 20 == 0:
                     corr_str = f"{corr:.4f}" if corr is not None else "N/A"
                     print(f"{ts} : 記録 #{record_count} F_curr=({f_curr[0]:.3f},{f_curr[1]:.3f},{f_curr[2]:.3f}) "
                           f"A=({abcA[0]:.3f},{abcA[1]:.3f}) B=({abcB[0]:.3f},{abcB[1]:.3f}) C=({abcC[0]:.3f},{abcC[1]:.3f}) "
