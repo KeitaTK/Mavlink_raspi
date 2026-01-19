@@ -127,13 +127,13 @@ params_to_set = {
     'ATC_RAT_YAW_I': 0.02,   # Yaw I
 
     # --- Observer設定 (吊荷制御) ---
-    'OBS_CORR_GAIN': 0.0,        # オブザーバ補正ゲイン (0.0-1.0) #初めは0にする
+    'OBS_CORR_GAIN': 0.2,        # オブザーバ補正ゲイン (0.0-1.0) #初めは0にする
     'OBS_FILT_CUTOFF': 20.0,      # オブザーバ用フィルタのカットオフ周波数 [Hz] (1.0-100.0)
     'OBS_RLS_LAMBDA': 0.99,       # RLSの忘却係数 (0.9-0.9999)
     'OBS_RLS_COV_INIT': 100.0,    # RLSの初期共分散 (0.001-1000.0)
     'OBS_DIST_FREQ': obs_dist_freq, # 外乱（吊荷）推定用の周波数 [Hz] (0.1-10.0)
     'OBS_PRED_TIME': 0.00,        # 予測時間 [秒] (0.0-0.5)
-    'OBS_PHASE_CORR': 1,          # 位相補正有効化 (0:無効, 1:有効)
+    'OBS_PHASE_CORR': 0,          # 位相補正有効化 (0:無効, 1:有効)
     'OBS_PHASE_THRESH': -10.0,      # 位相補正のしきい値 [rad] (0.0-20.0)
 
 
