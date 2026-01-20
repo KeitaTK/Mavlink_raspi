@@ -3,6 +3,11 @@
 # 1回目エンター: 記録開始
 # 2回目エンター: すべて0の行を追加
 # 3回目エンター: 記録停止と保存
+#
+# 注意: このスクリプトはMAVLink STATUSTEXTメッセージ（デバッグ出力）を受信します。
+# C++コードはSDカードに"OBSV"ログも記録していますが、このスクリプトでは使用していません。
+# より高精度なデータが必要な場合は、SDカードから.binログを読み取り、
+# mavlogdump.py等を使用してOBSVメッセージを抽出してください。
 
 
 import re
@@ -31,32 +36,45 @@ def parse_phasecorr_message(msg):
     """
     C++コードから送信される2種類のPhaseCorrメッセージを解析:
     1. "PhaseCorr: err=X.XXXX est_freq=X.XXXX Hz corr=X.XXXX"
-    2. "PhaseCorr: err=X.XXXX est_freq=X.XXXX (no correction)"
+    2. "PhaseCorr: err=X.XXXX est_freq=X.XXXX Hz corr=X.XXXX (no correction)"
+    
+    C++変数との対応:
+    - err: phase_error (float) [rad]
+    - est_freq: estimated_freq (float) [Hz]
+    - corr: phase_correction (float) [rad]
     
     戻り値: [err, est_freq, corr, raw_message]
+    corrは補正なしの場合None、それ以外はfloat
     """
-    # 補正ありのパターン
-    pattern1 = r"PhaseCorr: err=([\d\.-]+) est_freq=([\d\.-]+) Hz corr=([\d\.-]+)"
-    m1 = re.search(pattern1, msg)
-    if m1:
-        err = float(m1.group(1))
-        est_freq = float(m1.group(2))
-        corr = float(m1.group(3))
-        return [err, est_freq, corr, msg]
-    
-    # 補正なし（閾値以下）のパターン
-    pattern2 = r"PhaseCorr: err=([\d\.-]+) est_freq=([\d\.-]+) \(no correction\)"
-    m2 = re.search(pattern2, msg)
-    if m2:
-        err = float(m2.group(1))
-        est_freq = float(m2.group(2))
-        corr = None  # 補正なしの場合はNone
-        return [err, est_freq, corr, msg]
+    # 補正あり/なし共通パターン（"(no correction)"はオプション）
+    pattern = r"PhaseCorr: err=([\d\.-]+) est_freq=([\d\.-]+) Hz corr=([\d\.-]+)"
+    m = re.search(pattern, msg)
+    if m:
+        try:
+            err = float(m.group(1))
+            est_freq = float(m.group(2))
+            corr = float(m.group(3))
+            # "(no correction)"が含まれている場合でもcorrの値は記録
+            return [err, est_freq, corr, msg]
+        except ValueError as e:
+            print(f"Warning: Failed to parse PhaseCorr values: {e}")
+            return [None, None, None, msg]
     
     return [None, None, None, msg]
 
 def parse_rls_message(text):
+    """
+    C++コードから送信されるSTATUSTEXTメッセージを解析
+    
+    対応するC++コード（update()関数内、10回に1回送信）:
+    - "t=%.2f PL: %.3f %.3f %.3f" → _payload_filtered (外力)
+    - "A: %.3f %.3f" → rls_theta[0][0], rls_theta[1][0] (sin係数)
+    - "B: %.3f %.3f" → rls_theta[0][1], rls_theta[1][1] (cos係数)
+    - "C: %.3f %.3f" → rls_theta[0][2], rls_theta[1][2] (定常偏差)
+    - "PRED: %.3f %.3f %.3f" → get_predicted_force() (予測外力)
+    """
     text = text.strip()
+    # "A: X Y" - RLS sin係数
     mA = re.match(r"A:\s*([\-\d\.]+)\s+([\-\d\.]+)", text)
     mB = re.match(r"B:\s*([\-\d\.]+)\s+([\-\d\.]+)", text)
     mC = re.match(r"C:\s*([\-\d\.]+)\s+([\-\d\.]+)", text)
@@ -66,6 +84,7 @@ def parse_rls_message(text):
         return {"type": "abcB", "B_X": float(mB.group(1)), "B_Y": float(mB.group(2))}
     if mC:
         return {"type": "abcC", "C_X": float(mC.group(1)), "C_Y": float(mC.group(2))}
+    # "t=XXX PL: X Y Z" - 時刻と外力（フィルタ後）
     m = re.match(r"t=([\-\d\.]+)\sPL:\s([\-\d\.]+)\s([\-\d\.]+)\s([\-\d\.]+)", text)
     if m:
         return {
@@ -75,6 +94,7 @@ def parse_rls_message(text):
             "F_curr_Y": float(m.group(3)),
             "F_curr_Z": float(m.group(4))
         }
+    # "PRED: X Y Z" - 予測外力
     m = re.match(r"PRED:\s([\-\d\.]+)\s([\-\d\.]+)\s([\-\d\.]+)", text)
     if m:
         return {
@@ -91,15 +111,22 @@ def main():
         writer = csv.writer(csvfile)
         writer.writerow([
             "Timestamp",
+            # STATUSTEXTから解析した外力（t=XXX PL: X Y Z）
             "F_curr_X_N", "F_curr_Y_N", "F_curr_Z_N",
+            # RLS sin係数（A: X Y） - C++: rls_theta[0][0], rls_theta[1][0]
             "A_X", "A_Y",
+            # RLS cos係数（B: X Y） - C++: rls_theta[0][1], rls_theta[1][1]
             "B_X", "B_Y",
+            # RLS 定常偏差（C: X Y） - C++: rls_theta[0][2], rls_theta[1][2]
             "C_X", "C_Y",
+            # 予測外力（PRED: X Y Z）
             "F_pred_X_N", "F_pred_Y_N", "F_pred_Z_N",
+            # Pixhawkの経過時間 [ms]（t=XXX から変換）
             "Pixhawk_Time_ms",
             "Prediction_Time_ms",
             "Cold_Start_Progress",
-            # PhaseCorr用（C++コードに合わせた列名）
+            # 位相補正データ（PhaseCorr: メッセージから解析）
+            # C++: phase_error, estimated_freq, phase_correction
             "phase_error_rad", "estimated_freq_Hz", "phase_correction_rad", "PhaseCorr_raw"
         ])
         print(f"CSV 保存先: {csv_path}")
@@ -201,20 +228,24 @@ def main():
                     err, est_freq, corr, phasecorr_raw = phasecorr_cache
                 else:
                     err = est_freq = corr = phasecorr_raw = ""
+                
+                # データ型の検証とフォーマット
+                # F_curr, A, B, C, F_pred は float として記録
+                # phase_error, est_freq, phase_corr も float（Noneなら空文字列）
                 row = [
                     ts,
-                    f_curr[0], f_curr[1], f_curr[2],
-                    abcA[0], abcA[1],
-                    abcB[0], abcB[1],
-                    abcC[0], abcC[1],
-                    f_pred[0], f_pred[1], f_pred[2],
-                    pixhawk_time_ms if pixhawk_time_ms else "",
-                    pred_time_ms if pred_time_ms else "",
-                    "",  # cold start
-                    err if err is not None else "",
-                    est_freq if est_freq is not None else "",
-                    corr if corr is not None else "",
-                    phasecorr_raw
+                    f_curr[0], f_curr[1], f_curr[2],  # float
+                    abcA[0], abcA[1],  # float
+                    abcB[0], abcB[1],  # float
+                    abcC[0], abcC[1],  # float
+                    f_pred[0], f_pred[1], f_pred[2],  # float
+                    pixhawk_time_ms if pixhawk_time_ms else "",  # int or ""
+                    pred_time_ms if pred_time_ms else "",  # int or ""
+                    "",  # cold start (未使用)
+                    err if err is not None else "",  # float or ""
+                    est_freq if est_freq is not None else "",  # float or ""
+                    corr if corr is not None else "",  # float or "" (no correctionの場合None)
+                    phasecorr_raw if phasecorr_raw else ""  # str or ""
                 ]
                 writer.writerow(row)
                 csvfile.flush()
