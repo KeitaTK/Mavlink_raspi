@@ -34,17 +34,17 @@ def create_csv_filepath():
 
 def parse_phasecorr_message(msg):
     """
-    C++コードから送信される2種類のPhaseCorrメッセージを解析:
+    C++コードから送信されるPhaseCorrメッセージを解析（50ループに1回送信）:
     1. "PhaseCorr: err=X.XXXX est_freq=X.XXXX Hz corr=X.XXXX"
     2. "PhaseCorr: err=X.XXXX est_freq=X.XXXX Hz corr=X.XXXX (no correction)"
     
-    C++変数との対応:
-    - err: phase_error (float) [rad]
-    - est_freq: estimated_freq (float) [Hz]
-    - corr: phase_correction (float) [rad]
+    C++変数との対応（phase_correction_update()関数）:
+    - err: phase_error = 位相誤差 [rad]
+    - est_freq: estimated_freq = 推定周波数 [Hz]
+    - corr: phase_correction = 累積位相補正量 [rad]
     
     戻り値: [err, est_freq, corr, raw_message]
-    corrは補正なしの場合None、それ以外はfloat
+    全てfloat型（パースできない場合はNone）
     """
     # 補正あり/なし共通パターン（"(no correction)"はオプション）
     pattern = r"PhaseCorr: err=([\d\.-]+) est_freq=([\d\.-]+) Hz corr=([\d\.-]+)"
@@ -66,12 +66,15 @@ def parse_rls_message(text):
     """
     C++コードから送信されるSTATUSTEXTメッセージを解析
     
-    対応するC++コード（update()関数内、10回に1回送信）:
-    - "t=%.2f PL: %.3f %.3f %.3f" → _payload_filtered (外力)
-    - "A: %.3f %.3f" → rls_theta[0][0], rls_theta[1][0] (sin係数)
-    - "B: %.3f %.3f" → rls_theta[0][1], rls_theta[1][1] (cos係数)
-    - "C: %.3f %.3f" → rls_theta[0][2], rls_theta[1][2] (定常偏差)
-    - "PRED: %.3f %.3f %.3f" → get_predicted_force() (予測外力)
+    対応するC++コード（update()関数内、10回に1回送信、離陸後のみRLS実行）:
+    - "t=%.2f PL: %.3f %.3f %.3f" → _payload_filtered (ペイロード外力) [N]
+    - "A: %.3f %.3f" → rls_theta[0][0], rls_theta[1][0] (sin係数) [N]
+    - "B: %.3f %.3f" → rls_theta[0][1], rls_theta[1][1] (cos係数) [N]
+    - "C: %.3f %.3f" → rls_theta[0][2], rls_theta[1][2] (定常偏差) [N]
+    - "PRED: %.3f %.3f %.3f" → get_predicted_force() (予測外力) [N]
+    
+    注: テスト用外力注入モード(OBS_TEST_INJECT=1)の場合、
+        PLには既知の正弦波が注入される。
     """
     text = text.strip()
     # "A: X Y" - RLS sin係数
@@ -112,22 +115,21 @@ def main():
         writer.writerow([
             "Timestamp",
             # STATUSTEXTから解析した外力（t=XXX PL: X Y Z）
+            # C++: _payload_filtered.x/y/z [N]
             "F_curr_X_N", "F_curr_Y_N", "F_curr_Z_N",
-            # RLS sin係数（A: X Y） - C++: rls_theta[0][0], rls_theta[1][0]
+            # RLS sin係数（A: X Y） - C++: rls_theta[0][0], rls_theta[1][0] [N]
             "A_X", "A_Y",
-            # RLS cos係数（B: X Y） - C++: rls_theta[0][1], rls_theta[1][1]
+            # RLS cos係数（B: X Y） - C++: rls_theta[0][1], rls_theta[1][1] [N]
             "B_X", "B_Y",
-            # RLS 定常偏差（C: X Y） - C++: rls_theta[0][2], rls_theta[1][2]
+            # RLS 定常偏差（C: X Y） - C++: rls_theta[0][2], rls_theta[1][2] [N]
             "C_X", "C_Y",
-            # 予測外力（PRED: X Y Z）
+            # 予測外力（PRED: X Y Z） - C++: get_predicted_force() [N]
             "F_pred_X_N", "F_pred_Y_N", "F_pred_Z_N",
-            # Pixhawkの経過時間 [ms]（t=XXX から変換）
-            "Pixhawk_Time_ms",
-            "Prediction_Time_ms",
-            "Cold_Start_Progress",
-            # 位相補正データ（PhaseCorr: メッセージから解析）
-            # C++: phase_error, estimated_freq, phase_correction
-            "phase_error_rad", "estimated_freq_Hz", "phase_correction_rad", "PhaseCorr_raw"
+            # Pixhawkの経過時間 [秒]（t=XXX から取得）
+            "Pixhawk_Time_s",
+            # 位相補正データ（PhaseCorr: メッセージから解析、50ループに1回送信）
+            # C++: phase_error [rad], estimated_frequency [Hz], phase_correction [rad]
+            "phase_error_rad", "estimated_freq_Hz", "phase_correction_rad"
         ])
         print(f"CSV 保存先: {csv_path}")
 
@@ -164,7 +166,7 @@ def main():
 
         abcA = abcB = abcC = None
         f_curr = f_pred = None
-        pixhawk_time_ms = pred_time_ms = cold_start_progress = None
+        pixhawk_time_s = None
         record_count = 0
         phasecorr_cache = None
         phasecorr_print_count = 0
@@ -173,7 +175,8 @@ def main():
             # 0行追加イベントをチェック
             if add_zero_line_event.is_set():
                 ts = datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")[:-3]
-                zero_row = [ts] + [0] * 15 + [0, 0, 0, "zero_marker"]
+                # 13列のデータ（F_curr x3, A x2, B x2, C x2, F_pred x3, time x1） + PhaseCorr x3
+                zero_row = [ts] + [0] * 13 + [0, 0, 0]
                 writer.writerow(zero_row)
                 csvfile.flush()
                 print(f"{ts} : すべて0の行を追加しました。")
@@ -188,10 +191,11 @@ def main():
             if text.startswith("PhaseCorr:"):
                 err, est_freq, corr, raw_msg = parse_phasecorr_message(text)
                 phasecorr_cache = (err, est_freq, corr, raw_msg)
-                # PhaseCorr単体でも記録（1秒に1回程度で来る想定）
+                # PhaseCorr単体でも記録（50ループに1回=0.5秒に1回程度）
                 if record_event.is_set() and err is not None:
                     ts = datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")[:-3]
-                    row = [ts] + [""]*15 + [err, est_freq, corr if corr is not None else "", raw_msg]
+                    # 13列の空欄 + 3列のPhaseCorr値
+                    row = [ts] + [""] * 13 + [err, est_freq, corr if corr is not None else ""]
                     writer.writerow(row)
                     csvfile.flush()
                     # ログ出力は10回に1回
@@ -216,7 +220,7 @@ def main():
                 abcC = (data["C_X"], data["C_Y"])
             elif data["type"] == "payload":
                 f_curr = (data["F_curr_X"], data["F_curr_Y"], data["F_curr_Z"])
-                pixhawk_time_ms = int(data["pixhawk_time_s"] * 1000)
+                pixhawk_time_s = data["pixhawk_time_s"]  # [秒]のまま記録
             elif data["type"] == "predicted":
                 f_pred = (data["F_pred_X"], data["F_pred_Y"], data["F_pred_Z"])
 
@@ -230,32 +234,43 @@ def main():
                     err = est_freq = corr = phasecorr_raw = ""
                 
                 # データ型の検証とフォーマット
-                # F_curr, A, B, C, F_pred は float として記録
-                # phase_error, est_freq, phase_corr も float（Noneなら空文字列）
+                # F_curr, A, B, C, F_pred: float [N]
+                # pixhawk_time_s: float [秒]
+                # phase_error, est_freq, phase_corr: float（Noneなら空文字列）
                 row = [
                     ts,
-                    f_curr[0], f_curr[1], f_curr[2],  # float
-                    abcA[0], abcA[1],  # float
-                    abcB[0], abcB[1],  # float
-                    abcC[0], abcC[1],  # float
-                    f_pred[0], f_pred[1], f_pred[2],  # float
-                    pixhawk_time_ms if pixhawk_time_ms else "",  # int or ""
-                    pred_time_ms if pred_time_ms else "",  # int or ""
-                    "",  # cold start (未使用)
-                    err if err is not None else "",  # float or ""
-                    est_freq if est_freq is not None else "",  # float or ""
-                    corr if corr is not None else "",  # float or "" (no correctionの場合None)
-                    phasecorr_raw if phasecorr_raw else ""  # str or ""
+                    f_curr[0], f_curr[1], f_curr[2],  # 外力 [N]
+                    abcA[0], abcA[1],                 # sin係数 [N]
+                    abcB[0], abcB[1],                 # cos係数 [N]
+                    abcC[0], abcC[1],                 # 定常偏差 [N]
+                    f_pred[0], f_pred[1], f_pred[2],  # 予測外力 [N]
+                    pixhawk_time_s if pixhawk_time_s else "",  # 経過時間 [秒]
+                    err if err is not None else "",    # 位相誤差 [rad]
+                    est_freq if est_freq is not None else "",  # 推定周波数 [Hz]
+                    corr if corr is not None else ""   # 位相補正 [rad]
                 ]
                 writer.writerow(row)
                 csvfile.flush()
-                # ログ出力は20回に1回
+                # corr, err, est_freq の型チェックとフォーマット
+                def fmt_float(val):
+                    try:
+                        if isinstance(val, float):
+                            return f"{val:.4f}"
+                        elif isinstance(val, int):
+                            return f"{float(val):.4f}"
+                        else:
+                            return "N/A"
+                    except Exception:
+                        return "N/A"
+
                 if record_count % 20 == 0:
-                    corr_str = f"{corr:.4f}" if corr is not None else "N/A"
+                    corr_str = fmt_float(corr)
+                    err_str = fmt_float(err)
+                    est_freq_str = fmt_float(est_freq)
                     print(f"{ts} : 記録 #{record_count} F_curr=({f_curr[0]:.3f},{f_curr[1]:.3f},{f_curr[2]:.3f}) "
                           f"A=({abcA[0]:.3f},{abcA[1]:.3f}) B=({abcB[0]:.3f},{abcB[1]:.3f}) C=({abcC[0]:.3f},{abcC[1]:.3f}) "
                           f"F_pred=({f_pred[0]:.3f},{f_pred[1]:.3f},{f_pred[2]:.3f}) "
-                          f"PhaseCorr=(err={err if err else 'N/A'}, est_freq={est_freq if est_freq else 'N/A'}, corr={corr_str})")
+                          f"PhaseCorr=(err={err_str}, est_freq={est_freq_str}, corr={corr_str})")
                 record_count += 1
                 f_curr = f_pred = None
 
