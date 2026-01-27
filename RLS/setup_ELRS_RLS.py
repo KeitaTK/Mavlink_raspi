@@ -165,6 +165,7 @@ params_to_set = {
     'RC_OPTIONS': 10336,
     'RSSI_TYPE': 3,  # ELRSレシーバー
     'RC9_OPTION': 153,  # ELRSレシーバー
+    'OBS_FREQ_EST_CH': 7
     
     # --- GUIDEDモード設定 ---
     'GUID_TIMEOUT': 3,
