@@ -160,14 +160,13 @@ params_to_set = {
     
     # --- RC設定 ---
     'RC8_OPTION': 316,      # RLS Frequency Estimation（新規追加）
+    'RC9_OPTION': 153,  # ELRSレシーバー
     'RC10_OPTION': 56,
     'RC11_OPTION': 55,
     'THR_DZ': 200,
     'RC_OPTIONS': 10336,
     'RSSI_TYPE': 3,  # ELRSレシーバー
-    'RC9_OPTION': 153,  # ELRSレシーバー
-    'OBS_FREQ_EST_CH': 0,  # チャンネル7で吊荷周波数推定
-    
+
     # --- GUIDEDモード設定 ---
     'GUID_TIMEOUT': 3,
     'GUID_OPTIONS': 0,
