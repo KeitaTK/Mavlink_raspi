@@ -159,13 +159,14 @@ params_to_set = {
     'SERIAL2_PROTOCOL': 23,  # ELRSレシーバー
     
     # --- RC設定 ---
+    'RC8_OPTION': 316,      # RLS Frequency Estimation（新規追加）
     'RC10_OPTION': 56,
     'RC11_OPTION': 55,
     'THR_DZ': 200,
     'RC_OPTIONS': 10336,
     'RSSI_TYPE': 3,  # ELRSレシーバー
     'RC9_OPTION': 153,  # ELRSレシーバー
-    'OBS_FREQ_EST_CH': 8,  # チャンネル7で吊荷周波数推定
+    'OBS_FREQ_EST_CH': 0,  # チャンネル7で吊荷周波数推定
     
     # --- GUIDEDモード設定 ---
     'GUID_TIMEOUT': 3,
