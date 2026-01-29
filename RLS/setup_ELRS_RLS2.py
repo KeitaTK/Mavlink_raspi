@@ -244,9 +244,11 @@ def set_parameter_with_retry(param_name, param_value, param_type, max_retries=3)
             mav_param_type
         )
         
+        # FC側の処理待ち（バッファオーバーフロー防止のため増加）
+        time.sleep(0.15)
+        
         # 確認メッセージを待機
-        time.sleep(0.1)  # FC側の処理待ち
-        message = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=2)
+        message = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=3)
         
         if message:
             received_value = message.to_dict()["param_value"]
@@ -257,14 +259,14 @@ def set_parameter_with_retry(param_name, param_value, param_type, max_retries=3)
             else:
                 if attempt < max_retries - 1:
                     print(f'  ⚠️ {param_name}: 設定値 {param_value} != 確認値 {received_value}. リトライ {attempt + 1}/{max_retries}')
-                    time.sleep(0.2)
+                    time.sleep(0.3)  # リトライ前の待機時間を増加
                 else:
                     print(f'  ❌ {param_name}: 設定失敗 (設定値 {param_value} != 確認値 {received_value})')
                     return False, received_value
         else:
             if attempt < max_retries - 1:
                 print(f'  ⚠️ {param_name}: タイムアウト. リトライ {attempt + 1}/{max_retries}')
-                time.sleep(0.2)
+                time.sleep(0.3)
             else:
                 print(f'  ❌ {param_name}: タイムアウト（設定失敗）')
                 return False, None
@@ -289,7 +291,9 @@ for param_name, (param_value, param_type, param_comment) in params_to_set.items(
 if failed_params:
     print(f"\n⚠️ {len(failed_params)}個のパラメータ設定に失敗しました")
 
-time.sleep(2)
+# 全パラメータ送信完了後、FC側の処理完了を待つ
+print("\nFC側の処理完了を待機中...")
+time.sleep(5)
 
 # 設定をEEPROMに永続的に保存するコマンドを送信
 print("設定をEEPROMに保存中...")
@@ -302,14 +306,26 @@ master.mav.command_long_send(
     0, 0, 0, 0, 0, 0  # 未使用のパラメータ
 )
 
-# コマンドACKを待機
-ack = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+# コマンドACKを待機（タイムアウトを延長）
+ack = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=10)
 if ack and ack.command == mavutil.mavlink.MAV_CMD_PREFLIGHT_STORAGE and ack.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
     print("✅ EEPROMへの保存成功")
+elif ack and ack.result == mavutil.mavlink.MAV_RESULT_IN_PROGRESS:
+    print("⏳ EEPROM保存処理中...")
+    # IN_PROGRESSの場合、完了ACKを待つ
+    time.sleep(3)
+    final_ack = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=10)
+    if final_ack and final_ack.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
+        print("✅ EEPROMへの保存成功")
+    else:
+        print("⚠️ EEPROM保存の最終確認に失敗")
 else:
     print("⚠️ EEPROMへの保存でエラーまたはタイムアウトが発生")
+    if ack:
+        print(f"   結果コード: {ack.result}")
 
-time.sleep(1)
+# EEPROM保存完了後の安定化待ち
+time.sleep(2)
 
 # 確認のため、パラメータを再読み込み
 print("\n設定を確認中...")
