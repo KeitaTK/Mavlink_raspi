@@ -229,30 +229,67 @@ MAV_PARAM_TYPE_MAP = {
     'AP_Float': mavutil.mavlink.MAV_PARAM_TYPE_REAL32,
 }
 
-# パラメータを設定
-print("パラメータを設定中...")
-for param_name, (param_value, param_type, param_comment) in params_to_set.items():
-    # 型に応じた適切なMAV_PARAM_TYPEを取得
+# パラメータ設定関数（リトライ機能付き）
+def set_parameter_with_retry(param_name, param_value, param_type, max_retries=3):
+    """パラメータを設定し、確認して一致するまでリトライする"""
     mav_param_type = MAV_PARAM_TYPE_MAP.get(param_type, mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
     
-    # パラメータを設定（一時的にRAMに保存）
-    master.mav.param_set_send(
-        master.target_system,
-        master.target_component,
-        param_name.encode('utf-8'),
-        float(param_value),
-        mav_param_type
-    )
+    for attempt in range(max_retries):
+        # パラメータを設定
+        master.mav.param_set_send(
+            master.target_system,
+            master.target_component,
+            param_name.encode('utf-8'),
+            float(param_value),
+            mav_param_type
+        )
+        
+        # 確認メッセージを待機
+        time.sleep(0.1)  # FC側の処理待ち
+        message = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=2)
+        
+        if message:
+            received_value = message.to_dict()["param_value"]
+            
+            # 浮動小数点の比較（誤差許容）
+            if abs(float(received_value) - float(param_value)) < 0.0001:
+                return True, received_value
+            else:
+                if attempt < max_retries - 1:
+                    print(f'  ⚠️ {param_name}: 設定値 {param_value} != 確認値 {received_value}. リトライ {attempt + 1}/{max_retries}')
+                    time.sleep(0.2)
+                else:
+                    print(f'  ❌ {param_name}: 設定失敗 (設定値 {param_value} != 確認値 {received_value})')
+                    return False, received_value
+        else:
+            if attempt < max_retries - 1:
+                print(f'  ⚠️ {param_name}: タイムアウト. リトライ {attempt + 1}/{max_retries}')
+                time.sleep(0.2)
+            else:
+                print(f'  ❌ {param_name}: タイムアウト（設定失敗）')
+                return False, None
     
-    # 確認メッセージを待機
-    message = master.recv_match(type='PARAM_VALUE', blocking=True).to_dict()
+    return False, None
+
+# パラメータを設定
+print("パラメータを設定中...")
+failed_params = {}
+for param_name, (param_value, param_type, param_comment) in params_to_set.items():
+    success, received_value = set_parameter_with_retry(param_name, param_value, param_type)
+    
     if param_name == 'OBS_CORR_GAIN':
         # 赤色で強調表示
-        print(f'\033[91m{param_name} = {message["param_value"]} ({param_type})  # {param_comment}\033[0m')
+        print(f'\033[91m{param_name} = {received_value} ({param_type})  # {param_comment}\033[0m')
     else:
-        print(f'{param_name} = {message["param_value"]} ({param_type})  # {param_comment}')
+        print(f'{param_name} = {received_value} ({param_type})  # {param_comment}')
+    
+    if not success:
+        failed_params[param_name] = (param_value, param_type, param_comment)
 
-time.sleep(5)
+if failed_params:
+    print(f"\n⚠️ {len(failed_params)}個のパラメータ設定に失敗しました")
+
+time.sleep(2)
 
 # 設定をEEPROMに永続的に保存するコマンドを送信
 print("設定をEEPROMに保存中...")
@@ -266,15 +303,18 @@ master.mav.command_long_send(
 )
 
 # コマンドACKを待機
-ack = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=1)
+ack = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
 if ack and ack.command == mavutil.mavlink.MAV_CMD_PREFLIGHT_STORAGE and ack.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
-    print("EEPROMへの保存成功")
+    print("✅ EEPROMへの保存成功")
 else:
-    print("EEPROMへの保存でエラーまたはタイムアウトが発生")
+    print("⚠️ EEPROMへの保存でエラーまたはタイムアウトが発生")
+
+time.sleep(1)
 
 # 確認のため、パラメータを再読み込み
 print("\n設定を確認中...")
-for param_name, (_, param_type, param_comment) in params_to_set.items():
+mismatched_params = {}
+for param_name, (param_value, param_type, param_comment) in params_to_set.items():
     master.mav.param_request_read_send(
         master.target_system,
         master.target_component,
@@ -282,10 +322,81 @@ for param_name, (_, param_type, param_comment) in params_to_set.items():
         -1  # -1はインデックスではなく名前でパラメータを取得
     )
     
-    message = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=10).to_dict()
+    time.sleep(0.05)  # FC側の処理待ち
+    message = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=2)
     if message:
-        print(f'{param_name} = {message["param_value"]} ({param_type})  # {param_comment}')
+        received_value = message.to_dict()["param_value"]
+        print(f'{param_name} = {received_value} ({param_type})  # {param_comment}')
+        
+        # 値の一致確認
+        if abs(float(received_value) - float(param_value)) >= 0.0001:
+            print(f'  ⚠️ 不一致: 設定値={param_value}, 確認値={received_value}')
+            mismatched_params[param_name] = (param_value, param_type, param_comment)
     else:
         print(f'{param_name} のデータを取得できませんでした')
+        mismatched_params[param_name] = (param_value, param_type, param_comment)
+
+# 不一致のパラメータを再設定
+if mismatched_params:
+    print(f"\n⚠️ {len(mismatched_params)}個のパラメータが不一致です。再設定を試みます...")
+    
+    for param_name, (param_value, param_type, param_comment) in mismatched_params.items():
+        print(f"\n再設定: {param_name} = {param_value}")
+        success, received_value = set_parameter_with_retry(param_name, param_value, param_type, max_retries=5)
+        
+        if success:
+            print(f'  ✅ {param_name} = {received_value} (再設定成功)')
+        else:
+            print(f'  ❌ {param_name} = {received_value} (再設定失敗)')
+    
+    # 再保存
+    print("\n再度EEPROMに保存中...")
+    master.mav.command_long_send(
+        master.target_system,
+        master.target_component,
+        mavutil.mavlink.MAV_CMD_PREFLIGHT_STORAGE,
+        0,
+        1,
+        0, 0, 0, 0, 0, 0
+    )
+    
+    ack = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=3)
+    if ack and ack.command == mavutil.mavlink.MAV_CMD_PREFLIGHT_STORAGE and ack.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
+        print("✅ 再保存成功")
+    else:
+        print("⚠️ 再保存でエラーまたはタイムアウトが発生")
+    
+    print("\n最終確認を実施中...")
+    time.sleep(1)
+    final_failed = []
+    for param_name, (param_value, param_type, param_comment) in mismatched_params.items():
+        master.mav.param_request_read_send(
+            master.target_system,
+            master.target_component,
+            param_name.encode('utf-8'),
+            -1
+        )
+        
+        time.sleep(0.05)
+        message = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=2)
+        if message:
+            received_value = message.to_dict()["param_value"]
+            if abs(float(received_value) - float(param_value)) < 0.0001:
+                print(f'  ✅ {param_name} = {received_value} (最終確認OK)')
+            else:
+                print(f'  ❌ {param_name} = {received_value} (設定値={param_value}, 最終確認失敗)')
+                final_failed.append(param_name)
+        else:
+            print(f'  ❌ {param_name} (データ取得失敗)')
+            final_failed.append(param_name)
+    
+    if final_failed:
+        print(f"\n❌ 最終的に{len(final_failed)}個のパラメータが正しく設定できませんでした:")
+        for name in final_failed:
+            print(f"  - {name}")
+    else:
+        print("\n✅ 全てのパラメータが正しく設定されました")
+else:
+    print("\n✅ 全てのパラメータが正しく設定されました")
 
 print("\n設定と保存の確認完了")
