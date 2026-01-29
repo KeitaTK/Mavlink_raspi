@@ -308,21 +308,34 @@ master.mav.command_long_send(
 
 # コマンドACKを待機（タイムアウトを延長）
 ack = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=10)
-if ack and ack.command == mavutil.mavlink.MAV_CMD_PREFLIGHT_STORAGE and ack.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
-    print("✅ EEPROMへの保存成功")
-elif ack and ack.result == mavutil.mavlink.MAV_RESULT_IN_PROGRESS:
-    print("⏳ EEPROM保存処理中...")
-    # IN_PROGRESSの場合、完了ACKを待つ
-    time.sleep(3)
-    final_ack = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=10)
-    if final_ack and final_ack.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
+eeprom_saved = False
+
+if ack and ack.command == mavutil.mavlink.MAV_CMD_PREFLIGHT_STORAGE:
+    if ack.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
         print("✅ EEPROMへの保存成功")
-    else:
-        print("⚠️ EEPROM保存の最終確認に失敗")
-else:
-    print("⚠️ EEPROMへの保存でエラーまたはタイムアウトが発生")
-    if ack:
+        eeprom_saved = True
+    elif ack.result == mavutil.mavlink.MAV_RESULT_IN_PROGRESS:
+        print("⏳ EEPROM保存処理中...")
+        # IN_PROGRESSの場合、完了ACKを待つ
+        time.sleep(3)
+        final_ack = master.recv_match(type='COMMAND_ACK', blocking=True, timeout=10)
+        if final_ack and final_ack.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
+            print("✅ EEPROMへの保存成功")
+            eeprom_saved = True
+        else:
+            print("⚠️ EEPROM保存の最終確認に失敗")
+    elif ack.result == 2:  # MAV_RESULT_DENIED
+        print("❌ EEPROMへの保存が拒否されました")
+        print("   理由: 機体がアーム状態、セーフティスイッチ有効、またはプリフライトモードでない")
+        print("   → 機体をディスアームし、セーフティを解除してから再実行してください")
+        print("   → パラメータはRAMに設定されていますが、再起動すると元に戻ります")
+    elif ack.result == 4:  # MAV_RESULT_FAILED
+        print("❌ EEPROMへの保存が失敗しました")
         print(f"   結果コード: {ack.result}")
+    else:
+        print(f"⚠️ 予期しない結果コード: {ack.result}")
+else:
+    print("⚠️ EEPROMへの保存コマンドのACKを受信できませんでした")
 
 # EEPROM保存完了後の安定化待ち
 time.sleep(2)
@@ -411,8 +424,16 @@ if mismatched_params:
         for name in final_failed:
             print(f"  - {name}")
     else:
-        print("\n✅ 全てのパラメータが正しく設定されました")
+        if eeprom_saved:
+            print("\n✅ 全てのパラメータが正しく設定され、EEPROMに保存されました")
+        else:
+            print("\n⚠️ 全てのパラメータはRAMに設定されましたが、EEPROMへの保存に失敗しました")
+            print("   再起動すると設定が失われます。FCをディスアームして再度実行してください。")
 else:
-    print("\n✅ 全てのパラメータが正しく設定されました")
+    if eeprom_saved:
+        print("\n✅ 全てのパラメータが正しく設定され、EEPROMに保存されました")
+    else:
+        print("\n⚠️ 全てのパラメータはRAMに設定されましたが、EEPROMへの保存に失敗しました")
+        print("   再起動すると設定が失われます。FCをディスアームして再度実行してください。")
 
 print("\n設定と保存の確認完了")
