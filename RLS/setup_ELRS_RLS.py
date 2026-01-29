@@ -132,6 +132,8 @@ params_to_set = {
     'OBS_RLS_LAMBDA': 0.99,       # RLSの忘却係数 (0.9-0.9999)
     'OBS_RLS_COV_INIT': 100.0,    # RLSの初期共分散 (0.001-1000.0)
     'OBS_DIST_FREQ': obs_dist_freq, # 外乱（吊荷）推定用の周波数 [Hz] (0.1-10.0)
+    'OBS_FREQ_ALPHA': 0.05,       # 周波数推定フィルタ係数（指数移動平均）(0.001-0.5)
+    'OBS_MAX_CORR_ANG': 0.5,      # 補正角度の最大値 [rad] (0.0-1.0)
     'OBS_PRED_TIME': 0.00,        # 予測時間 [秒] (0.0-0.5)
     'OBS_PHASE_CORR': 1,          # 位相補正有効化 (0:無効, 1:有効)
     'OBS_PHASE_THRESH': 0.0,      # 位相補正のしきい値 [rad] (0.0-20.0)
