@@ -21,7 +21,8 @@ MASK = 0x09F8            # bit10=0(Yaw有効) bit11=1(YawRate無視)
 YAW_SOUTH = 180.0        # ヨー角固定（南向き）
 
 # ───── 速度制御設定 ─────
-STEP_VELOCITY = 0.8      # [m/s] ステップ入力の大きさ（40cm/s）
+STEP_VELOCITY = 1.5      # [m/s] ステップ入力の大きさ（例: 0.4=40cm/s）
+STEP_DURATION = 1.0      # [秒] 速度指令を送る秒数（ここで変更可能）
 MASK_VELOCITY = 0b0000110111000111  # velocityのみ有効 (pos無視, accel無視, yaw無視)
 
 
@@ -241,7 +242,7 @@ def control_loop():
     print("  [p] 現在位置を記録")
     print("  [o] 記録位置から東へ1m移動")
     print("  [b] 記録位置へ戻る")
-    print("  [L] 現在位置を表示")
+    print("  [l] 現在位置を表示")
     print("\n【速度制御（ステップ入力）】")
     print("  [e] 東へ0.2m/s速度指令（長押し）→離すと停止")
     print("\n【RTH】")
@@ -388,8 +389,8 @@ def control_loop():
                     moved = True
                     echo = f"✓ 記録位置から東へ1m移動 目標: X={target['x']:.2f} Y={target['y']:.2f} Z={target['z']:.2f}"
 
-            # 現在位置を表示（Lキー）
-            elif key == 'L':
+            # 現在位置を表示（lキー）
+            elif key == 'l':
                 with io_lock:
                     echo = f"✓ 現在位置: X={gps_now['x']:.2f} Y={gps_now['y']:.2f} Z={gps_now['z']:.2f} ({-gps_now['z']:.2f}m高)"
 
@@ -400,13 +401,13 @@ def control_loop():
                 elif saved_position is None:
                     echo = "⚠ 位置未記録（先に[p]で記録）"
                 else:
-                    echo = f"✓ 速度指令開始: 東へ {STEP_VELOCITY} m/s（2秒間）"
+                    echo = f"✓ 速度指令開始: 東へ {STEP_VELOCITY} m/s（{STEP_DURATION}秒間）"
                     sys.stdout.write(f"\x1b[2K\r{echo}\n")
                     sys.stdout.flush()
                     
-                    # 2秒間、速度指令を送信
+                    # STEP_DURATION秒間、速度指令を送信
                     step_start = time.time()
-                    while time.time() - step_start < 2.0:
+                    while time.time() - step_start < STEP_DURATION:
                         send_velocity_step(mav, 0.0, STEP_VELOCITY, 0.0)  # 東（+Y）
                         time.sleep(0.05)  # 20Hz
                     
