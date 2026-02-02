@@ -113,9 +113,9 @@ params_to_set = {
     'PSC_ACCZ_I': (1.0, 'AP_Float', '垂直加速度制御I'),
     
     # --- 水平制御PID ---
-    'PSC_POSXY_P': (5.0, 'AP_Float', '水平位置制御P'),
+    'PSC_POSXY_P': (20.0, 'AP_Float', '水平位置制御P'),
     'PSC_VELXY_P': (4.0, 'AP_Float', '水平速度制御P'),
-    'PSC_VELXY_I': (2.5, 'AP_Float', '水平速度制御I'),
+    'PSC_VELXY_I': (0.0, 'AP_Float', '水平速度制御I'),
     'PSC_VELXY_D': (1.2, 'AP_Float', '水平速度制御D'),
     
     # --- 姿勢制御PID ---
