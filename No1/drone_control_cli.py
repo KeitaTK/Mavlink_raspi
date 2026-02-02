@@ -21,7 +21,7 @@ MASK = 0x09F8            # bit10=0(Yaw有効) bit11=1(YawRate無視)
 YAW_SOUTH = 180.0        # ヨー角固定（南向き）
 
 # ───── 速度制御設定 ─────
-STEP_VELOCITY = 0.4      # [m/s] ステップ入力の大きさ（40cm/s）
+STEP_VELOCITY = 0.6      # [m/s] ステップ入力の大きさ（40cm/s）
 MASK_VELOCITY = 0b0000110111000111  # velocityのみ有効 (pos無視, accel無視, yaw無視)
 
 
@@ -411,7 +411,18 @@ def control_loop():
                         send_velocity_step(mav, 0.0, 0.0, 0.0)
                         time.sleep(0.05)
                     
-                    echo = "✓ 速度制御完了 → 位置保持モードへ復帰"
+                    # 停止した位置を新しい目標位置として設定
+                    with io_lock:
+                        target['x'] = gps_now['x']
+                        target['y'] = gps_now['y']
+                        target['z'] = gps_now['z']
+                    
+                    # 新しい目標位置を送信（位置保持）
+                    lat, lon, alt = local_xyz_to_gps(target['x'], target['y'], target['z'])
+                    send_setpoint(mav, int(lat * 1e7), int(lon * 1e7), alt, YAW_SOUTH)
+                    
+                    echo = f"✓ 速度制御完了 → 停止位置で位置保持 目標: X={target['x']:.2f} Y={target['y']:.2f} Z={target['z']:.2f}"
+                    moved = True
 
             # 記録位置へ戻る
             elif key == 'b':
