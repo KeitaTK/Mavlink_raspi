@@ -89,7 +89,7 @@ params_to_set = {
     'WPNAV_ACCEL_Z': (70.0, 'AP_Float', '垂直加速度 [cm/s^2]'),
     'WPNAV_SPEED': (1000.0, 'AP_Float', '水平速度 [cm/s]'),
     'WPNAV_ACCEL': (2000.0, 'AP_Float', '水平加速度 [cm/s^2]'),
-    'WPNAV_RADIUS': (5.0, 'AP_Float', '到達半径 [cm]'),
+    'WPNAV_RADIUS': (2.0, 'AP_Float', '到達半径 [cm]'),
 
     # --- Loiterモード設定 ---
     'LOIT_SPEED': (50.0, 'AP_Float', 'Loiter速度 [cm/s]'),
