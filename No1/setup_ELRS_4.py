@@ -89,7 +89,7 @@ params_to_set = {
     'WPNAV_ACCEL_Z': (70.0, 'AP_Float', '垂直加速度 [cm/s^2]'),
     'WPNAV_SPEED': (1000.0, 'AP_Float', '水平速度 [cm/s]'),
     'WPNAV_ACCEL': (2000.0, 'AP_Float', '水平加速度 [cm/s^2]'),
-    'WPNAV_RADIUS': (2.0, 'AP_Float', '到達半径 [cm]'),
+    'WPNAV_RADIUS': (5.0, 'AP_Float', '到達半径 [cm]'),
 
     # --- Loiterモード設定 ---
     'LOIT_SPEED': (50.0, 'AP_Float', 'Loiter速度 [cm/s]'),
@@ -113,7 +113,7 @@ params_to_set = {
     'PSC_ACCZ_I': (1.0, 'AP_Float', '垂直加速度制御I'),
     
     # --- 水平制御PID ---
-    'PSC_POSXY_P': (20.0, 'AP_Float', '水平位置制御P'),
+    'PSC_POSXY_P': (10.0, 'AP_Float', '水平位置制御P'),
     'PSC_VELXY_P': (4.0, 'AP_Float', '水平速度制御P'),
     'PSC_VELXY_I': (0.0, 'AP_Float', '水平速度制御I'),
     'PSC_VELXY_D': (1.2, 'AP_Float', '水平速度制御D'),
