@@ -21,7 +21,7 @@ MASK = 0x09F8            # bit10=0(Yaw有効) bit11=1(YawRate無視)
 YAW_SOUTH = 180.0        # ヨー角固定（南向き）
 
 # ───── 速度制御設定 ─────
-STEP_VELOCITY = 0.2      # [m/s] ステップ入力の大きさ（部屋用）
+STEP_VELOCITY = 0.4      # [m/s] ステップ入力の大きさ（40cm/s）
 MASK_VELOCITY = 0b0000110111000111  # velocityのみ有効 (pos無視, accel無視, yaw無視)
 
 
