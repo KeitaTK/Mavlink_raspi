@@ -21,7 +21,7 @@ MASK = 0x09F8            # bit10=0(Yaw有効) bit11=1(YawRate無視)
 YAW_SOUTH = 180.0        # ヨー角固定（南向き）
 
 # ───── 速度制御設定 ─────
-STEP_VELOCITY = 1.5      # [m/s] ステップ入力の大きさ（例: 0.4=40cm/s）
+STEP_VELOCITY = 2.0      # [m/s] ステップ入力の大きさ（例: 0.4=40cm/s）
 STEP_DURATION = 1.0      # [秒] 速度指令を送る秒数（ここで変更可能）
 MASK_VELOCITY = 0b0000110111000111  # velocityのみ有効 (pos無視, accel無視, yaw無視)
 
@@ -457,14 +457,21 @@ def control_loop():
                 elif not initial_target_set:
                     echo = "⚠ 離陸完了後に操作可能"
                 else:
-                    with io_lock:
-                        current_alt_z = gps_now['z']  # NED系Z（負が上）
-                        target['x'] = 0.0
-                        target['y'] = 0.0
-                        target['z'] = current_alt_z
-                        rth_to_land = True
-                    moved = True
-                    echo = f"✓ RTH実行 現在高度{-current_alt_z:.2f}mで離陸地点直上へ移動→着陸"
+                    # 離陸地点のGPS座標へ移動し、その後着陸
+                    lat = takeoff_point['lat']
+                    lon = takeoff_point['lon']
+                    alt = takeoff_point['alt']
+                    # 現在高度で離陸地点直上へ移動
+                    echo = f"✓ RTH実行: 離陸地点(lat={lat:.7f}, lon={lon:.7f})へ移動→着陸"
+                    sys.stdout.write(f"\x1b[2K\r{echo}\n")
+                    sys.stdout.flush()
+                    # まず離陸地点直上へ移動
+                    send_setpoint(mav, int(lat * 1e7), int(lon * 1e7), gps_now['z'] * -1, YAW_SOUTH)
+                    time.sleep(2.0)  # 2秒間待機（到達までの目安、必要に応じて調整）
+                    # 着陸コマンド送信
+                    send_land_command(mav)
+                    echo = "✓ 着陸コマンド送信（RTH完了）"
+                    moved = False
 
             # 目標位置送信
             if moved:
