@@ -92,9 +92,9 @@ params_to_set = {
     'WPNAV_RADIUS': (5.0, 'AP_Float', '到達半径 [cm]'),
 
     # --- Loiterモード設定 ---
-    'LOIT_SPEED': (50.0, 'AP_Float', 'Loiter速度 [cm/s]'),
-    'LOIT_ACC_MAX': (50.0, 'AP_Float', 'Loiter最大加速度 [cm/s^2]'),
-    'LOIT_BRK_ACCEL': (50.0, 'AP_Float', 'Loiterブレーキ加速度 [cm/s^2]'),
+    'LOIT_SPEED': (500.0, 'AP_Float', 'Loiter速度 [cm/s]'),
+    'LOIT_ACC_MAX': (500.0, 'AP_Float', 'Loiter最大加速度 [cm/s^2]'),
+    'LOIT_BRK_ACCEL': (500.0, 'AP_Float', 'Loiterブレーキ加速度 [cm/s^2]'),
     'LOIT_BRK_DELAY': (0.3, 'AP_Float', 'Loiterブレーキ遅延 [s]'),
     'LOIT_BRK_JERK': (300.0, 'AP_Float', 'Loiterブレーキジャーク [cm/s^3]'),
     'LOIT_ANG_MAX': (10.0, 'AP_Float', 'Loiter最大角度 [deg]'),
@@ -113,7 +113,7 @@ params_to_set = {
     'PSC_ACCZ_I': (1.0, 'AP_Float', '垂直加速度制御I'),
     
     # --- 水平制御PID ---
-    'PSC_POSXY_P': (10.0, 'AP_Float', '水平位置制御P'),
+    'PSC_POSXY_P': (4.0, 'AP_Float', '水平位置制御P'),
     'PSC_VELXY_P': (3.0, 'AP_Float', '水平速度制御P'),
     'PSC_VELXY_I': (0.0, 'AP_Float', '水平速度制御I'),
     'PSC_VELXY_D': (1.2, 'AP_Float', '水平速度制御D'),
