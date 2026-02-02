@@ -387,10 +387,12 @@ def control_loop():
                     moved = True
                     echo = f"✓ 記録位置から東へ1m移動 目標: X={target['x']:.2f} Y={target['y']:.2f} Z={target['z']:.2f}"
 
-            # 速度ステップ入力（eキー：東方向に0.2m/s、2秒間、その後停止）
+            # 速度ステップ入力（eキー：東方向に0.4m/s、2秒間、停止2秒間、その後記録位置へ移動）
             elif key == 'e':
                 if not initial_target_set:
                     echo = "⚠ 離陸完了後に操作可能"
+                elif saved_position is None:
+                    echo = "⚠ 位置未記録（先に[p]で記録）"
                 else:
                     echo = f"✓ 速度指令開始: 東へ {STEP_VELOCITY} m/s（2秒間）"
                     sys.stdout.write(f"\x1b[2K\r{echo}\n")
@@ -402,26 +404,29 @@ def control_loop():
                         send_velocity_step(mav, 0.0, STEP_VELOCITY, 0.0)  # 東（+Y）
                         time.sleep(0.05)  # 20Hz
                     
-                    # 停止指令を送信（急ブレーキ）
-                    echo = "✓ 速度指令停止: 急ブレーキ（0m/s）"
+                    # 2秒間、停止指令を送信（急ブレーキ）
+                    echo = "✓ 速度指令停止: 急ブレーキ（0m/s）（2秒間）"
                     sys.stdout.write(f"\x1b[2K\r{echo}\n")
                     sys.stdout.flush()
                     stop_start = time.time()
-                    while time.time() - stop_start < 1.0:
+                    while time.time() - stop_start < 2.0:
                         send_velocity_step(mav, 0.0, 0.0, 0.0)
                         time.sleep(0.05)
                     
-                    # 停止した位置を新しい目標位置として設定
+                    # 記録位置へ戻る
+                    echo = "✓ ステップ完了 → 記録位置へ移動開始"
+                    sys.stdout.write(f"\x1b[2K\r{echo}\n")
+                    sys.stdout.flush()
                     with io_lock:
-                        target['x'] = gps_now['x']
-                        target['y'] = gps_now['y']
-                        target['z'] = gps_now['z']
+                        target['x'] = saved_position['x']
+                        target['y'] = saved_position['y']
+                        target['z'] = saved_position['z']
                     
-                    # 新しい目標位置を送信（位置保持）
+                    # 目標位置を送信
                     lat, lon, alt = local_xyz_to_gps(target['x'], target['y'], target['z'])
                     send_setpoint(mav, int(lat * 1e7), int(lon * 1e7), alt, YAW_SOUTH)
                     
-                    echo = f"✓ 速度制御完了 → 停止位置で位置保持 目標: X={target['x']:.2f} Y={target['y']:.2f} Z={target['z']:.2f}"
+                    echo = f"✓ 記録位置へ移動中 目標: X={target['x']:.2f} Y={target['y']:.2f} Z={target['z']:.2f}({-target['z']:.2f}m高)"
                     moved = True
 
             # 記録位置へ戻る
