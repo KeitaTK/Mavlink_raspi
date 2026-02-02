@@ -20,6 +20,10 @@ SEND_HZ = 10             # 更新周期（Hz）
 MASK = 0x09F8            # bit10=0(Yaw有効) bit11=1(YawRate無視)
 YAW_SOUTH = 180.0        # ヨー角固定（南向き）
 
+# ───── 速度制御設定 ─────
+STEP_VELOCITY = 0.2      # [m/s] ステップ入力の大きさ（部屋用）
+MASK_VELOCITY = 0b0000110111000111  # velocityのみ有効 (pos無視, accel無視, yaw無視)
+
 
 # ───── 状態変数 ─────
 running = True
@@ -89,6 +93,25 @@ def send_land_command(m):
         m.target_system, m.target_component,
         mavutil.mavlink.MAV_CMD_NAV_LAND,
         0, 0, 0, 0, 0, 0, 0, 0
+    )
+
+
+def send_velocity_step(m, vx, vy, vz):
+    """速度指令を送信する関数 (NED座標系)
+    vx: North [m/s]
+    vy: East  [m/s]
+    vz: Down  [m/s]
+    """
+    m.mav.set_position_target_local_ned_send(
+        0,                          # time_boot_ms
+        m.target_system,            # target_system
+        m.target_component,         # target_component
+        mavutil.mavlink.MAV_FRAME_LOCAL_NED, # frame
+        MASK_VELOCITY,              # type_mask (速度のみ有効)
+        0, 0, 0,                    # x, y, z (位置：無視)
+        vx, vy, vz,                 # vx, vy, vz (速度：ここが重要)
+        0, 0, 0,                    # afx, afy, afz (加速度：無視)
+        0, 0                        # yaw, yaw_rate (無視)
     )
 
 
@@ -216,8 +239,10 @@ def control_loop():
     print("  [W] 南  [S] 北  [A] 東  [D] 西")
     print("\n【位置記録・移動】")
     print("  [p] 現在位置を記録")
-    print("  [e] 記録位置から東へ1m移動")
+    print("  [o] 記録位置から東へ1m移動")
     print("  [b] 記録位置へ戻る")
+    print("\n【速度制御（ステップ入力）】")
+    print("  [e] 東へ0.2m/s速度指令（長押し）→離すと停止")
     print("\n【RTH】")
     print("  [r] RTH（現在高度で離陸地点直上へ移動して着陸）")
     print("\n【終了】")
@@ -349,7 +374,7 @@ def control_loop():
                     echo = f"✓ 位置記録: X={saved_position['x']:.2f} Y={saved_position['y']:.2f} Z={saved_position['z']:.2f}({-saved_position['z']:.2f}m高)"
 
             # 記録位置から東へ1m移動
-            elif key == 'e':
+            elif key == 'o':
                 if saved_position is None:
                     echo = "⚠ 位置未記録（先に[p]で記録）"
                 elif not initial_target_set:
@@ -361,6 +386,37 @@ def control_loop():
                         target['z'] = saved_position['z']
                     moved = True
                     echo = f"✓ 記録位置から東へ1m移動 目標: X={target['x']:.2f} Y={target['y']:.2f} Z={target['z']:.2f}"
+
+            # 速度ステップ入力（eキー：東方向に0.2m/s）
+            elif key == 'e':
+                if not initial_target_set:
+                    echo = "⚠ 離陸完了後に操作可能"
+                else:
+                    echo = f"✓ 速度指令: 東へ {STEP_VELOCITY} m/s（長押し中...）"
+                    sys.stdout.write(f"\x1b[2K\r{echo}\n")
+                    sys.stdout.flush()
+                    
+                    # 速度指令を連続送信（キーが離されるまで）
+                    while True:
+                        send_velocity_step(mav, 0.0, STEP_VELOCITY, 0.0)  # 東（+Y）
+                        time.sleep(0.05)  # 20Hz
+                        
+                        # キーが離されたか確認
+                        if not select.select([sys.stdin], [], [], 0):
+                            break
+                        # バッファをクリア
+                        sys.stdin.read(1)
+                    
+                    # 停止指令を送信（急ブレーキ）
+                    echo = "✓ 速度指令停止: 急ブレーキ（0m/s）"
+                    sys.stdout.write(f"\x1b[2K\r{echo}\n")
+                    sys.stdout.flush()
+                    stop_start = time.time()
+                    while time.time() - stop_start < 1.0:
+                        send_velocity_step(mav, 0.0, 0.0, 0.0)
+                        time.sleep(0.05)
+                    
+                    echo = "✓ 速度制御完了 → 位置保持モードへ復帰"
 
             # 記録位置へ戻る
             elif key == 'b':
