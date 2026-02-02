@@ -387,25 +387,20 @@ def control_loop():
                     moved = True
                     echo = f"✓ 記録位置から東へ1m移動 目標: X={target['x']:.2f} Y={target['y']:.2f} Z={target['z']:.2f}"
 
-            # 速度ステップ入力（eキー：東方向に0.2m/s）
+            # 速度ステップ入力（eキー：東方向に0.2m/s、2秒間、その後停止）
             elif key == 'e':
                 if not initial_target_set:
                     echo = "⚠ 離陸完了後に操作可能"
                 else:
-                    echo = f"✓ 速度指令: 東へ {STEP_VELOCITY} m/s（長押し中...）"
+                    echo = f"✓ 速度指令開始: 東へ {STEP_VELOCITY} m/s（2秒間）"
                     sys.stdout.write(f"\x1b[2K\r{echo}\n")
                     sys.stdout.flush()
                     
-                    # 速度指令を連続送信（キーが離されるまで）
-                    while True:
+                    # 2秒間、速度指令を送信
+                    step_start = time.time()
+                    while time.time() - step_start < 2.0:
                         send_velocity_step(mav, 0.0, STEP_VELOCITY, 0.0)  # 東（+Y）
                         time.sleep(0.05)  # 20Hz
-                        
-                        # キーが離されたか確認
-                        if not select.select([sys.stdin], [], [], 0):
-                            break
-                        # バッファをクリア
-                        sys.stdin.read(1)
                     
                     # 停止指令を送信（急ブレーキ）
                     echo = "✓ 速度指令停止: 急ブレーキ（0m/s）"
