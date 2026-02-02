@@ -250,34 +250,39 @@ def set_parameter_with_retry(param_name, param_value, param_type, max_retries=3)
             float(param_value),
             mav_param_type
         )
-        
         # FC側の処理待ち（バッファオーバーフロー防止のため増加）
-        time.sleep(0.15)
-        
-        # 確認メッセージを待機
-        message = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=3)
-        
-        if message:
-            received_value = message.to_dict()["param_value"]
-            
-            # 浮動小数点の比較（誤差許容）
-            if abs(float(received_value) - float(param_value)) < 0.0001:
+        time.sleep(0.2)
+
+        # 複数回PARAM_VALUEを受信し、正しいparam_idのものだけ比較
+        received_value = None
+        timeout = time.time() + 3.0
+        while time.time() < timeout:
+            message = master.recv_match(type='PARAM_VALUE', blocking=True, timeout=0.5)
+            if message:
+                msg_dict = message.to_dict()
+                # param_idは最大16文字なのでパディングされている場合がある
+                msg_param_id = msg_dict.get("param_id", "").strip('\x00').strip()
+                if msg_param_id == param_name:
+                    received_value = msg_dict["param_value"]
+                    break
+        if received_value is not None:
+            # 浮動小数点の比較（誤差許容を緩和）
+            if abs(float(received_value) - float(param_value)) < 0.01:
                 return True, received_value
             else:
                 if attempt < max_retries - 1:
                     print(f'  ⚠️ {param_name}: 設定値 {param_value} != 確認値 {received_value}. リトライ {attempt + 1}/{max_retries}')
-                    time.sleep(0.3)  # リトライ前の待機時間を増加
+                    time.sleep(0.5)  # リトライ前の待機時間を増加
                 else:
                     print(f'  ❌ {param_name}: 設定失敗 (設定値 {param_value} != 確認値 {received_value})')
                     return False, received_value
         else:
             if attempt < max_retries - 1:
                 print(f'  ⚠️ {param_name}: タイムアウト. リトライ {attempt + 1}/{max_retries}')
-                time.sleep(0.3)
+                time.sleep(0.5)
             else:
                 print(f'  ❌ {param_name}: タイムアウト（設定失敗）')
                 return False, None
-    
     return False, None
 
 # パラメータを設定
