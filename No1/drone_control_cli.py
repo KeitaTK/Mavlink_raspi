@@ -21,7 +21,7 @@ MASK = 0x09F8            # bit10=0(Yaw有効) bit11=1(YawRate無視)
 YAW_SOUTH = 180.0        # ヨー角固定（南向き）
 
 # ───── 速度制御設定 ─────
-STEP_VELOCITY = 0.6      # [m/s] ステップ入力の大きさ（40cm/s）
+STEP_VELOCITY = 0.8      # [m/s] ステップ入力の大きさ（40cm/s）
 MASK_VELOCITY = 0b0000110111000111  # velocityのみ有効 (pos無視, accel無視, yaw無視)
 
 
@@ -241,6 +241,7 @@ def control_loop():
     print("  [p] 現在位置を記録")
     print("  [o] 記録位置から東へ1m移動")
     print("  [b] 記録位置へ戻る")
+    print("  [L] 現在位置を表示")
     print("\n【速度制御（ステップ入力）】")
     print("  [e] 東へ0.2m/s速度指令（長押し）→離すと停止")
     print("\n【RTH】")
@@ -386,6 +387,11 @@ def control_loop():
                         target['z'] = saved_position['z']
                     moved = True
                     echo = f"✓ 記録位置から東へ1m移動 目標: X={target['x']:.2f} Y={target['y']:.2f} Z={target['z']:.2f}"
+
+            # 現在位置を表示（Lキー）
+            elif key == 'L':
+                with io_lock:
+                    echo = f"✓ 現在位置: X={gps_now['x']:.2f} Y={gps_now['y']:.2f} Z={gps_now['z']:.2f} ({-gps_now['z']:.2f}m高)"
 
             # 速度ステップ入力（eキー：東方向に0.4m/s、2秒間、停止2秒間、その後記録位置へ移動）
             elif key == 'e':
