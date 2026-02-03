@@ -114,9 +114,9 @@ params_to_set = {
     
     # --- 水平制御PID ---
     'PSC_POSXY_P': (4.0, 'AP_Float', '水平位置制御P'),
-    'PSC_VELXY_P': (3.0, 'AP_Float', '水平速度制御P'),
+    'PSC_VELXY_P': (1.0, 'AP_Float', '水平速度制御P'),
     'PSC_VELXY_I': (0.0, 'AP_Float', '水平速度制御I'),
-    'PSC_VELXY_D': (1.2, 'AP_Float', '水平速度制御D'),
+    'PSC_VELXY_D': (0.5, 'AP_Float', '水平速度制御D'),
     
     # --- 姿勢制御PID ---
     'ATC_RAT_RLL_P': (0.04, 'AP_Float', 'Roll P'),
