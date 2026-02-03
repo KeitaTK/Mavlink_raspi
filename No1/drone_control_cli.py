@@ -21,8 +21,8 @@ MASK = 0x09F8            # bit10=0(Yaw有効) bit11=1(YawRate無視)
 YAW_SOUTH = 180.0        # ヨー角固定（南向き）
 
 # ───── 速度制御設定 ─────
-STEP_VELOCITY = 3.0      # [m/s] ステップ入力の大きさ（例: 0.4=40cm/s）
-STEP_DURATION = 0.5      # [秒] 速度指令を送る秒数（ここで変更可能）
+STEP_VELOCITY = 0.5      # [m/s] ステップ入力の大きさ（例: 0.4=40cm/s）
+STEP_DURATION = 2.0      # [秒] 速度指令を送る秒数（ここで変更可能）
 MASK_VELOCITY = 0b0000110111000111  # velocityのみ有効 (pos無視, accel無視, yaw無視)
 
 
