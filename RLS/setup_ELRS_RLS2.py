@@ -16,8 +16,8 @@ print(f"接続完了 (システム: {master.target_system}, コンポーネン�
 
 # --- 振り子長さをここで設定 ---
 import math
-# PENDULUM_LENGTH = 1.04  # [m] ここを書き換えて長さを指定
-PENDULUM_LENGTH = 0.74  # [m] ここを書き換えて長さを指定
+PENDULUM_LENGTH = 1.04  # [m] ここを書き換えて長さを指定
+# PENDULUM_LENGTH = 0.74  # [m] ここを書き換えて長さを指定
 def calc_pendulum_freq(length_m):
     g = 9.80665  # 重力加速度[m/s^2]
     if length_m <= 0:
@@ -137,7 +137,7 @@ params_to_set = {
     'OBS_FREQ_ALPHA': (0.15, 'AP_Float', '周波数推定フィルタ係数'),
     'OBS_MAX_CORR_ANG': (0.5, 'AP_Float', '最大補正角度 [rad]'),
     'OBS_PRED_TIME': (0.00, 'AP_Float', '予測時間 [秒]'),
-    'OBS_PHASE_CORR': (1, 'AP_Int8', '位相補正有効化 (0:無効, 1:有効)'),
+    'OBS_PHASE_CORR': (0, 'AP_Int8', '位相補正有効化 (0:無効, 1:有効)'),
     'OBS_PHASE_THRESH': (0.0, 'AP_Float', '位相補正しきい値 [rad]'),
 
     # --- IMUフィルタ（応答性向上） ---
