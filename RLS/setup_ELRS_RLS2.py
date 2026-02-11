@@ -129,12 +129,12 @@ params_to_set = {
     'ATC_RAT_YAW_I': (0.02, 'AP_Float', 'Yaw I'),
 
     # --- Observer設定 (吊荷制御) ---
-    'OBS_CORR_GAIN': (0.0, 'AP_Float', 'オブザーバ補正ゲイン (0.0-1.0)'),
+    'OBS_CORR_GAIN': (0.02, 'AP_Float', 'オブザーバ補正ゲイン (0.0-1.0)'),
     'OBS_FILT_CUTOFF': (20.0, 'AP_Float', 'フィルタカットオフ周波数 [Hz]'),
     'OBS_RLS_LAMBDA': (0.99, 'AP_Float', 'RLS忘却係数 (0.9-0.9999)'),
     'OBS_RLS_COV_INIT': (100.0, 'AP_Float', 'RLS初期共分散'),
     'OBS_DIST_FREQ': (obs_dist_freq, 'AP_Float', '外乱周波数 [Hz]'),
-    'OBS_MAX_CORR_ANG': (0.5, 'AP_Float', '最大補正角度 [rad]'),
+    'OBS_MAX_CORR_ANG': (5.0, 'AP_Float', '最大補正角度 [rad]'),
     'OBS_PRED_TIME': (0.00, 'AP_Float', '予測時間 [秒]'),
     'OBS_TEST_INJECT': (0, 'AP_Int8', 'テスト用外力注入の有効/無効 (0:無効, 1:有効)'),
 
