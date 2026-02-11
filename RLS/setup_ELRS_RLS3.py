@@ -261,7 +261,7 @@ def wait_for_param_ack(param_name, expected_value, timeout=2.0):
             continue
         
         msg_dict = msg.to_dict()
-            msg_param_name = msg_dict.get('param_id', '').rstrip('\x00')
+        msg_param_name = msg_dict.get('param_id', '').rstrip('\x00')
         
         # パラメータ名で確認
         if msg_param_name == param_name:
