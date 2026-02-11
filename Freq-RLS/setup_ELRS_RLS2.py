@@ -134,9 +134,11 @@ params_to_set = {
     'OBS_RLS_LAMBDA': (0.99, 'AP_Float', 'RLS忘却係数 (0.9-0.9999)'),
     'OBS_RLS_COV_INIT': (100.0, 'AP_Float', 'RLS初期共分散'),
     'OBS_DIST_FREQ': (obs_dist_freq, 'AP_Float', '外乱周波数 [Hz]'),
+    'OBS_FREQ_ALPHA': (0.15, 'AP_Float', '周波数推定フィルタ係数'),
     'OBS_MAX_CORR_ANG': (0.5, 'AP_Float', '最大補正角度 [rad]'),
     'OBS_PRED_TIME': (0.00, 'AP_Float', '予測時間 [秒]'),
-    'OBS_TEST_INJECT': (0, 'AP_Int8', 'テスト用外力注入の有効/無効 (0:無効, 1:有効)'),
+    'OBS_PHASE_CORR': (0, 'AP_Int8', '位相補正有効化 (0:無効, 1:有効)'),
+    'OBS_PHASE_THRESH': (0.0, 'AP_Float', '位相補正しきい値 [rad]'),
 
     # --- IMUフィルタ（応答性向上） ---
     'INS_GYRO_FILTER': (20, 'AP_Int8', 'ジャイロフィルタ [Hz]'),
@@ -160,7 +162,7 @@ params_to_set = {
     'SERIAL2_PROTOCOL': (23, 'AP_Int8', 'ELRSレシーバー'),
     
     # --- RC設定 ---
-    # 'RC8_OPTION': (316, 'AP_Int16', 'RLS Frequency Estimation'),
+    'RC8_OPTION': (316, 'AP_Int16', 'RLS Frequency Estimation'),
     'RC9_OPTION': (153, 'AP_Int16', 'ELRSレシーバー'),
     'RC10_OPTION': (56, 'AP_Int16', 'RC10オプション'),
     'RC11_OPTION': (55, 'AP_Int16', 'RC11オプション'),
