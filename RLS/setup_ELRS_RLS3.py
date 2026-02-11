@@ -136,7 +136,7 @@ params_to_set = {
     'ATC_RAT_YAW_I': (0.02, 'AP_Float', 'Yaw I'),
 
     # === Observer設定 ===
-    'OBS_CORR_GAIN': (0.0, 'AP_Float', 'オブザーバ補正ゲイン (0.0-1.0)'),
+    'OBS_CORR_GAIN': (0.2, 'AP_Float', 'オブザーバ補正ゲイン (0.0-1.0)'),
     'OBS_FILT_CUTOFF': (20.0, 'AP_Float', 'フィルタカットオフ周波数 [Hz]'),
     'OBS_RLS_LAMBDA': (0.99, 'AP_Float', 'RLS忘却係数 (0.9-0.9999)'),
     'OBS_RLS_COV_INIT': (100.0, 'AP_Float', 'RLS初期共分散'),
@@ -261,7 +261,7 @@ def wait_for_param_ack(param_name, expected_value, timeout=2.0):
             continue
         
         msg_dict = msg.to_dict()
-        msg_param_name = msg_dict.get('param_id', b'').decode('utf-8').rstrip('\x00')
+            msg_param_name = msg_dict.get('param_id', '').rstrip('\x00')
         
         # パラメータ名で確認
         if msg_param_name == param_name:
