@@ -136,7 +136,7 @@ params_to_set = {
     'ATC_RAT_YAW_I': (0.02, 'AP_Float', 'Yaw I'),
 
     # === AP_Observer EKF パラメータ設定 ===
-    'OBS_CORR_GAIN': (0.2, 'AP_Float', 'オブザーバ補正ゲイン (0.0-1.0)'),
+    'OBS_CORR_GAIN': (0.0, 'AP_Float', 'オブザーバ補正ゲイン (0.0-1.0)'),
     'OBS_FILT_CUTOFF': (20.0, 'AP_Float', 'ローパスフィルタのカットオフ周波数 [Hz]'),
     'OBS_EKF_Q_D': (0.01, 'AP_Float', 'EKFの外乱状態dのプロセスノイズ分散'),
     'OBS_EKF_Q_DD': (0.01, 'AP_Float', 'EKFの外乱速度状態d_dotのプロセスノイズ分散'),
