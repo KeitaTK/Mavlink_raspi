@@ -162,7 +162,7 @@ params_to_set = {
     'SERVO_BLH_AUTO': (1, 'AP_Int8', 'BLHeli自動設定'),
     'BRD_SAFETY_DEFLT': (0, 'AP_Int8', 'セーフティスイッチデフォルト'),
     'BRD_SAFETYOPTION': (0, 'AP_Int16', 'セーフティオプション'),
-    'ARMING_CHECK': (80, 'AP_Int32', 'アーミングチェック'),
+    'ARMING_SKIPCHK': (8, 'AP_Int32', 'GPSロックをスキップ'),
     'ARMING_RUDDER': (0, 'AP_Int8', 'ラダーアーミング無効'),
     'DISARM_DELAY': (0, 'AP_Int8', 'ディスアーム遅延 [s]'),
     'MOT_SPIN_ARM': (0.02, 'AP_Float', 'アーム時スピン'),
