@@ -1,5 +1,5 @@
 """
-改善版: ArduPilotパラメータ設定スクリプト (No2/Futaba + NoGPS版)
+改善版: ArduPilotパラメータ設定スクリプト (No2/Futaba GPS-less版)
 主な改善点：
 1. メッセージバッファをクリア（古いメッセージ排除）
 2. パラメータ名でメッセージをフィルタリング
@@ -7,7 +7,7 @@
 4. 段階的な設定と検証
 5. 型情報を追加
 
-No2の双葉RC設定をベースに、NoGPS側で使っているObserver系パラメータを追加した版です。
+No2の双葉RC設定をベースに、GPSを使わない手動飛行向けに整理した版です。
 """
 
 from pymavlink import mavutil
@@ -45,16 +45,16 @@ except Exception as e:
     obs_dist_freq = 0.65
 
 params_to_set = {
-    # === EKF3 / GPS 基本設定 ===
+    # === EKF3 / 姿勢推定の基本設定 ===
     'AHRS_EKF_TYPE': (3, 'AP_Int8', 'EKFタイプ: 3=EKF3'),
     'EK3_ENABLE': (1, 'AP_Int8', 'EKF3有効化'),
     'EK3_IMU_MASK': (3, 'AP_Int8', 'IMUマスク'),
-    'EK3_SRC1_POSXY': (3, 'AP_Int8', 'GPS (水平位置)'),
-    'EK3_SRC1_VELXY': (3, 'AP_Int8', 'GPS (水平速度)'),
-    'EK3_SRC1_POSZ': (3, 'AP_Int8', 'GPS (垂直位置)'),
-    'EK3_SRC1_VELZ': (3, 'AP_Int8', 'GPS (垂直速度)'),
-    'EK3_SRC1_YAW': (3, 'AP_Int8', 'GPS with compass fallback'),
-    'EK3_GPS_CHECK': (1, 'AP_Int8', 'GPS健全性チェック'),
+    'EK3_SRC1_POSXY': (0, 'AP_Int8', '水平位置ソース無効'),
+    'EK3_SRC1_VELXY': (0, 'AP_Int8', '水平速度ソース無効'),
+    'EK3_SRC1_POSZ': (1, 'AP_Int8', '垂直位置ソース: Baro'),
+    'EK3_SRC1_VELZ': (0, 'AP_Int8', '垂直速度ソース無効'),
+    'EK3_SRC1_YAW': (1, 'AP_Int8', 'Yawソース: Compass'),
+    'EK3_GPS_CHECK': (0, 'AP_Int8', 'GPS健全性チェック無効'),
     'EK3_POS_I_GATE': (8, 'AP_Int16', '位置ゲート'),
     'EK3_VEL_I_GATE': (8, 'AP_Int16', '速度ゲート'),
     'EK3_HGT_I_GATE': (10, 'AP_Int16', '高度ゲート'),
@@ -71,27 +71,11 @@ params_to_set = {
     'COMPASS_AUTODEC': (1, 'AP_Int8', '自動磁気偏角有効'),
     'COMPASS_LEARN': (1.0, 'AP_Float', 'コンパス学習有効'),
     'EK3_MAG_CAL': (3, 'AP_Int8', '地上でheading fusion、空中で3-axis fusion'),
-    'EK3_SRC_OPTIONS': (1, 'AP_Int16', 'Fuse all velocity sources'),
-    'EK3_GLITCH_RAD': (5, 'AP_Int8', 'GPS Glitch検出半径 [m]'),
+    'EK3_SRC_OPTIONS': (0, 'AP_Int16', '追加ソース融合なし'),
+    'EK3_GLITCH_RAD': (5, 'AP_Int8', 'スパイク検出半径 [m]'),
     'EK3_CHECK_SCALE': (100, 'AP_Int16', 'EKFチェックスケール [%]'),
     'EK3_PRIMARY': (-1, 'AP_Int8', '自動切り替え無効'),
-    'GPS1_TYPE': (14, 'AP_Int8', 'MAVLink GPS Input'),
-    'GPS_AUTO_CONFIG': (0, 'AP_Int8', '自動設定無効'),
-    'GPS_PRIMARY': (0, 'AP_Int8', 'プライマリGPS'),
 
-    # === Guided / Loiter / PID ===
-    'WPNAV_SPEED_UP': (40.0, 'AP_Float', '上昇速度 [cm/s]'),
-    'WPNAV_SPEED_DN': (30.0, 'AP_Float', '下降速度 [cm/s]'),
-    'WPNAV_ACCEL_Z': (70.0, 'AP_Float', '垂直加速度 [cm/s^2]'),
-    'WPNAV_SPEED': (500.0, 'AP_Float', '水平速度 [cm/s]'),
-    'WPNAV_ACCEL': (500.0, 'AP_Float', '水平加速度 [cm/s^2]'),
-    'WPNAV_RADIUS': (5.0, 'AP_Float', '到達半径 [cm]'),
-    'LOIT_SPEED': (50.0, 'AP_Float', 'Loiter速度 [cm/s]'),
-    'LOIT_ACC_MAX': (50.0, 'AP_Float', 'Loiter最大加速度 [cm/s^2]'),
-    'LOIT_BRK_ACCEL': (50.0, 'AP_Float', 'Loiterブレーキ加速度 [cm/s^2]'),
-    'LOIT_BRK_DELAY': (0.3, 'AP_Float', 'Loiterブレーキ遅延 [s]'),
-    'LOIT_BRK_JERK': (300.0, 'AP_Float', 'Loiterブレーキジャーク [cm/s^3]'),
-    'LOIT_ANG_MAX': (10.0, 'AP_Float', 'Loiter最大角度 [deg]'),
     'PILOT_SPEED_UP': (250, 'AP_Int16', 'パイロット上昇速度 [cm/s]'),
     'PILOT_SPEED_DN': (150, 'AP_Int16', 'パイロット下降速度 [cm/s]'),
     'PILOT_ACCEL_Z': (250, 'AP_Int16', 'パイロット垂直加速度 [cm/s^2]'),
@@ -165,14 +149,10 @@ params_to_set = {
     'SERIAL1_BAUD': (921600, 'AP_Int32', 'ボーレート [bps]'),
     'BRD_SER1_RTSCTS': (2, 'AP_Int8', 'ハードウェアフロー制御有効'),
     'SERIAL2_PROTOCOL': (2, 'AP_Int8', '双葉レシーバー'),
-    'RC6_OPTION': (56, 'AP_Int16', 'Loiter'),
-    'RC7_OPTION': (55, 'AP_Int16', 'Guided'),
     'THR_DZ': (200, 'AP_Int16', 'スロットルデッドゾーン [PWM]'),
     'RC_OPTIONS': (10336, 'AP_Int32', 'RCオプション'),
     'RSSI_TYPE': (0, 'AP_Int8', 'RSSI Type (双葉)'),
     'RC8_OPTION': (153, 'AP_Int16', 'アーム設定'),
-    'GUID_TIMEOUT': (3.0, 'AP_Float', 'Guidedタイムアウト [s]'),
-    'GUID_OPTIONS': (0.0, 'AP_Float', 'Guidedオプション'),
     'MOT_THST_HOVER': (0.1, 'AP_Float', 'ホバリングスロットル比'),
     'MOT_THST_EXPO': (0.0, 'AP_Float', '推力曲線指数'),
     'MOT_HOVER_LEARN': (3, 'AP_Int8', 'ホバリング学習'),
@@ -289,7 +269,7 @@ def verify_parameter(param_name, expected_value):
 
 
 print("\n" + "=" * 60)
-print("No2/Futaba + NoGPS パラメータを設定中...")
+print("No2/Futaba GPS-less パラメータを設定中...")
 print("=" * 60)
 
 failed_params = {}
