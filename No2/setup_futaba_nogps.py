@@ -20,7 +20,7 @@ import math
 # ================================
 
 if input("USB接続を行いますか (y/n): ").strip().lower() == 'y':
-    master = mavutil.mavlink_connection('/dev/ttyACM0', baud=115200)
+    master = mavutil.mavlink_connection('/dev/ttyACM1', baud=115200)
 else:
     master = mavutil.mavlink_connection('/dev/ttyAMA0', baud=921600, rtscts=True)
 
