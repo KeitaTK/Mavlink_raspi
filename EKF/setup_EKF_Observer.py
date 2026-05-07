@@ -156,13 +156,8 @@ params_to_set = {
     'OBS_EKF_EN_TAU': (4.0, 'AP_Float', 'RMS推定のEMA時定数 [s]'),
     'OBS_EKF_FHOLD': (0.1, 'AP_Float', 'omega推定を保持するForce閾値 [N]'),
     'OBS_EKF_FREJ': (5.0, 'AP_Float', 'サンプルを除外するForce閾値 [N]'),
-    'OBS_EKF_AX_MASK': (3, 'AP_Int8', '周波数融合に使う軸のビットマスク (0-7)'),
     'OBS_EKF_RB_EN': (1, 'AP_Int8', 'ロバスト観測更新（外れ値除去）有効化'),
     'OBS_EKF_RB_NIS': (3.0, 'AP_Float', 'NIS外れ値除去の乗数'),
-    'OBS_EKF_HOLD_W': (0.05, 'AP_Float', 'omega更新保持時の軸融合重み'),
-    'OBS_EKF_SH_BETA': (0.5, 'AP_Float', 'XY軸のshared omega注入ブレンド係数'),
-    'OBS_EKF_SH_HWM': (1.8, 'AP_Float', 'hard shared-omegaモード突入の最小融合重み'),
-    'OBS_EKF_SH_NIS': (1.0, 'AP_Float', 'hard shared-omegaモード有効化の最大NIS'),
 
 
     # === IMUフィルタ ===
