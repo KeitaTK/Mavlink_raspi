@@ -139,9 +139,12 @@ params_to_set = {
     'OBS_CORR_GAIN': (0.0, 'AP_Float', 'オブザーバ補正ゲイン (0.0-1.0)'),
     'OBS_FILT_CUTOFF': (20.0, 'AP_Float', 'ローパスフィルタのカットオフ周波数 [Hz]'),
     # プロセスノイズは大きくすると観測がより敏感になりますが、ノイズも増える可能性があります。小さくすると安定しますが、応答が遅くなります。
-    'OBS_EKF_Q_D': (9.5e-12, 'AP_Float', 'EKFの外乱状態dのプロセスノイズ分散'),
-    'OBS_EKF_Q_DD': (2.4e-11, 'AP_Float', 'EKFの外乱速度状態d_dotのプロセスノイズ分散'),
-    'OBS_EKF_Q_C': (4.8e-13, 'AP_Float', 'EKFのDCオフセット状態cのプロセスノイズ分散'),
+    # 'OBS_EKF_Q_D': (9.5e-12, 'AP_Float', 'EKFの外乱状態dのプロセスノイズ分散'),
+    # 'OBS_EKF_Q_DD': (2.4e-11, 'AP_Float', 'EKFの外乱速度状態d_dotのプロセスノイズ分散'),
+    # 'OBS_EKF_Q_C': (4.8e-13, 'AP_Float', 'EKFのDCオフセット状態cのプロセスノイズ分散'),
+    'OBS_EKF_Q_D': (9.5e-10, 'AP_Float', 'EKFの外乱状態dのプロセスノイズ分散'),
+    'OBS_EKF_Q_DD': (2.4e-9, 'AP_Float', 'EKFの外乱速度状態d_dotのプロセスノイズ分散'),
+    'OBS_EKF_Q_C': (4.8e-11, 'AP_Float', 'EKFのDCオフセット状態cのプロセスノイズ分散'),
     'OBS_EKF_Q_W': (0.0005, 'AP_Float', 'EKFの周波数状態omegaのプロセスノイズ分散'),
     # 観測ノイズは小さくすると観測がより敏感になりますが、ノイズも増える可能性があります。大きくすると安定しますが、応答が遅くなります。
     'OBS_EKF_R_MEAS': (46.0, 'AP_Float', '外力観測値の観測ノイズ分散'),
