@@ -161,7 +161,7 @@ params_to_set = {
     'OBS_EKF_EN_TAU': (4.0, 'AP_Float', 'RMS推定のEMA時定数 [s]'),
     'OBS_EKF_FHOLD': (0.0, 'AP_Float', 'omega推定を保持するForce閾値 [N]'),
     'OBS_EKF_FREJ': (100.0, 'AP_Float', 'サンプルを除外するForce閾値 [N]'),
-    'OBS_EKF_RB_EN': (1, 'AP_Int8', 'ロバスト観測更新（外れ値除去）有効化'),
+    'OBS_EKF_RB_EN': (0, 'AP_Int8', 'ロバスト観測更新（外れ値除去）有効化'),
     'OBS_EKF_RB_NIS': (3.0, 'AP_Float', 'NIS外れ値除去の乗数'),
 
 
