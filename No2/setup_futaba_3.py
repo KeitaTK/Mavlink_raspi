@@ -157,6 +157,12 @@ params_to_set = {
     'RC_OPTIONS': (10336, 'AP_Int32', 'RCオプション'),
     'RSSI_TYPE': (0, 'AP_Int8', 'RSSI Type (双葉)'),
     'RC8_OPTION': (153, 'AP_Int16', 'アーム設定'),
+    # 重複エラーを防ぐため、他のスイッチ設定を一旦クリアする
+    'RC5_OPTION': 0,
+    'RC9_OPTION': 0,    # 使っていないチャンネルを0(Do Nothing)にする
+    'RC10_OPTION': 0,
+    'RC11_OPTION': 0,
+    'RC12_OPTION': 0,
     
     # === GUIDEDモード設定 ===
     'GUID_TIMEOUT': (3.0, 'AP_Float', 'Guidedタイムアウト [s]'),
