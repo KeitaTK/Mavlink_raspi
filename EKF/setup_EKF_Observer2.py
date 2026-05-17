@@ -135,33 +135,31 @@ params_to_set = {
     'ATC_RAT_YAW_P': (0.2, 'AP_Float', 'Yaw P'),
     'ATC_RAT_YAW_I': (0.02, 'AP_Float', 'Yaw I'),
 
-    # === AP_Observer EKF パラメータ ===
-    # @Param: OBS_CORR_GAIN (Observer Correction Gain)
-    'OBS_CORR_GAIN': (0.0, 'AP_Float', '外力推定に基づく姿勢補正ゲイン'),
-    # @Param: OBS_FILT_CUTOFF (Observer Filter Cutoff Frequency)
-    'OBS_FILT_CUTOFF': (20.0, 'AP_Float', 'ローパスフィルタ遮断周波数 [Hz]'),
-    # EKF プロセスノイズパラメータ
-    'OBS_EKF_Q_D': (9.5367432e-3, 'AP_Float', '外乱状態 d のプロセスノイズ分散'),
-    'OBS_EKF_Q_DD': (2.3841858e-3, 'AP_Float', '外乱速度状態 d_dot のプロセスノイズ分散'),
-    'OBS_EKF_Q_C': (4.7683716e-3, 'AP_Float', 'DCオフセット状態 c のプロセスノイズ分散'),
-    'OBS_EKF_Q_W': (0.0005, 'AP_Float', '周波数状態 omega のプロセスノイズ分散'),
-    # 観測ノイズ
-    'OBS_EKF_R_MEAS': (46.0, 'AP_Float', 'ペイロード力の観測値に対する観測ノイズ分散'),
-    # 周波数 / omega 設定
-    'OBS_EKF_W_INIT': (3.7699, 'AP_Float', '初期角周波数 [rad/s]'),
-    'OBS_EKF_W_MIN': (2.1991, 'AP_Float', '最小角周波数 [rad/s]'),
-    'OBS_EKF_W_MAX': (5.7180, 'AP_Float', '最大角周波数 [rad/s]'),
-    # 予測 / 補正リミット
-    'OBS_PRED_TIME': (0.00, 'AP_Float', '力の予測先行時間 [秒]'),
+    # === AP_Observer コア制御パラメータ ===
+    'OBS_CORR_GAIN':    (0.0, 'AP_Float', '外力推定に基づく姿勢補正ゲイン'),
     'OBS_MAX_CORR_ANG': (0.5, 'AP_Float', 'ロールおよびピッチの最大姿勢補正角 [rad]'),
-    # EKF ゲーティング / イノベーション制限
-    'OBS_EKF_INN_MAX': (0.70, 'AP_Float', '統合周波数更新に軸を含めるための最大絶対イノベーション [N]'),
-    'OBS_EKF_NIS_MAX': (4.0, 'AP_Float', '統合周波数更新に軸を含めるための最大正規化イノベーション平方 (NIS)'),
-    # 出力フェード制御
-    'OBS_FADE_TH': (4.0, 'AP_Float', 'フェードタイマーをリセットするための出力フェード振幅しきい値 [N]'),
-    'OBS_FADE_DLY': (2.0, 'AP_Float', 'フェードアウト開始前にしきい値を下回る必要がある出力フェード遅延時間 [秒]'),
-    'OBS_FADE_IN_T': (0.1, 'AP_Float', '出力フェードイン時定数 [秒]'),
-    'OBS_FADE_OUT_T': (1.0, 'AP_Float', '出力フェードアウト時定数 [秒]'),
+    'OBS_PRED_TIME':    (0.00, 'AP_Float', '力の予測先行時間 [秒]'),
+
+    # === EKF プロセス/観測ノイズ ===
+    'OBS_EKF_Q_D':      (9.5367432e-3, 'AP_Float', '外乱状態 d のプロセスノイズ分散'),
+    'OBS_EKF_Q_DD':     (2.3841858e-3, 'AP_Float', '外乱速度状態 d_dot のプロセスノイズ分散'),
+    'OBS_EKF_Q_C':      (4.7683716e-3, 'AP_Float', 'DCオフセット状態 c のプロセスノイズ分散'),
+    'OBS_EKF_Q_W':      (0.0005, 'AP_Float', '周波数状態 omega のプロセスノイズ分散'),
+    'OBS_EKF_R_MEAS':   (46.0, 'AP_Float', 'ペイロード力の観測値に対する観測ノイズ分散'),
+
+    # === 周波数範囲設定（ひもの長さ換算：約30cm〜2m） ===
+    'OBS_EKF_W_INIT':   (3.7699, 'AP_Float', '初期角周波数 [rad/s] (0.60 Hz)'),
+    'OBS_EKF_W_MIN':    (2.1991, 'AP_Float', '最小角周波数 [rad/s] (0.35 Hz)'),
+    'OBS_EKF_W_MAX':    (5.7180, 'AP_Float', '最大角周波数 [rad/s] (0.91 Hz)'),
+
+    # === EKF 安全リミッター ===
+    'OBS_EKF_INN_MAX':  (1.0, 'AP_Float', '突発ノイズを丸めるための最大絶対イノベーション上限 [N]'),
+
+    # === 出力フェード制御（メインスイッチ・離陸トリガー・不感帯統合） ===
+    'OBS_FADE_TH':      (1.0, 'AP_Float', 'システム休止/復帰および離陸時の開始を判定する全体の振幅しきい値 [N]'),
+    'OBS_FADE_DLY':     (2.0, 'AP_Float', 'フェードアウト開始前にしきい値を下回る必要がある遅延時間 [秒]'),
+    'OBS_FADE_IN_T':    (0.1, 'AP_Float', '出力フェードイン時定数（検知時は高速起動） [秒]'),
+    'OBS_FADE_OUT_T':   (1.0, 'AP_Float', '出力フェードアウト時定数（終了時は緩やかに緩和） [秒]'),
 
 
 
