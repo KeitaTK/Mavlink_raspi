@@ -47,10 +47,47 @@ def get_key():
         return sys.stdin.read(1)
     return None
 # ───── MAVLink接続と設定 ─────
+def input_with_timeout(prompt, timeout=5, default='1'):
+    print(prompt, end='', flush=True)
+    rlist, _, _ = select.select([sys.stdin], [], [], timeout)
+    if rlist:
+        try:
+            return sys.stdin.readline().strip()
+        except Exception:
+            return default
+    else:
+        print(f"\n[タイムアウト] {timeout}秒間入力がなかったため、デフォルト値 '{default}' を使用します。")
+        return default
+
 def connect_mavlink():
-    m = mavutil.mavlink_connection('/dev/ttyAMA0', baud=1000000, rtscts=True)
-    m.wait_heartbeat()
-    print("✓ MAVLink接続完了")
+    print("\n" + "="*50)
+    print(" 接続方法を選択してください")
+    print(" 1: Serial接続 (/dev/ttyAMA0, 1000000 baud, RTS/CTS有効) ※デフォルト")
+    print(" 2: USB接続 (/dev/ttyACM0, 115200 baud)")
+    print("="*50)
+    
+    choice = input_with_timeout("選択 (1 または 2): ", timeout=5, default='1')
+    
+    if choice == '2':
+        device = '/dev/ttyACM0'
+        baud = 115200
+        rtscts = False
+    else:
+        device = '/dev/ttyAMA0'
+        baud = 1000000
+        rtscts = True
+
+    print(f"\n✓ MAVLink接続を開始します: {device} (BaudRate: {baud}, RTS/CTS: {rtscts})")
+    m = mavutil.mavlink_connection(device, baud=baud, rtscts=rtscts)
+    
+    print("ハートビート信号を待機中 (タイムアウト: 10秒)...")
+    hb = m.wait_heartbeat(timeout=10)
+    if hb is None:
+        print("❌ ハートビートの受信タイムアウト: Pixhawkからの応答がありません。")
+        print("配線やPixhawkの電源、BaudRate設定を確認してください。")
+        sys.exit(1)
+        
+    print(f"✓ MAVLink接続完了 (System ID: {m.target_system}, Component ID: {m.target_component})")
     return m
 def set_msg_rate(m):
     for mid in (24, 33, 30):
@@ -329,6 +366,7 @@ def control_loop(m):
                 if moved:
                     lat, lon, alt = local_xyz_to_gps(target['x'], target['y'], target['z'])
                     send_setpoint(m, int(lat*1e7), int(lon*1e7), alt, yaw_t_deg)
+            time.sleep(0.05)  # 100% CPU使用率を防ぐためにスリープを追加
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
 # ───── データ記録 ─────
@@ -353,24 +391,29 @@ def save_csv():
 # ───── メイン関数 ─────
 def main():
     global running
-    signal.signal(signal.SIGINT, lambda s, f: setattr(sys.modules[__name__], "running", False))
     print("="*50)
     print("ArduPilot 精密制御 - バックグラウンド追跡常時記録モード")
     print("="*50)
-    mav = connect_mavlink()
-    set_msg_rate(mav)
     
-    # スレッド起動
-    threading.Thread(target=monitor_vehicle, args=(mav,), daemon=True).start()
-    threading.Thread(target=record_data, daemon=True).start()
-    threading.Thread(target=camera_tracker_loop, args=(mav,), daemon=True).start()
-    
-    # メインコントロール（キーボード制御）
-    control_loop(mav)
-    
-    print("\n記録終了、CSV保存中...")
-    save_csv()
-    print("✓ プログラム終了")
+    try:
+        mav = connect_mavlink()
+        set_msg_rate(mav)
+        
+        # スレッド起動
+        threading.Thread(target=monitor_vehicle, args=(mav,), daemon=True).start()
+        threading.Thread(target=record_data, daemon=True).start()
+        threading.Thread(target=camera_tracker_loop, args=(mav,), daemon=True).start()
+        
+        # メインコントロール（キーボード制御）
+        control_loop(mav)
+        
+    except KeyboardInterrupt:
+        print("\n⚠ ユーザーによる強制終了 (Ctrl+C) を検出しました。")
+    finally:
+        running = False
+        print("\n記録終了、CSV保存中...")
+        save_csv()
+        print("✓ プログラム終了")
 if __name__ == "__main__":
     main()
 
