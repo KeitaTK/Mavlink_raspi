@@ -22,7 +22,8 @@ SEND_HZ = 10
 MASK = 0x09F8
 # ───── ArUco・カメラ追跡設定 ─────
 MARKER_SIZE = 0.04  # マーカーの一辺の長さ（メートル、4cm）
-TARGET_MARKER_ID = 2  # 追跡対象のArUcoマーカーID
+SUSPENDED_MARKER_ID = 1  # 吊り下げられているマーカーID（ID 1）
+TARGET_MARKER_ID = 2  # 追跡対象の地上マーカーID（ID 2）
 # ───── 基準点設定 ─────
 REF_LAT, REF_LON, REF_ALT = 36.0757800, 136.2132900, 0.0
 TARGET_HEIGHT_ABOVE_TAKEOFF = 1.10
@@ -232,7 +233,7 @@ def camera_tracker_loop(m):
     # ArUcoディテクタの設定
     dictionary = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
     detector = aruco.ArucoDetector(dictionary)
-    print("✓ マーカー追跡ループを開始します（対象ID: {}）...".format(TARGET_MARKER_ID))
+    print("✓ マーカー追跡ループを開始します（吊り下げID: {}, 目標ID: {}）...".format(SUSPENDED_MARKER_ID, TARGET_MARKER_ID))
     last_print_time = 0
     try:
         while running:
@@ -248,32 +249,45 @@ def camera_tracker_loop(m):
             # マーカー検出
             corners, ids, rejected = detector.detectMarkers(img)
             if ids is not None:
+                marker_positions = {}
                 for i, corner in enumerate(corners):
                     marker_id = ids[i][0]
-                    if marker_id == TARGET_MARKER_ID:
-                        # 対象マーカーのポーズ推定
+                    if marker_id in (SUSPENDED_MARKER_ID, TARGET_MARKER_ID):
                         rvecs, tvecs = my_estimatePoseSingleMarkers([corner], MARKER_SIZE, camera_matrix, distortion_coeff)
                         tvec = tvecs[0].reshape(3)
-                        # テレメトリおよび姿勢（Yaw角）データの取得
-                        with io_lock:
-                            drone_gps = gps_now.copy()
-                            drone_yaw = current_yaw_deg
-                        # カメラ座標から世界絶対座標系（東・北）に変換
-                        target_x, target_y, target_z = camera_to_world_xyz(tvec, drone_yaw, drone_gps)
-                        # グローバル目標値の更新
-                        with io_lock:
-                            target['x'] = target_x
-                            target['y'] = target_y
-                            # 高さはあらかじめ指定された追跡高度を維持
-                            target['z'] = TARGET_HEIGHT_ABOVE_TAKEOFF
-                        # ドローンがGuidedモードにあり、初期離陸が終わっている場合、自動で誘導目標コマンドを送信
-                        if guided_mode_active and initial_target_set:
-                            lat, lon, alt = local_xyz_to_gps(target_x, target_y, TARGET_HEIGHT_ABOVE_TAKEOFF)
-                            send_setpoint(m, int(lat*1e7), int(lon*1e7), alt, yaw_t_deg)
-                        # 1秒間隔でコンソールに進捗を表示（画面非表示のためログで確認）
-                        if time.time() - last_print_time > 1.0:
-                            print(f"[Tracker] ID {TARGET_MARKER_ID} 検出 | 相対 [X:{tvec[0]:.2f}, Y:{tvec[1]:.2f}, Z:{tvec[2]:.2f}] | 目標絶対座標 [X:{target_x:.2f}, Y:{target_y:.2f}, Z:{target_z:.2f}]")
-                            last_print_time = time.time()
+                        marker_positions[marker_id] = tvec
+                
+                # 両方のマーカーが検出された場合のみ制御目標値を計算
+                if SUSPENDED_MARKER_ID in marker_positions and TARGET_MARKER_ID in marker_positions:
+                    tvec1 = marker_positions[SUSPENDED_MARKER_ID]
+                    tvec2 = marker_positions[TARGET_MARKER_ID]
+                    tvec_diff = tvec2 - tvec1
+                    
+                    # テレメトリおよび姿勢（Yaw角）データの取得
+                    with io_lock:
+                        drone_gps = gps_now.copy()
+                        drone_yaw = current_yaw_deg
+                    
+                    # カメラ座標から世界絶対座標系（東・北）に変換
+                    target_x, target_y, target_z = camera_to_world_xyz(tvec_diff, drone_yaw, drone_gps)
+                    
+                    # グローバル目標値の更新
+                    with io_lock:
+                        target['x'] = target_x
+                        target['y'] = target_y
+                        # 高さはあらかじめ指定された追跡高度を維持
+                        target['z'] = TARGET_HEIGHT_ABOVE_TAKEOFF
+                    
+                    # ドローンがGuidedモードにあり、初期離陸が終わっている場合、自動で誘導目標コマンドを送信
+                    if guided_mode_active and initial_target_set:
+                        lat, lon, alt = local_xyz_to_gps(target_x, target_y, TARGET_HEIGHT_ABOVE_TAKEOFF)
+                        send_setpoint(m, int(lat*1e7), int(lon*1e7), alt, yaw_t_deg)
+                    
+                    # 1秒間隔でコンソールに進捗を表示
+                    if time.time() - last_print_time > 1.0:
+                        dist = np.linalg.norm(tvec_diff)
+                        print(f"[Tracker] ID1&ID2 検出 | 偏差 X:{tvec_diff[0]:.2f} Y:{tvec_diff[1]:.2f} Z:{tvec_diff[2]:.2f} | 距離:{dist:.2f}m | 目標座標 [X:{target_x:.2f}, Y:{target_y:.2f}]")
+                        last_print_time = time.time()
             # 処理負荷抑制のための微小なスリープ
             time.sleep(0.01)
     finally:

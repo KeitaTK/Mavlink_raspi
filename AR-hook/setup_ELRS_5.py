@@ -142,18 +142,33 @@ params_to_set = {
     'ATC_INPUT_TC': (0.2, 'AP_Float', 'スティック入力応答遅延[秒] (例:0.2)'),
     'ATC_RATE_FF_ENAB': (1, 'AP_Int8', 'レートFeedForward有効化(1:有効)'),
 
-    # === Observer設定 ===
-    'OBS_CORR_GAIN': (0.0, 'AP_Float', 'オブザーバ補正ゲイン (0.0-1.0)'),
-    'OBS_FILT_CUTOFF': (20.0, 'AP_Float', 'フィルタカットオフ周波数 [Hz]'),
-    'OBS_RLS_LAMBDA': (0.99, 'AP_Float', 'RLS忘却係数 (0.9-0.9999)'),
-    'OBS_RLS_COV_INIT': (100.0, 'AP_Float', 'RLS初期共分散'),
-    'OBS_DIST_FREQ': (obs_dist_freq, 'AP_Float', '外乱周波数 [Hz]'),
-    'OBS_FREQ_ALPHA': (0.15, 'AP_Float', '周波数推定フィルタ係数'),
-    'OBS_MAX_CORR_ANG': (0.5, 'AP_Float', '最大補正角度 [rad]'),
-    'OBS_PRED_TIME': (0.00, 'AP_Float', '予測時間 [秒]'),
-    'OBS_PHASE_CORR': (0, 'AP_Int8', '位相補正有効化 (0:無効, 1:有効)'),
-    'OBS_PHASE_THRESH': (0.0, 'AP_Float', '位相補正しきい値 [rad]'),
+    # === AP_Observer コア制御パラメータ ===
+    'OBS_CORR_GAIN':    (0.0, 'AP_Float', '外力推定に基づく姿勢補正ゲイン'),
+    'OBS_MAX_CORR_ANG': (0.5, 'AP_Float', 'ロールおよびピッチの最大姿勢補正角 [rad]'),
+    'OBS_PRED_TIME':    (0.00, 'AP_Float', '力の予測先行時間 [秒]'),
 
+    # === EKF プロセス/観測ノイズ ===
+    'OBS_EKF_Q_D':      (9.5367432e-3, 'AP_Float', '外乱状態 d のプロセスノイズ分散'),
+    'OBS_EKF_Q_DD':     (2.3841858e-3, 'AP_Float', '外乱速度状態 d_dot のプロセスノイズ分散'),
+    'OBS_EKF_Q_C':      (4.7683716e-3, 'AP_Float', 'DCオフセット状態 c のプロセスノイズ分散'),
+    'OBS_EKF_Q_W':      (0.0005, 'AP_Float', '周波数状態 omega のプロセスノイズ分散'),
+    'OBS_EKF_R_MEAS':   (46.0, 'AP_Float', 'ペイロード力の観測値に対する観測ノイズ分散'),
+
+    # === 周波数範囲設定（ひもの長さ換算：約30cm〜2m） ===
+    'OBS_EKF_W_INIT':   (3.7699, 'AP_Float', '初期角周波数 [rad/s] (0.60 Hz)'),
+    # 'OBS_EKF_W_INIT':   (5.0000, 'AP_Float', '初期角周波数 [rad/s] (0.60 Hz)'),
+    	
+    'OBS_EKF_W_MIN':    (2.1991, 'AP_Float', '最小角周波数 [rad/s] (0.35 Hz)'),
+    'OBS_EKF_W_MAX':    (5.7180, 'AP_Float', '最大角周波数 [rad/s] (0.91 Hz)'),
+
+    # === EKF ゲーティング / イノベーション制限 ===
+    'OBS_EKF_INN_MAX':  (1.0, 'AP_Float', '統合周波数更新に軸を含めるための最大絶対イノベーション [N]'),
+
+    # === 出力フェード制御（メインスイッチ・離陸トリガー・不感帯統合） ===
+    'OBS_FADE_TH':      (1.0, 'AP_Float', 'フェードタイマーをリセットするための出力フェード振幅しきい値 [N]'),
+    'OBS_FADE_DLY':     (2.0, 'AP_Float', 'フェードアウト開始前にしきい値を下回る必要がある出力フェード遅延時間 [秒]'),
+    'OBS_FADE_IN_T':    (0.1, 'AP_Float', '出力フェードイン時定数 [秒]'),
+    'OBS_FADE_OUT_T':   (1.0, 'AP_Float', '出力フェードアウト時定数 [秒]'),
     # === IMUフィルタ ===
     'INS_GYRO_FILTER': (20, 'AP_Int8', 'ジャイロフィルタ [Hz]'),
     'INS_ACCEL_FILTER': (20, 'AP_Int8', '加速度フィルタ [Hz]'),

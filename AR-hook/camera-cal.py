@@ -5,6 +5,7 @@ import time
 
 # Raspberry Pi 5 のカメラ (CSI) 対応
 try:
+    # pyrefly: ignore [missing-import]
     from picamera2 import Picamera2
     HAS_PICAMERA2 = True
 except ImportError:
