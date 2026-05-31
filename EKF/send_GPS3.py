@@ -129,13 +129,13 @@ class UDPReceiver:
             return False
     
     def receive_data(self):
-        """データ受信（31バイト固定長バイナリ）"""
+        """データ受信（23バイト固定長バイナリ）"""
         try:
             data, addr = self.socket.recvfrom(2048)
-            if len(data) < 31:
+            if len(data) < 23:
                 return None, None
-            # フォーマット: uint8 rigid_body_id, int32×3 (lat/lon/alt), uint16 yaw, float64×2 (motive_ts, unix_time)
-            unpacked = struct.unpack('<BiiiHdd', data[:31])
+            # フォーマット: uint8 rigid_body_id, int32×3 (lat/lon/alt), uint16 yaw, float64 (unix_time)
+            unpacked = struct.unpack('<BiiiHd', data[:23])
             return unpacked, addr
         except socket.timeout:
             return None, None
@@ -290,8 +290,8 @@ def motive_to_ardupilot_bridge_15hz():
                 
             packet_count += 1
             
-            # データ処理（タプル展開: rigid_body_id, lat_e7, lon_e7, alt_mm, yaw_cdeg, motive_ts, unix_time_sec）
-            rigid_body_id, lat_e7, lon_e7, alt_mm, yaw_cdeg, motive_timestamp, unix_time_sec = received_data
+            # データ処理（タプル展開: rigid_body_id, lat_e7, lon_e7, alt_mm, yaw_cdeg, unix_time_sec）
+            rigid_body_id, lat_e7, lon_e7, alt_mm, yaw_cdeg, unix_time_sec = received_data
             
             periodic_sender.update_data(lat_e7, lon_e7, alt_mm, yaw_cdeg, unix_time_sec)
             
@@ -304,7 +304,7 @@ def motive_to_ardupilot_bridge_15hz():
                 yaw_deg = yaw_cdeg / 100.0
                 print(f"[{timestamp}] #{packet_count}: データ更新 (ID={rigid_body_id})")
                 print(f"  位置: lat={lat_deg:.7f}, lon={lon_deg:.7f}, alt={alt_m:.3f}m")
-                print(f"  姿勢: yaw={yaw_deg:.2f}°  Motive時刻: {motive_timestamp:.3f}")
+                print(f"  姿勢: yaw={yaw_deg:.2f}°  Unix時刻: {unix_time_sec:.3f}")
             
             # 受信統計表示（10秒ごと）
             current_time = time.time()
