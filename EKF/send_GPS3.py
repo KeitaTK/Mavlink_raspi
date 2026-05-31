@@ -96,22 +96,13 @@ class ArduPilotConnector:
             print(f"GPS_INPUT送信エラー: {e}")
             return False
     
-    def send_system_time(self, unix_time_sec):
-        """SYSTEM_TIMEメッセージ送信（ArduPilotのRTCをUnix時刻に設定）"""
-        if not self.master:
-            return False
-        
-        try:
-            time_unix_usec = int(unix_time_sec * 1_000_000)
-            self.master.mav.system_time_send(
-                time_unix_usec,
-                0  # time_boot_ms
-            )
-            return True
-            
-        except Exception as e:
-            print(f"SYSTEM_TIME送信エラー: {e}")
-            return False
+    # NOTE: send_system_time() は削除された。
+    # SYSTEM_TIME MAVLink メッセージは ArduPilot V4.7.0-dev において
+    # SYST ログタイプが未定義であるため、BIN ログに記録されない。
+    # 本来 SYSTEM_TIME は ArduPilot の RTC を Unix 時刻に同期するために
+    # 使用される可能性がある（GPS がない環境での時刻合わせ等）。
+    # そのため、将来的に SYST ログタイプが実装された場合には、
+    # 本メソッドの再追加を検討すること。
 
 class UDPReceiver:
     def __init__(self, host='0.0.0.0', port=15769):
@@ -224,9 +215,6 @@ class PeriodicSender:
             # データ送信
             with self.data_lock:
                 if self.latest_data:
-                    # 最初にSYSTEM_TIME送信（ArduPilotのRTCをMotive Unix時刻に設定）
-                    self.ardupilot.send_system_time(self.latest_data['unix_time_sec'])
-                    # 次にGPS_INPUT送信
                     success = self.ardupilot.send_gps_input(
                         self.latest_data['lat_e7'],
                         self.latest_data['lon_e7'],
