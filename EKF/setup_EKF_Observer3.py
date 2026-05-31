@@ -204,6 +204,13 @@ params_to_set = {
     'LOG_FILE_DSRMROT': (1, 'AP_Int8', 'ディスアーム時ローテーション'),
     'LOG_FILE_TIMEOUT': (5, 'AP_Int8', 'ログファイルタイムアウト [s]'),
     'LOG_BACKEND_TYPE': (1, 'AP_Int8', 'ログバックエンド (1:ファイル)'),
+    # LOG_BITMASK: Observer/EKF解析に必要な全ログを有効化
+    #   内訳: Fast Attitude(0)+Med Attitude(1)+GPS(2)+SysPerf(3)+CtrlTuning(4)
+    #         +NavTuning(5)+RCin(6)+IMU(7)+MissionCmd(8)+BattMon(9)+RCout(10)
+    #         +OptFlow(11)+PID(12)+Compass(13)+Camera(15)+Motors(17)
+    #         +FastIMU(18)+RawIMU(19)
+    # 注: SYSTEM_TIMEはRTC経由で"RTC"メッセージとして自動ログされる（LOG_BITMASK不要）
+    'LOG_BITMASK': (655358, 'AP_Int32', 'Observer用ログビットマスク'),
 
     # === 推力設定 ===
     'MOT_THST_HOVER': (0.223, 'AP_Float', 'ホバリングスロットル比'),
