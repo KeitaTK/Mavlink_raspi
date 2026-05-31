@@ -64,13 +64,19 @@ class ArduPilotConnector:
         
         try:
             yaw_cdeg = int(yaw_cdeg) if yaw_cdeg is not None else 0
-            
+
+            # Unix時刻 → GPS週/ミリ秒 変換
+            # 315964800 = Unix秒差 (1970-01-01 → 1980-01-06), +18 = 閏秒補正
+            gps_seconds = unix_time_sec - 315964800 + 18
+            gps_week     = int(gps_seconds // 604800)
+            gps_week_ms  = int((gps_seconds % 604800) * 1000)
+
             self.master.mav.gps_input_send(
                 int(unix_time_sec * 1e6),  # time_usec (Motive Unix時刻)
                 0,                          # gps_id
                 0,                          # ignore_flags
-                0,                          # time_week_ms
-                0,                          # time_week
+                gps_week_ms,                # time_week_ms
+                gps_week,                   # time_week
                 3,                          # fix_type: 3D Fix
                 int(lat_e7),               # lat (degE7)
                 int(lon_e7),               # lon (degE7)
