@@ -198,9 +198,10 @@ def monitor_vehicle(m):
                 takeoff_sent = True
             if not is_guided:
                 guided, takeoff_sent, takeoff_reached, initial_target_set = False, False, False, False
-            if not new_armed:
+            if armed and not new_armed:  # アームされていた状態からディスアームされた場合のみ終了
                 print("\n✓ ディスアーム検出")
                 running = False  # プログラム停止（記録は最後に保存）
+            armed = new_armed  # アーム状態を更新
         # 実時間の機体姿勢(ヨー角)情報の取得
         att = m.recv_match(type='ATTITUDE', blocking=False)
         if att:
