@@ -374,7 +374,7 @@ def record_data():
     while running:
         with io_lock:
             gps = gps_now.copy()
-            tgt = target.copy() if guided_mode_active else {'x':0.0, 'y':0.0, 'z':0.0}
+            tgt = target.copy()  # 機上テスト等でも追跡値を確認できるよう、Guidedモード成否に関わらず常に目標値を記録します
         data_records.append([time.time(), gps['x'], gps['y'], gps['z'], tgt['x'], tgt['y'], tgt['z']])
         time.sleep(1 / SEND_HZ)
 def save_csv():
