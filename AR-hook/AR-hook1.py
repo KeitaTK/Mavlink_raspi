@@ -22,8 +22,16 @@ SEND_HZ = 10
 MASK = 0x09F8
 # ───── ArUco・カメラ追跡設定 ─────
 MARKER_SIZE = 0.04  # マーカーの一辺の長さ（メートル、4cm）
-SUSPENDED_MARKER_ID = 1  # 吊り下げられているマーカーID（ID 1）
-TARGET_MARKER_ID = 2  # 追跡対象の地上マーカーID（ID 2）
+ID_CENTER_MARKER = 1  # 正方形の中心に配置されるマーカーID（ID 1）
+SQUARE_MARKER_IDS = [2, 3, 4, 5]  # 正方形4頂点のマーカーID（ID2〜ID5）
+SQUARE_SIDE = 0.15  # 正方形の一辺長（メートル）
+HALF_SIDE = SQUARE_SIDE / 2
+MARKER_CENTER_OFFSETS = {
+    2: np.array([ +HALF_SIDE, +HALF_SIDE, 0.0], dtype=np.float32),  # 右上
+    3: np.array([ -HALF_SIDE, +HALF_SIDE, 0.0], dtype=np.float32),  # 左上
+    4: np.array([ -HALF_SIDE, -HALF_SIDE, 0.0], dtype=np.float32),  # 左下
+    5: np.array([ +HALF_SIDE, -HALF_SIDE, 0.0], dtype=np.float32),  # 右下
+}
 # ───── 基準点設定 ─────
 REF_LAT, REF_LON, REF_ALT = 36.0757800, 136.2132900, 0.0
 TARGET_HEIGHT_ABOVE_TAKEOFF = 1.10
@@ -175,6 +183,20 @@ def my_estimatePoseSingleMarkers(corners, marker_size, camera_matrix, distortion
         rvecs.append(rvec)
         tvecs.append(tvec)
     return rvecs, tvecs
+
+def estimate_square_center_from_marker(corner, marker_id, marker_size, camera_matrix, distortion_coeff):
+    rvecs, tvecs = my_estimatePoseSingleMarkers([corner], marker_size, camera_matrix, distortion_coeff)
+    rvec = rvecs[0].reshape(3)
+    tvec = tvecs[0].reshape(3)
+    # ID1 (ドローン側) はここで特別扱いしない。
+    # ここでは常にマーカー位置（または頂点オフセット適用後の中心推定）を返す。
+    offset = MARKER_CENTER_OFFSETS.get(marker_id)
+    if offset is None:
+        # マーカーが正方形の頂点リストにない場合は、そのまま tvec を返す（例: ID1など）
+        return tvec
+    R, _ = cv2.Rodrigues(rvec)
+    return tvec + R.dot(offset)
+
 # ───── 状態監視スレッド ─────
 def monitor_vehicle(m):
     global running, gps_now, origin, initial_yaw, yaw_t_deg, yaw_acquired, initial_target_set, guided_mode_active, current_yaw_deg
@@ -271,7 +293,7 @@ def camera_tracker_loop(m):
     # ArUcoディテクタの設定
     dictionary = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
     detector = aruco.ArucoDetector(dictionary)
-    print("✓ マーカー追跡ループを開始します（吊り下げID: {}, 目標ID: {}）...".format(SUSPENDED_MARKER_ID, TARGET_MARKER_ID))
+    print("✓ マーカー追跡ループを開始します（中心ID: {}, 正方形頂点ID: {}）...".format(ID_CENTER_MARKER, SQUARE_MARKER_IDS))
     last_print_time = 0
     try:
         while running:
@@ -287,44 +309,59 @@ def camera_tracker_loop(m):
             # マーカー検出
             corners, ids, rejected = detector.detectMarkers(img)
             if ids is not None:
-                marker_positions = {}
+                center_estimates = []
+                detected_ids = []
+                id1_cam = None
                 for i, corner in enumerate(corners):
-                    marker_id = ids[i][0]
-                    if marker_id in (SUSPENDED_MARKER_ID, TARGET_MARKER_ID):
-                        rvecs, tvecs = my_estimatePoseSingleMarkers([corner], MARKER_SIZE, camera_matrix, distortion_coeff)
-                        tvec = tvecs[0].reshape(3)
-                        marker_positions[marker_id] = tvec
-                
-                # 両方のマーカーが検出された場合のみ制御目標値を計算
-                if SUSPENDED_MARKER_ID in marker_positions and TARGET_MARKER_ID in marker_positions:
-                    tvec1 = marker_positions[SUSPENDED_MARKER_ID]
-                    tvec2 = marker_positions[TARGET_MARKER_ID]
-                    tvec_diff = tvec2 - tvec1
-                    
+                    marker_id = int(ids[i][0])
+                    # ID2-5: 荷物の頂点として中心を推定
+                    if marker_id in MARKER_CENTER_OFFSETS:
+                        center_cam = estimate_square_center_from_marker(
+                            corner, marker_id, MARKER_SIZE, camera_matrix, distortion_coeff
+                        )
+                        if center_cam is not None:
+                            center_estimates.append(center_cam)
+                            detected_ids.append(marker_id)
+                    # ID1: ドローン側マーカー（補正用）
+                    elif marker_id == ID_CENTER_MARKER:
+                        # ID1のカメラ座標系位置を取得しておく
+                        id1_cam = estimate_square_center_from_marker(corner, marker_id, MARKER_SIZE, camera_matrix, distortion_coeff)
+
+                if center_estimates:
+                    # 荷物中心のカメラ座標系推定（複数検出なら平均化）
+                    center_cam = np.mean(center_estimates, axis=0)
+
                     # テレメトリおよび姿勢（Yaw角）データの取得
                     with io_lock:
                         drone_gps = gps_now.copy()
                         drone_yaw = current_yaw_deg
-                    
-                    # カメラ座標から世界絶対座標系（東・北）に変換
-                    target_x, target_y, target_z = camera_to_world_xyz(tvec_diff, drone_yaw, drone_gps)
-                    
-                    # グローバル目標値の更新
+
+                    # ID1が見えていれば、中心との差分を使ってドローン目標を算出
+                    if id1_cam is not None:
+                        tvec_error = center_cam - id1_cam
+                    else:
+                        # ID1が見えない場合は荷物中心に対するオフセットを直接使用
+                        tvec_error = center_cam
+
+                    # カメラ座標から世界絶対座標系（東・北）に変換して目標位置を算出
+                    target_x, target_y, target_z = camera_to_world_xyz(tvec_error, drone_yaw, drone_gps)
+
+                    # グローバル目標値の更新（高さは固定）
                     with io_lock:
                         target['x'] = target_x
                         target['y'] = target_y
-                        # 高さはあらかじめ指定された追跡高度を維持
                         target['z'] = TARGET_HEIGHT_ABOVE_TAKEOFF
-                    
-                    # ドローンがGuidedモードにあり、初期離陸が終わっている場合、自動で誘導目標コマンドを送信
+
+                    # 自動で誘導目標コマンドを送信
                     if guided_mode_active and initial_target_set:
                         lat, lon, alt = local_xyz_to_gps(target_x, target_y, TARGET_HEIGHT_ABOVE_TAKEOFF)
                         send_setpoint(m, int(lat*1e7), int(lon*1e7), alt, yaw_t_deg)
-                    
+
                     # 1秒間隔でコンソールに進捗を表示
                     if time.time() - last_print_time > 1.0:
-                        dist = np.linalg.norm(tvec_diff)
-                        print(f"[Tracker] ID1&ID2 検出 | 偏差 X:{tvec_diff[0]:.2f} Y:{tvec_diff[1]:.2f} Z:{tvec_diff[2]:.2f} | 距離:{dist:.2f}m | 目標座標 [X:{target_x:.2f}, Y:{target_y:.2f}]")
+                        ids_text = ",".join(str(mid) for mid in detected_ids)
+                        id1_text = "(ID1 vis)" if id1_cam is not None else ""
+                        print(f"[Tracker] 検出IDs: {ids_text} {id1_text} | 推定中心 [X:{center_cam[0]:.2f}, Y:{center_cam[1]:.2f}, Z:{center_cam[2]:.2f}] | 目標座標 [X:{target_x:.2f}, Y:{target_y:.2f}]")
                         last_print_time = time.time()
             # 処理負荷抑制のための微小なスリープ
             time.sleep(0.01)
