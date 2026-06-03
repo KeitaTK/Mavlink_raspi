@@ -49,6 +49,8 @@ io_lock = threading.Lock()
 initial_target_set = False
 initial_yaw, yaw_t_deg, yaw_acquired = None, 180.0, False
 guided_mode_active = False  # Guidedモード判定用
+# 最後に確定した荷物中心（カメラ座標系）を保持
+last_center_cam = None
 # ───── キー入力処理 ─────
 def get_key():
     if select.select([sys.stdin], [], [], 0):
@@ -246,8 +248,8 @@ def monitor_vehicle(m):
                 print(f"✓ 離陸高度到達: {target['z']:.2f}m")
         time.sleep(1 / SEND_HZ)
 # ───── バックグラウンド・カメラ追跡スレッド ─────
-def camera_tracker_loop(m):
-    global running, target, gps_now, current_yaw_deg, initial_target_set, guided_mode_active
+def camera_tracker_loop(m, show_window=False):
+    global running, target, gps_now, current_yaw_deg, initial_target_set, guided_mode_active, last_center_cam
     
     print("カメラ初期化中（解像度: 720p, 画面表示: なし）...")
     picam2 = None
@@ -327,42 +329,63 @@ def camera_tracker_loop(m):
                         # ID1のカメラ座標系位置を取得しておく
                         id1_cam = estimate_square_center_from_marker(corner, marker_id, MARKER_SIZE, camera_matrix, distortion_coeff)
 
+                used_last_center = False
                 if center_estimates:
                     # 荷物中心のカメラ座標系推定（複数検出なら平均化）
                     center_cam = np.mean(center_estimates, axis=0)
-
-                    # テレメトリおよび姿勢（Yaw角）データの取得
-                    with io_lock:
-                        drone_gps = gps_now.copy()
-                        drone_yaw = current_yaw_deg
-
-                    # ID1が見えていれば、中心との差分を使ってドローン目標を算出
-                    if id1_cam is not None:
-                        tvec_error = center_cam - id1_cam
+                    # 最終中心を更新
+                    last_center_cam = center_cam
+                else:
+                    # 頂点マーカーが見えないがID1のみ見えている場合は最後に記録した中心を利用
+                    if id1_cam is not None and last_center_cam is not None:
+                        center_cam = last_center_cam
+                        used_last_center = True
                     else:
-                        # ID1が見えない場合は荷物中心に対するオフセットを直接使用
-                        tvec_error = center_cam
+                        # 中心もID1もない場合は更新しない
+                        continue
 
-                    # カメラ座標から世界絶対座標系（東・北）に変換して目標位置を算出
-                    target_x, target_y, target_z = camera_to_world_xyz(tvec_error, drone_yaw, drone_gps)
+                # テレメトリおよび姿勢（Yaw角）データの取得
+                with io_lock:
+                    drone_gps = gps_now.copy()
+                    drone_yaw = current_yaw_deg
 
-                    # グローバル目標値の更新（高さは固定）
-                    with io_lock:
-                        target['x'] = target_x
-                        target['y'] = target_y
-                        target['z'] = TARGET_HEIGHT_ABOVE_TAKEOFF
+                # ID1が見えていれば、中心との差分を使ってドローン目標を算出
+                if id1_cam is not None:
+                    tvec_error = center_cam - id1_cam
+                else:
+                    tvec_error = center_cam
 
-                    # 自動で誘導目標コマンドを送信
-                    if guided_mode_active and initial_target_set:
-                        lat, lon, alt = local_xyz_to_gps(target_x, target_y, TARGET_HEIGHT_ABOVE_TAKEOFF)
-                        send_setpoint(m, int(lat*1e7), int(lon*1e7), alt, yaw_t_deg)
+                # カメラ座標から世界絶対座標系（東・北）に変換して目標位置を算出
+                target_x, target_y, target_z = camera_to_world_xyz(tvec_error, drone_yaw, drone_gps)
 
-                    # 1秒間隔でコンソールに進捗を表示
-                    if time.time() - last_print_time > 1.0:
-                        ids_text = ",".join(str(mid) for mid in detected_ids)
-                        id1_text = "(ID1 vis)" if id1_cam is not None else ""
-                        print(f"[Tracker] 検出IDs: {ids_text} {id1_text} | 推定中心 [X:{center_cam[0]:.2f}, Y:{center_cam[1]:.2f}, Z:{center_cam[2]:.2f}] | 目標座標 [X:{target_x:.2f}, Y:{target_y:.2f}]")
-                        last_print_time = time.time()
+                # グローバル目標値の更新（高さは固定）
+                with io_lock:
+                    target['x'] = target_x
+                    target['y'] = target_y
+                    target['z'] = TARGET_HEIGHT_ABOVE_TAKEOFF
+
+                # 自動で誘導目標コマンドを送信
+                if guided_mode_active and initial_target_set:
+                    lat, lon, alt = local_xyz_to_gps(target_x, target_y, TARGET_HEIGHT_ABOVE_TAKEOFF)
+                    send_setpoint(m, int(lat*1e7), int(lon*1e7), alt, yaw_t_deg)
+
+                # 1秒間隔でコンソールに進捗を表示
+                if time.time() - last_print_time > 1.0:
+                    ids_text = ",".join(str(mid) for mid in detected_ids)
+                    id1_text = "(ID1 vis)" if id1_cam is not None else ""
+                    last_text = "(using last center)" if used_last_center else ""
+                    print(f"[Tracker] 検出IDs: {ids_text} {id1_text} {last_text} | 推定中心 [X:{center_cam[0]:.2f}, Y:{center_cam[1]:.2f}, Z:{center_cam[2]:.2f}] | 目標座標 [X:{target_x:.2f}, Y:{target_y:.2f}]")
+                    last_print_time = time.time()
+            # 表示が許可されていればウィンドウ表示
+            if show_window:
+                display = img.copy()
+                if ids is not None:
+                    display = aruco.drawDetectedMarkers(display, corners, ids)
+                cv2.imshow("AR Camera", display)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    running = False
+                    break
+
             # 処理負荷抑制のための微小なスリープ
             time.sleep(0.01)
     finally:
@@ -374,6 +397,8 @@ def camera_tracker_loop(m):
                 picam2.stop()
             except:
                 pass
+        if show_window:
+            cv2.destroyAllWindows()
 # ───── キーボード操作 ─────
 def control_loop(m):
     global running, target, yaw_t_deg, initial_target_set
@@ -440,7 +465,10 @@ def main():
         # スレッド起動
         threading.Thread(target=monitor_vehicle, args=(mav,), daemon=True).start()
         threading.Thread(target=record_data, daemon=True).start()
-        threading.Thread(target=camera_tracker_loop, args=(mav,), daemon=True).start()
+        # 起動時にカメラ映像表示の有無を選択
+        choice = input_with_timeout("カメラ映像を表示しますか？ 1:表示 2:非表示 (デフォルト2): ", timeout=5, default='2')
+        show_camera_window = (choice.strip() == '1')
+        threading.Thread(target=camera_tracker_loop, args=(mav, show_camera_window), daemon=True).start()
         
         # メインコントロール（キーボード制御）
         control_loop(mav)
