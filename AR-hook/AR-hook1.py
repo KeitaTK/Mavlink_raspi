@@ -49,12 +49,15 @@ io_lock = threading.Lock()
 initial_target_set = False
 initial_yaw, yaw_t_deg, yaw_acquired = None, 180.0, False
 guided_mode_active = False  # Guidedモード判定用
-# 最後に確定した荷物中心（カメラ座標系）を保持
+# 最後に確定した荷物中心と回転ベクトル（カメラ座標系）を保持
 last_center_cam = None
+last_rvec_cargo = None
 cargo_center_world = {'x':0.0, 'y':0.0, 'z':0.0}
 cargo_detected = False
 id1_detected = False
-dist_id1_to_cargo = float('nan')
+dist_id1_to_cargo_x = float('nan')
+dist_id1_to_cargo_y = float('nan')
+dist_id1_to_cargo_z = float('nan')
 # ───── キー入力処理 ─────
 def get_key():
     if select.select([sys.stdin], [], [], 0):
@@ -257,8 +260,8 @@ def monitor_vehicle(m):
         time.sleep(1 / SEND_HZ)
 # ───── バックグラウンド・カメラ追跡スレッド ─────
 def camera_tracker_loop(m, show_window=False):
-    global running, target, gps_now, current_yaw_deg, initial_target_set, guided_mode_active, last_center_cam
-    global cargo_center_world, cargo_detected, id1_detected, dist_id1_to_cargo
+    global running, target, gps_now, current_yaw_deg, initial_target_set, guided_mode_active, last_center_cam, last_rvec_cargo
+    global cargo_center_world, cargo_detected, id1_detected, dist_id1_to_cargo_x, dist_id1_to_cargo_y, dist_id1_to_cargo_z
     
     print("カメラ初期化中（解像度: 720p, 画面表示: なし）...")
     picam2 = None
@@ -321,42 +324,61 @@ def camera_tracker_loop(m, show_window=False):
             corners, ids, rejected = detector.detectMarkers(img)
             has_cargo = False
             has_id1 = False
-            dist_val = float('nan')
+            dist_x, dist_y, dist_z = float('nan'), float('nan'), float('nan')
             
             if ids is not None:
-                center_estimates = []
+                obj_points = []
+                img_points = []
                 detected_ids = []
                 id1_cam = None
                 for i, corner in enumerate(corners):
                     marker_id = int(ids[i][0])
                     # ID2-5: 荷物の頂点として中心を推定
                     if marker_id in MARKER_CENTER_OFFSETS:
-                        center_cam = estimate_square_center_from_marker(
-                            corner, marker_id, MARKER_SIZE, camera_matrix, distortion_coeff
-                        )
-                        if center_cam is not None:
-                            center_estimates.append(center_cam)
-                            detected_ids.append(marker_id)
+                        O_id = MARKER_CENTER_OFFSETS[marker_id]
+                        # 各マーカーの4頂点の3D座標（荷物座標系）
+                        corners_3d = np.array([
+                            [O_id[0] - MARKER_SIZE / 2, O_id[1] + MARKER_SIZE / 2, 0.0],
+                            [O_id[0] + MARKER_SIZE / 2, O_id[1] + MARKER_SIZE / 2, 0.0],
+                            [O_id[0] + MARKER_SIZE / 2, O_id[1] - MARKER_SIZE / 2, 0.0],
+                            [O_id[0] - MARKER_SIZE / 2, O_id[1] - MARKER_SIZE / 2, 0.0],
+                        ], dtype=np.float32)
+                        obj_points.append(corners_3d)
+                        img_points.append(corner.reshape(4, 2))
+                        detected_ids.append(marker_id)
                     # ID1: ドローン側マーカー（補正用）
                     elif marker_id == ID_CENTER_MARKER:
                         # ID1のカメラ座標系位置を取得しておく
                         id1_cam = estimate_square_center_from_marker(corner, marker_id, MARKER_SIZE, camera_matrix, distortion_coeff)
 
                 used_last_center = False
-                if center_estimates:
-                    # 荷物中心のカメラ座標系推定（複数検出なら平均化）
-                    center_cam = np.mean(center_estimates, axis=0)
-                    # 最終中心を更新
-                    last_center_cam = center_cam
-                    has_cargo = True
+                center_cam = None
+                rvec_cargo = None
+                
+                if len(obj_points) > 0:
+                    obj_points = np.vstack(obj_points)
+                    img_points = np.vstack(img_points)
+                    # 全検出マーカーの頂点から荷物中心位置・姿勢をPnP推定
+                    success, rvec_sol, tvec_sol = cv2.solvePnP(
+                        obj_points,
+                        img_points,
+                        camera_matrix,
+                        distortion_coeff,
+                        flags=cv2.SOLVEPNP_ITERATIVE
+                    )
+                    if success:
+                        center_cam = tvec_sol.reshape(3)
+                        rvec_cargo = rvec_sol.reshape(3)
+                        last_center_cam = center_cam
+                        last_rvec_cargo = rvec_cargo
+                        has_cargo = True
                 else:
-                    # 頂点マーカーが見えないがID1のみ見えている場合は最後に記録した中心を利用
-                    if id1_cam is not None and last_center_cam is not None:
+                    # 頂点マーカーが見えないがID1のみ見えている場合は最後に記録した中心情報を利用
+                    if id1_cam is not None and last_center_cam is not None and last_rvec_cargo is not None:
                         center_cam = last_center_cam
+                        rvec_cargo = last_rvec_cargo
                         used_last_center = True
                         has_cargo = True
-                    else:
-                        center_cam = None
 
                 if id1_cam is not None:
                     has_id1 = True
@@ -370,14 +392,19 @@ def camera_tracker_loop(m, show_window=False):
                     # 荷物中心の世界座標を算出
                     cargo_x, cargo_y, cargo_z = camera_to_world_xyz(center_cam, drone_yaw, drone_gps)
 
-                    # ID1が見えていれば、中心との差分を使ってドローン目標を算出
+                    # ID1が見えていれば、中心との差分を使ってドローン目標を算出、および相対xyz座標を計算
                     if has_id1:
                         tvec_error = center_cam - id1_cam
-                        dist_val = float(np.linalg.norm(tvec_error))
+                        # 中心位置を原点とする座標系から見たID1までのxyz距離
+                        v_cam = id1_cam - center_cam
+                        R_cargo, _ = cv2.Rodrigues(rvec_cargo)
+                        v_cargo = R_cargo.T.dot(v_cam)
+                        dist_x = float(v_cargo[0])
+                        dist_y = float(v_cargo[1])
+                        dist_z = float(v_cargo[2])
                     else:
                         # ID1が見えない場合は荷物中心そのものを目標にする（ただしID1目標距離は算出しない）
                         tvec_error = center_cam
-                        dist_val = float('nan')
 
                     # カメラ座標から世界絶対座標系（東・北）に変換して目標位置を算出
                     target_x, target_y, target_z = camera_to_world_xyz(tvec_error, drone_yaw, drone_gps)
@@ -393,7 +420,9 @@ def camera_tracker_loop(m, show_window=False):
                         cargo_center_world['z'] = cargo_z
                         cargo_detected = True
                         id1_detected = has_id1
-                        dist_id1_to_cargo = dist_val
+                        dist_id1_to_cargo_x = dist_x
+                        dist_id1_to_cargo_y = dist_y
+                        dist_id1_to_cargo_z = dist_z
 
                     # 自動で誘導目標コマンドを送信
                     if guided_mode_active and initial_target_set:
@@ -407,30 +436,79 @@ def camera_tracker_loop(m, show_window=False):
                         last_text = "(using last center)" if used_last_center else ""
                         
                         dist_drone_to_cargo = np.linalg.norm(center_cam)
-                        dist_id1_text = f"{dist_val:.2f}m" if has_id1 else "N/A (ID1 invisible)"
+                        dist_id1_text = f"X:{dist_x:.3f}, Y:{dist_y:.3f}, Z:{dist_z:.3f}" if has_id1 else "N/A"
                         print(f"[Tracker] 検出IDs: {ids_text} {id1_text} {last_text} | "
-                              f"推定中心距離: {dist_drone_to_cargo:.2f}m | "
-                              f"ID1-中心目標距離: {dist_id1_text} | "
-                              f"目標座標 [X:{target_x:.2f}, Y:{target_y:.2f}]")
+                               f"推定中心距離: {dist_drone_to_cargo:.2f}m | "
+                               f"ID1-中心目標距離(xyz): [{dist_id1_text}] | "
+                               f"目標座標 [X:{target_x:.2f}, Y:{target_y:.2f}]")
                         last_print_time = time.time()
                 else:
                     # 荷物が検出されていない場合
                     with io_lock:
                         cargo_detected = False
                         id1_detected = has_id1
-                        dist_id1_to_cargo = float('nan')
+                        dist_id1_to_cargo_x = float('nan')
+                        dist_id1_to_cargo_y = float('nan')
+                        dist_id1_to_cargo_z = float('nan')
             else:
                 # ids is None
                 with io_lock:
                     cargo_detected = False
                     id1_detected = False
-                    dist_id1_to_cargo = float('nan')
+                    dist_id1_to_cargo_x = float('nan')
+                    dist_id1_to_cargo_y = float('nan')
+                    dist_id1_to_cargo_z = float('nan')
 
             # 表示が許可されていればウィンドウ表示
             if show_window:
                 display = img.copy()
                 if ids is not None:
                     display = aruco.drawDetectedMarkers(display, corners, ids)
+                    
+                    if has_cargo and center_cam is not None and rvec_cargo is not None:
+                        # 1. 中心位置の投影と描画 (緑の丸)
+                        center_pts_3d = np.array([[0.0, 0.0, 0.0]], dtype=np.float32)
+                        center_img_pts, _ = cv2.projectPoints(
+                            center_pts_3d, rvec_cargo, center_cam, camera_matrix, distortion_coeff
+                        )
+                        center_pixel = tuple(center_img_pts[0][0].astype(int))
+                        cv2.circle(display, center_pixel, 8, (0, 255, 0), 2, lineType=cv2.LINE_AA)
+                        cv2.circle(display, center_pixel, 2, (0, 255, 0), -1, lineType=cv2.LINE_AA)
+                        cv2.putText(display, "Cargo Center", (center_pixel[0] + 10, center_pixel[1] - 10),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
+
+                        # 2. 座標系の描画 (X:赤, Y:緑, Z:青)
+                        try:
+                            cv2.drawFrameAxes(display, camera_matrix, distortion_coeff, rvec_cargo, center_cam, SQUARE_SIDE)
+                        except AttributeError:
+                            try:
+                                cv2.aruco.drawAxis(display, camera_matrix, distortion_coeff, rvec_cargo, center_cam, SQUARE_SIDE)
+                            except AttributeError:
+                                pass
+
+                        # 3. ID2-5がすべて検出されている場合、15cm四方の枠を描画
+                        if len([mid for mid in [2, 3, 4, 5] if mid in detected_ids]) == 4:
+                            square_pts_3d = np.array([
+                                [-HALF_SIDE,  HALF_SIDE, 0.0],
+                                [ HALF_SIDE,  HALF_SIDE, 0.0],
+                                [ HALF_SIDE, -HALF_SIDE, 0.0],
+                                [-HALF_SIDE, -HALF_SIDE, 0.0]
+                            ], dtype=np.float32)
+                            square_img_pts, _ = cv2.projectPoints(
+                                square_pts_3d, rvec_cargo, center_cam, camera_matrix, distortion_coeff
+                            )
+                            pts_2d = square_img_pts.reshape(-1, 2).astype(np.int32)
+                            cv2.polylines(display, [pts_2d], isClosed=True, color=(0, 165, 255), thickness=2, lineType=cv2.LINE_AA)
+                            cv2.putText(display, "15cm Cargo Frame", (pts_2d[0][0], pts_2d[0][1] - 10),
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 165, 255), 1, cv2.LINE_AA)
+
+                        # 4. 画面上にID1の相対位置を表示
+                        if has_id1:
+                            text_str = f"ID1 Rel to Center: X:{dist_x:.3f} Y:{dist_y:.3f} Z:{dist_z:.3f}"
+                            cv2.putText(display, text_str, (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2, cv2.LINE_AA)
+                        else:
+                            cv2.putText(display, "ID1 Rel to Center: N/A (ID1 invisible)", (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2, cv2.LINE_AA)
+
                 cv2.imshow("AR Camera", display)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     running = False
@@ -491,7 +569,9 @@ def record_data():
             cargo_w = cargo_center_world.copy()
             c_det = cargo_detected
             i1_det = id1_detected
-            d_i1_c = dist_id1_to_cargo
+            d_i1_c_x = dist_id1_to_cargo_x
+            d_i1_c_y = dist_id1_to_cargo_y
+            d_i1_c_z = dist_id1_to_cargo_z
         data_records.append([
             time.time(), 
             gps['x'], gps['y'], gps['z'], 
@@ -499,7 +579,9 @@ def record_data():
             cargo_w['x'], cargo_w['y'], cargo_w['z'],
             1 if c_det else 0,
             1 if i1_det else 0,
-            d_i1_c
+            d_i1_c_x,
+            d_i1_c_y,
+            d_i1_c_z
         ])
         time.sleep(1 / SEND_HZ)
 def save_csv():
@@ -512,7 +594,8 @@ def save_csv():
         writer = csv.writer(f)
         writer.writerow([
             'Time', 'GPS_X', 'GPS_Y', 'GPS_Z', 'Target_X', 'Target_Y', 'Target_Z',
-            'Cargo_X', 'Cargo_Y', 'Cargo_Z', 'Cargo_Detected', 'ID1_Detected', 'ID1_to_Cargo_Dist'
+            'Cargo_X', 'Cargo_Y', 'Cargo_Z', 'Cargo_Detected', 'ID1_Detected',
+            'ID1_to_Cargo_DX', 'ID1_to_Cargo_DY', 'ID1_to_Cargo_DZ'
         ])
         writer.writerows(data_records)
     print(f"\n✓ CSV保存完了: {path} ({len(data_records)} 行)")
