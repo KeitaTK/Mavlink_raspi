@@ -51,6 +51,10 @@ initial_yaw, yaw_t_deg, yaw_acquired = None, 180.0, False
 guided_mode_active = False  # Guidedモード判定用
 # 最後に確定した荷物中心（カメラ座標系）を保持
 last_center_cam = None
+cargo_center_world = {'x':0.0, 'y':0.0, 'z':0.0}
+cargo_detected = False
+id1_detected = False
+dist_id1_to_cargo = float('nan')
 # ───── キー入力処理 ─────
 def get_key():
     if select.select([sys.stdin], [], [], 0):
@@ -58,6 +62,10 @@ def get_key():
     return None
 # ───── MAVLink接続と設定 ─────
 def input_with_timeout(prompt, timeout=5, default='1'):
+    try:
+        termios.tcflush(sys.stdin.fileno(), termios.TCIFLUSH)
+    except Exception:
+        pass
     print(prompt, end='', flush=True)
     rlist, _, _ = select.select([sys.stdin], [], [], timeout)
     if rlist:
@@ -250,6 +258,7 @@ def monitor_vehicle(m):
 # ───── バックグラウンド・カメラ追跡スレッド ─────
 def camera_tracker_loop(m, show_window=False):
     global running, target, gps_now, current_yaw_deg, initial_target_set, guided_mode_active, last_center_cam
+    global cargo_center_world, cargo_detected, id1_detected, dist_id1_to_cargo
     
     print("カメラ初期化中（解像度: 720p, 画面表示: なし）...")
     picam2 = None
@@ -310,6 +319,10 @@ def camera_tracker_loop(m, show_window=False):
                 continue
             # マーカー検出
             corners, ids, rejected = detector.detectMarkers(img)
+            has_cargo = False
+            has_id1 = False
+            dist_val = float('nan')
+            
             if ids is not None:
                 center_estimates = []
                 detected_ids = []
@@ -335,47 +348,84 @@ def camera_tracker_loop(m, show_window=False):
                     center_cam = np.mean(center_estimates, axis=0)
                     # 最終中心を更新
                     last_center_cam = center_cam
+                    has_cargo = True
                 else:
                     # 頂点マーカーが見えないがID1のみ見えている場合は最後に記録した中心を利用
                     if id1_cam is not None and last_center_cam is not None:
                         center_cam = last_center_cam
                         used_last_center = True
+                        has_cargo = True
                     else:
-                        # 中心もID1もない場合は更新しない
-                        continue
+                        center_cam = None
 
-                # テレメトリおよび姿勢（Yaw角）データの取得
-                with io_lock:
-                    drone_gps = gps_now.copy()
-                    drone_yaw = current_yaw_deg
-
-                # ID1が見えていれば、中心との差分を使ってドローン目標を算出
                 if id1_cam is not None:
-                    tvec_error = center_cam - id1_cam
+                    has_id1 = True
+
+                if has_cargo:
+                    # テレメトリおよび姿勢（Yaw角）データの取得
+                    with io_lock:
+                        drone_gps = gps_now.copy()
+                        drone_yaw = current_yaw_deg
+
+                    # 荷物中心の世界座標を算出
+                    cargo_x, cargo_y, cargo_z = camera_to_world_xyz(center_cam, drone_yaw, drone_gps)
+
+                    # ID1が見えていれば、中心との差分を使ってドローン目標を算出
+                    if has_id1:
+                        tvec_error = center_cam - id1_cam
+                        dist_val = float(np.linalg.norm(tvec_error))
+                    else:
+                        # ID1が見えない場合は荷物中心そのものを目標にする（ただしID1目標距離は算出しない）
+                        tvec_error = center_cam
+                        dist_val = float('nan')
+
+                    # カメラ座標から世界絶対座標系（東・北）に変換して目標位置を算出
+                    target_x, target_y, target_z = camera_to_world_xyz(tvec_error, drone_yaw, drone_gps)
+
+                    # グローバル目標値等の更新
+                    with io_lock:
+                        target['x'] = target_x
+                        target['y'] = target_y
+                        target['z'] = TARGET_HEIGHT_ABOVE_TAKEOFF
+                        
+                        cargo_center_world['x'] = cargo_x
+                        cargo_center_world['y'] = cargo_y
+                        cargo_center_world['z'] = cargo_z
+                        cargo_detected = True
+                        id1_detected = has_id1
+                        dist_id1_to_cargo = dist_val
+
+                    # 自動で誘導目標コマンドを送信
+                    if guided_mode_active and initial_target_set:
+                        lat, lon, alt = local_xyz_to_gps(target_x, target_y, TARGET_HEIGHT_ABOVE_TAKEOFF)
+                        send_setpoint(m, int(lat*1e7), int(lon*1e7), alt, yaw_t_deg)
+
+                    # 1秒間隔でコンソールに進捗を表示
+                    if time.time() - last_print_time > 1.0:
+                        ids_text = ",".join(str(mid) for mid in detected_ids)
+                        id1_text = "(ID1 vis)" if has_id1 else "(ID1 NOT vis)"
+                        last_text = "(using last center)" if used_last_center else ""
+                        
+                        dist_drone_to_cargo = np.linalg.norm(center_cam)
+                        dist_id1_text = f"{dist_val:.2f}m" if has_id1 else "N/A (ID1 invisible)"
+                        print(f"[Tracker] 検出IDs: {ids_text} {id1_text} {last_text} | "
+                              f"推定中心距離: {dist_drone_to_cargo:.2f}m | "
+                              f"ID1-中心目標距離: {dist_id1_text} | "
+                              f"目標座標 [X:{target_x:.2f}, Y:{target_y:.2f}]")
+                        last_print_time = time.time()
                 else:
-                    tvec_error = center_cam
-
-                # カメラ座標から世界絶対座標系（東・北）に変換して目標位置を算出
-                target_x, target_y, target_z = camera_to_world_xyz(tvec_error, drone_yaw, drone_gps)
-
-                # グローバル目標値の更新（高さは固定）
+                    # 荷物が検出されていない場合
+                    with io_lock:
+                        cargo_detected = False
+                        id1_detected = has_id1
+                        dist_id1_to_cargo = float('nan')
+            else:
+                # ids is None
                 with io_lock:
-                    target['x'] = target_x
-                    target['y'] = target_y
-                    target['z'] = TARGET_HEIGHT_ABOVE_TAKEOFF
+                    cargo_detected = False
+                    id1_detected = False
+                    dist_id1_to_cargo = float('nan')
 
-                # 自動で誘導目標コマンドを送信
-                if guided_mode_active and initial_target_set:
-                    lat, lon, alt = local_xyz_to_gps(target_x, target_y, TARGET_HEIGHT_ABOVE_TAKEOFF)
-                    send_setpoint(m, int(lat*1e7), int(lon*1e7), alt, yaw_t_deg)
-
-                # 1秒間隔でコンソールに進捗を表示
-                if time.time() - last_print_time > 1.0:
-                    ids_text = ",".join(str(mid) for mid in detected_ids)
-                    id1_text = "(ID1 vis)" if id1_cam is not None else ""
-                    last_text = "(using last center)" if used_last_center else ""
-                    print(f"[Tracker] 検出IDs: {ids_text} {id1_text} {last_text} | 推定中心 [X:{center_cam[0]:.2f}, Y:{center_cam[1]:.2f}, Z:{center_cam[2]:.2f}] | 目標座標 [X:{target_x:.2f}, Y:{target_y:.2f}]")
-                    last_print_time = time.time()
             # 表示が許可されていればウィンドウ表示
             if show_window:
                 display = img.copy()
@@ -438,7 +488,19 @@ def record_data():
         with io_lock:
             gps = gps_now.copy()
             tgt = target.copy()  # 機上テスト等でも追跡値を確認できるよう、Guidedモード成否に関わらず常に目標値を記録します
-        data_records.append([time.time(), gps['x'], gps['y'], gps['z'], tgt['x'], tgt['y'], tgt['z']])
+            cargo_w = cargo_center_world.copy()
+            c_det = cargo_detected
+            i1_det = id1_detected
+            d_i1_c = dist_id1_to_cargo
+        data_records.append([
+            time.time(), 
+            gps['x'], gps['y'], gps['z'], 
+            tgt['x'], tgt['y'], tgt['z'],
+            cargo_w['x'], cargo_w['y'], cargo_w['z'],
+            1 if c_det else 0,
+            1 if i1_det else 0,
+            d_i1_c
+        ])
         time.sleep(1 / SEND_HZ)
 def save_csv():
     if not data_records:
@@ -448,7 +510,10 @@ def save_csv():
     path = CSV_DIR / f"{now}_1.csv"
     with open(path, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['Time', 'GPS_X', 'GPS_Y', 'GPS_Z', 'Target_X', 'Target_Y', 'Target_Z'])
+        writer.writerow([
+            'Time', 'GPS_X', 'GPS_Y', 'GPS_Z', 'Target_X', 'Target_Y', 'Target_Z',
+            'Cargo_X', 'Cargo_Y', 'Cargo_Z', 'Cargo_Detected', 'ID1_Detected', 'ID1_to_Cargo_Dist'
+        ])
         writer.writerows(data_records)
     print(f"\n✓ CSV保存完了: {path} ({len(data_records)} 行)")
 # ───── メイン関数 ─────
@@ -468,15 +533,21 @@ def main():
         # 起動時にカメラ映像表示の有無を選択
         choice = input_with_timeout("カメラ映像を表示しますか？ 1:表示 2:非表示 (デフォルト2): ", timeout=5, default='2')
         show_camera_window = (choice.strip() == '1')
-        threading.Thread(target=camera_tracker_loop, args=(mav, show_camera_window), daemon=True).start()
         
-        # メインコントロール（キーボード制御）
-        control_loop(mav)
+        # コントロールループをサブスレッドで起動 (キー入力を別スレッドに逃がす)
+        control_thread = threading.Thread(target=control_loop, args=(mav,), daemon=False)
+        control_thread.start()
+        
+        # カメラ追跡ループをメインスレッドで実行 (OpenCV GUIのメインスレッド制限対策)
+        camera_tracker_loop(mav, show_camera_window)
         
     except KeyboardInterrupt:
         print("\n⚠ ユーザーによる強制終了 (Ctrl+C) を検出しました。")
     finally:
         running = False
+        # コントロールスレッドの終了待機
+        if 'control_thread' in locals() and control_thread.is_alive():
+            control_thread.join()
         print("\n記録終了、CSV保存中...")
         save_csv()
         print("✓ プログラム終了")
