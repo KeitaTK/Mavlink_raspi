@@ -145,7 +145,7 @@ params_to_set = {
     'OBS_EKF_Q_DD':     (2.3841858e-3, 'AP_Float', '外乱速度状態 d_dot のプロセスノイズ分散'),
     'OBS_EKF_Q_C':      (4.7683716e-3, 'AP_Float', 'DCオフセット状態 c のプロセスノイズ分散'),
     'OBS_W_FREEZE':     (1, 'AP_Int8', 'ωを初期値に固定 (0=無効, 1=有効)'),
-    'OBS_EKF_Q_W':      (0.0009, 'AP_Float', '周波数状態 omega のプロセスノイズ分散'),
+    'OBS_EKF_Q_W':      (0.0005, 'AP_Float', '周波数状態 omega のプロセスノイズ分散'),
     'OBS_EKF_R_MEAS':   (46.0, 'AP_Float', 'ペイロード力の観測値に対する観測ノイズ分散'),
 
     # === 周波数範囲設定（ひもの長さ換算：約30cm〜2m） ===
