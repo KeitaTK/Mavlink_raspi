@@ -136,7 +136,7 @@ params_to_set = {
     'ATC_RAT_YAW_I': (0.02, 'AP_Float', 'Yaw I'),
 
     # === AP_Observer コア制御パラメータ ===
-    'OBS_CORR_GAIN':    (0.3, 'AP_Float', '外力推定に基づく姿勢補正ゲイン'),
+    'OBS_CORR_GAIN':    (0.0, 'AP_Float', '外力推定に基づく姿勢補正ゲイン'),
     'OBS_MAX_CORR_ANG': (0.5, 'AP_Float', 'ロールおよびピッチの最大姿勢補正角 [rad]'),
     'OBS_PRED_TIME':    (0.00, 'AP_Float', '力の予測先行時間 [秒]'),
 
