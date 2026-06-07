@@ -4,7 +4,7 @@
     "longitude": 136.2132932
   },
   "_comment_radius": "半径 [m], 任意の正の値（> 0）を設定可能。例: 0.3, 1.0, 5.0, 10.0 など",
-  "radius_m": 0.5,
+  "radius_m": 0.6,
   "altitude_m": 0.6,
   "lap_time_sec": 5.0,
   "num_laps": 5,
