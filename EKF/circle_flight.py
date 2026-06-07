@@ -915,10 +915,14 @@ class CircleFlightController:
         """
         円飛行のメインループを実行する。
 
-        - num_laps 回ループ
-        - 各ラップで全ウェイポイントを順次処理
-        - 各ウェイポイント間隔 dt = lap_time_sec / num_waypoints 秒
-        - 各ウェイポイントで _send_setpoint() を呼び出す
+        send_rate_hz のレートで円周上の位置を連続計算し、
+        セットポイントを滑らかに送信する。
+        旧方式（waypointリストをdt間隔で送信）とは異なり、
+        ドローンが各点で減速→加速を繰り返さず、連続的な軌道を描く。
+
+        - 各ラップで経過時間から角度を連続計算
+        - dt = 1.0 / send_rate_hz 秒間隔で位置更新
+        - ヨー角は fixed_yaw_deg の固定値
 
         Returns:
             bool: 飛行成功時 True
@@ -928,17 +932,23 @@ class CircleFlightController:
         )
         self._state = self.STATE_CIRCLE_FLYING
 
-        n_wp = self.params["num_waypoints"]
+        radius = self.params["radius_m"]
+        altitude = self.params["altitude_m"]
+        lap_time_sec = self.params["lap_time_sec"]
         n_laps = self.params["num_laps"]
-        dt = self.params["lap_time_sec"] / n_wp
         direction = self.params["direction"]
+        send_hz = self.params["send_rate_hz"]
+        dt = 1.0 / send_hz
+        fixed_yaw_deg = self.params["fixed_yaw_deg"]
 
-        estimated_total = self.params["lap_time_sec"] * n_laps
-        print(f"  WP数: {n_wp} | 周回数: {n_laps} | 方向: {direction}")
+        estimated_total = lap_time_sec * n_laps
+        print(f"  半径: {radius}m | 高度: {altitude}m")
+        print(f"  周回数: {n_laps} | 方向: {direction}")
         print(
-            f"  送信間隔: {dt:.3f}秒"
+            f"  更新レート: {send_hz}Hz（{dt:.3f}秒間隔）"
             f" | 推定時間: {estimated_total:.1f}秒"
         )
+        print(f"  ヨー角: fixed {fixed_yaw_deg:.1f}deg")
 
         wp_send_count = 0
         flight_start = time.time()
@@ -951,29 +961,43 @@ class CircleFlightController:
             print(f"\n  --- 周回 {lap + 1}/{n_laps} ---")
             lap_start = time.time()
 
-            for i in range(n_wp):
+            # 経過時間に基づいて円周上の位置を連続計算し送信
+            while time.time() - lap_start < lap_time_sec:
                 if not self._running:
                     print("⚠ 飛行中断")
                     return False
 
-                wp = self.waypoints[i]
-                lat_wp, lon_wp, alt_wp, yaw_wp = wp
+                # 現在の経過時間から円周上の角度を計算（0 → 2π）
+                elapsed = time.time() - lap_start
+                angle = (elapsed / lap_time_sec) * 2.0 * math.pi
 
-                # セットポイント送信
-                self._send_setpoint(lat_wp, lon_wp, alt_wp, yaw_wp)
+                if direction == "CW":
+                    angle = -angle  # 時計回り
+
+                # 円周上の位置を計算（中心を原点とするローカル座標）
+                x = radius * math.cos(angle)  # 東方向
+                y = radius * math.sin(angle)  # 北方向
+
+                # ローカル座標 → GPS座標
+                lat, lon, _ = local_xyz_to_gps(
+                    x, y, altitude,
+                    self._ref_lat, self._ref_lon, self._ref_alt,
+                )
+
+                # セットポイント送信（ヨー角は固定値）
+                self._send_setpoint(lat, lon, altitude, fixed_yaw_deg)
                 wp_send_count += 1
 
-                # 次のウェイポイント送信タイミングまで待機
-                # 計画ドキュメント 3.1.2節: t_i = i * dt
-                target_time = lap_start + (i + 1) * dt
-                sleep_time = target_time - time.time()
+                # 次の送信タイミングまで待機
+                next_time = lap_start + elapsed + dt
+                sleep_time = next_time - time.time()
                 if sleep_time > 0:
                     time.sleep(sleep_time)
 
             lap_elapsed = time.time() - lap_start
             print(
                 f"  ✓ 周回 {lap + 1} 完了"
-                f"（{lap_elapsed:.1f}秒/{wp_send_count}送信）"
+                f"（{lap_elapsed:.1f}秒）"
             )
 
         total_elapsed = time.time() - flight_start
