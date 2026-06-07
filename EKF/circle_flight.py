@@ -323,6 +323,8 @@ class CircleFlightController:
         self._data_records = []          # CSV記録用データ
         self._state = self.STATE_WAITING_ARM
         self._origin = None              # 初回GPS位置
+        self._takeoff_lat = None         # 離陸地点の緯度 (degree)
+        self._takeoff_lon = None         # 離陸地点の経度 (degree)
 
         # ── デバッグ用カウンタ ──
         self._monitor_loop_count = 0
@@ -517,6 +519,8 @@ class CircleFlightController:
             # 原点設定（初回のみ）
             if self._origin is None:
                 self._origin = msg
+                self._takeoff_lat = lat   # 離陸地点の緯度
+                self._takeoff_lon = lon   # 離陸地点の経度
                 print(
                     f"✓ 原点設定 lat={lat:.7f},"
                     f" lon={lon:.7f}, alt={alt:.2f}m"
@@ -1012,6 +1016,62 @@ class CircleFlightController:
         self._state = self.STATE_CIRCLE_COMPLETE
         return True
 
+    def return_to_takeoff(self):
+        """
+        離陸地点の上空（現在の飛行高度を維持）へ戻る。
+
+        離陸地点の水平座標 + 現在の飛行高度を目標として送信し、
+        十分近づくまで待機する。
+        """
+        print(f"\n--- [{self.STATE_CIRCLE_COMPLETE}] 離陸地点上空へ帰還 ---")
+
+        altitude = self.params["altitude_m"]  # 現在の飛行高度を維持
+
+        # 離陸地点の緯度経度を degree から degree*1e7 に変換
+        lat_i = int(self._takeoff_lat * 1e7)
+        lon_i = int(self._takeoff_lon * 1e7)
+
+        print(f"  目標: lat={self._takeoff_lat:.7f}, lon={self._takeoff_lon:.7f}, alt={altitude}m")
+
+        # セットポイント送信
+        self._send_setpoint(self._takeoff_lat, self._takeoff_lon, altitude,
+                            self.params["fixed_yaw_deg"])
+
+        # 離陸地点に近づくまで待機（半径の20%以内、またはタイムアウト30秒）
+        radius = self.params["radius_m"]
+        threshold = max(radius * 0.2, 0.3)  # 最低30cm
+        timeout = 30.0
+        start = time.time()
+
+        while self._running:
+            with self._io_lock:
+                gps_x = self._gps_now['x']
+                gps_y = self._gps_now['y']
+
+            # 離陸地点のローカル座標を基準に計算
+            takeoff_x, takeoff_y, _ = gps_to_local_xyz(
+                self._takeoff_lat, self._takeoff_lon, 0,
+                self._ref_lat, self._ref_lon, self._ref_alt
+            )
+            dist = math.sqrt((gps_x - takeoff_x)**2 + (gps_y - takeoff_y)**2)
+
+            if dist < threshold:
+                print(f"✓ 離陸地点上空に到達: 距離={dist:.2f}m")
+                return True
+
+            if time.time() - start > timeout:
+                print(f"⚠ タイムアウト: 離陸地点帰還（{timeout}秒, 距離={dist:.2f}m）")
+                return False
+
+            # 3秒毎にセットポイント再送
+            if int(time.time() - start) % 3 == 0:
+                self._send_setpoint(self._takeoff_lat, self._takeoff_lon, altitude,
+                                    self.params["fixed_yaw_deg"])
+
+            time.sleep(0.5)
+
+        return False
+
     def land(self):
         """
         着陸シーケンスを実行する。
@@ -1211,8 +1271,11 @@ class CircleFlightController:
                 self.land()
                 return
 
-            # 6. 着陸
-            self.land()
+            # 6. 離陸地点上空へ帰還 → 着陸
+            if self.params.get("land_after", True):
+                self.return_to_takeoff()   # 離陸地点上空へ移動
+                time.sleep(2.0)             # 2秒待機
+                self.land()                 # 着陸
             print(f"\n✓ [{self.STATE_COMPLETE}] 全シーケンス完了")
 
         except Exception as e:
