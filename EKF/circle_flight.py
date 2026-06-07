@@ -225,7 +225,6 @@ def load_params(path):
     params.setdefault("altitude_m", 2.0)
     params.setdefault("lap_time_sec", 30.0)
     params.setdefault("num_laps", 1)
-    params.setdefault("num_waypoints", 36)
     params.setdefault("direction", "CW")
     params.setdefault("yaw_mode", "tangent")
     params.setdefault("fixed_yaw_deg", 0.0)
@@ -284,6 +283,11 @@ class CircleFlightController:
         # ── パラメータ読み込みと検証 ──
         self.params = load_params(param_path)
         print("✓ パラメータ読み込み完了")
+        # num_waypoints の自動計算: send_rate_hz * lap_time_sec
+        if "num_waypoints" not in self.params or self.params["num_waypoints"] is None:
+            self.params["num_waypoints"] = int(
+                self.params["send_rate_hz"] * self.params["lap_time_sec"]
+            )
         self._print_params()
 
         # ── ウェイポイント生成 ──
