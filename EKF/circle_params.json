@@ -12,7 +12,7 @@
   "direction": "CW",
   "yaw_mode": "fixed",
   "fixed_yaw_deg": 180.0,
-  "takeoff_alt_m": 0.5,
+  "takeoff_alt_m": 0.3,
   "send_rate_hz": 10,
   "mask": "0x09F8",
   "land_after": true,
