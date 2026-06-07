@@ -314,6 +314,7 @@ class CircleFlightController:
         self._target = {'x': 0.0, 'y': 0.0, 'z': 0.0}
         self._is_armed = False
         self._is_guided = False
+        self._is_land_mode = False
         self._data_records = []          # CSV記録用データ
         self._state = self.STATE_WAITING_ARM
         self._origin = None              # 初回GPS位置
@@ -458,6 +459,7 @@ class CircleFlightController:
                 if msg_type == "HEARTBEAT":
                     self._monitor_hb_count += 1
                     is_guided = (msg.custom_mode == 4)
+                    is_land_mode = (msg.custom_mode == 9)
                     is_armed = bool(
                         msg.base_mode
                         & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
@@ -467,6 +469,7 @@ class CircleFlightController:
                         prev_armed = self._is_armed
                         self._is_armed = is_armed
                         self._is_guided = is_guided
+                        self._is_land_mode = is_land_mode
                         current_state = self._state
 
                     # HEARTBEAT デバッグ: 約1秒毎にモード情報表示
@@ -486,12 +489,21 @@ class CircleFlightController:
                         self._running = False
                         break
 
-                    # モード変更検出（飛行中にGuided以外になった場合）
+                    # モード変更検出（飛行中にGuided/LAND以外になった場合）
                     if current_state not in (
                         self.STATE_WAITING_ARM,
                         self.STATE_COMPLETE,
                     ):
-                        if not is_guided:
+                        # LANDING状態ではLANDモード(9)を許可
+                        if current_state == self.STATE_LANDING:
+                            if not is_land_mode and not is_guided:
+                                print(
+                                    "\n⚠ モード変更検出"
+                                    "（着陸中にLAND/Guided以外）→ 安全停止"
+                                )
+                                self._running = False
+                                break
+                        elif not is_guided:
                             print(
                                 "\n⚠ モード変更検出"
                                 "（Guided→他モード）→ 安全停止"
@@ -630,13 +642,15 @@ class CircleFlightController:
         )
 
     def _send_land(self):
-        """着陸指令を送信する（MAV_CMD_NAV_LAND）。"""
+        """LANDモードに切り替えて着陸する（MAV_CMD_DO_SET_MODE）。"""
         self.master.mav.command_long_send(
             self.master.target_system,
             self.master.target_component,
-            mavutil.mavlink.MAV_CMD_NAV_LAND,
+            mavutil.mavlink.MAV_CMD_DO_SET_MODE,
             0,          # confirmation
-            0, 0, 0, 0, 0, 0, 0,
+            mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,  # param1: base_mode
+            9,          # param2: custom_mode = LAND
+            0, 0, 0, 0, 0,
         )
 
     # ──────────────────────────────────────────
@@ -716,6 +730,10 @@ class CircleFlightController:
         last_retry = 0.0  # 直近のTAKEOFF再送時刻
         last_reported = -1  # デバッグ用
 
+        # 上昇トレンド検出用変数
+        prev_z = 0.0
+        rising_count = 0
+
         while self._running:
             with self._io_lock:
                 current_z = self._gps_now['z']
@@ -730,9 +748,21 @@ class CircleFlightController:
                     f" target={takeoff_alt * 0.9:.2f}m"
                 )
 
+            # 離陸判定: 高度が閾値に達した
             if current_z >= takeoff_alt * 0.9:
                 print(f"✓ 離陸高度到達: {current_z:.2f}m")
                 return True
+
+            # 上昇トレンド検出: 離陸指令から5秒経過後
+            if elapsed > 5.0:
+                if current_z > prev_z + 0.05:  # 0.05m以上の上昇
+                    rising_count += 1
+                    if rising_count >= 3:  # 3回連続上昇 → 離陸成功とみなす
+                        print(f"✓ 離陸上昇トレンド検出: z={current_z:.2f}m")
+                        return True
+                else:
+                    rising_count = 0
+            prev_z = current_z
 
             if time.time() - start > timeout:
                 print(
@@ -911,8 +941,11 @@ class CircleFlightController:
 
         1. land_after=False の場合は着陸をスキップ
         2. loiter_before_land_sec 秒の安定待機
-        3. MAV_CMD_NAV_LAND 送信
-        4. ディスアーム検出まで待機（タイムアウト: 60秒）
+        3. MAV_CMD_DO_SET_MODE で LANDモードに切り替え
+        4. 以下の複合条件で着陸完了を判定:
+           a. ディスアーム検出（_is_armed == False）
+           b. 高度が 0.1m 未満で5秒間安定
+           c. LANDモード検出から60秒経過（タイムアウト）
 
         Returns:
             bool: 着陸成功時 True
@@ -938,23 +971,68 @@ class CircleFlightController:
                 return False
             time.sleep(1.0)
 
-        # 着陸指令送信
+        # 着陸指令送信（LANDモードに切り替え）
         self._send_land()
-        print("✓ 着陸指令送信")
+        print("✓ 着陸指令送信（LANDモード切替）")
 
-        # ディスアーム検出待機（タイムアウト: 60秒）
+        # 着陸検出待機（複合条件）
         timeout = 60.0
         start = time.time()
+        land_mode_detected_time = None   # LANDモード検出時刻
+        ground_stable_start = None       # 高度安定検出開始時刻
+        prev_z = None
 
         while self._running:
             with self._io_lock:
                 armed = self._is_armed
+                is_land = self._is_land_mode
+                current_z = self._gps_now['z']
 
+            # 条件1: ディスアーム検出
             if not armed:
                 print("✓ 着陸+ディスアーム完了")
                 self._state = self.STATE_COMPLETE
                 return True
 
+            # LANDモード検出時刻を記録
+            if is_land and land_mode_detected_time is None:
+                land_mode_detected_time = time.time()
+                print(f"  LANDモード検出（z={current_z:.2f}m）")
+
+            # 条件2: 高度が0.1m未満で5秒間安定
+            if current_z < 0.1:
+                if prev_z is None:
+                    prev_z = current_z
+                    ground_stable_start = time.time()
+                elif abs(current_z - prev_z) < 0.02:
+                    # 高度変化がほぼなし
+                    if ground_stable_start is not None:
+                        if time.time() - ground_stable_start >= 5.0:
+                            print(
+                                f"✓ 着陸高度安定検出: z={current_z:.2f}m"
+                                f"（5秒間安定）→ 着陸完了"
+                            )
+                            self._state = self.STATE_COMPLETE
+                            return True
+                else:
+                    # 高度が動いた → リセット
+                    ground_stable_start = time.time()
+                prev_z = current_z
+            else:
+                # 高度が0.1m以上 → リセット
+                ground_stable_start = None
+                prev_z = current_z
+
+            # 条件3: LANDモード検出から60秒経過（タイムアウト）
+            if land_mode_detected_time is not None:
+                if time.time() - land_mode_detected_time >= 60.0:
+                    print(
+                        "✓ LANDモード60秒経過 → 着陸完了とみなす"
+                    )
+                    self._state = self.STATE_COMPLETE
+                    return True
+
+            # 全体タイムアウト（60秒）
             if time.time() - start > timeout:
                 print(
                     f"⚠ タイムアウト: 着陸完了待機（{timeout}秒）"
