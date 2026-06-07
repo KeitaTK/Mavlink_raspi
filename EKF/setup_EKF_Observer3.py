@@ -136,7 +136,7 @@ params_to_set = {
     'ATC_RAT_YAW_I': (0.02, 'AP_Float', 'Yaw I'),
 
     # === AP_Observer コア制御パラメータ ===
-    'OBS_CORR_GAIN':    (0.5, 'AP_Float', '外力推定に基づく姿勢補正ゲイン'),
+    'OBS_CORR_GAIN':    (0.3, 'AP_Float', '外力推定に基づく姿勢補正ゲイン'),
     'OBS_MAX_CORR_ANG': (0.5, 'AP_Float', 'ロールおよびピッチの最大姿勢補正角 [rad]'),
     'OBS_PRED_TIME':    (0.00, 'AP_Float', '力の予測先行時間 [秒]'),
 
@@ -144,7 +144,7 @@ params_to_set = {
     'OBS_EKF_Q_D':      (9.5367432e-3, 'AP_Float', '外乱状態 d のプロセスノイズ分散'),
     'OBS_EKF_Q_DD':     (2.3841858e-3, 'AP_Float', '外乱速度状態 d_dot のプロセスノイズ分散'),
     'OBS_EKF_Q_C':      (4.7683716e-3, 'AP_Float', 'DCオフセット状態 c のプロセスノイズ分散'),
-    'OBS_W_FREEZE':     (1, 'AP_Int8', 'ωを初期値に固定 (0=無効, 1=有効)'),
+    'OBS_W_FREEZE':     (0, 'AP_Int8', 'ωを初期値に固定 (0=無効, 1=有効)'),
     'OBS_EKF_Q_W':      (0.0005, 'AP_Float', '周波数状態 omega のプロセスノイズ分散'),
     'OBS_EKF_R_MEAS':   (46.0, 'AP_Float', 'ペイロード力の観測値に対する観測ノイズ分散'),
 
