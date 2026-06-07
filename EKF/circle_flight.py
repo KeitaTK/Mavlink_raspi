@@ -310,7 +310,8 @@ class CircleFlightController:
 
         # ── 共有状態（スレッドセーフ、_io_lock で保護）──
         self._io_lock = threading.Lock()
-        self._gps_now = {'x': 0.0, 'y': 0.0, 'z': 0.0}
+        self._gps_now = {'x': 0.0, 'y': 0.0, 'z': 0.0,
+                         'lat': 0.0, 'lon': 0.0, 'alt': 0.0}
         self._target = {'x': 0.0, 'y': 0.0, 'z': 0.0}
         self._is_armed = False
         self._is_guided = False
@@ -420,127 +421,157 @@ class CircleFlightController:
     #  モニタースレッド（計画ドキュメント 5.2節, 8.1節）
     # ──────────────────────────────────────────
 
+    # ── モード名マッピング（クラス属性として一度だけ定義）──
+    MODE_NAMES = {
+        0: "STABILIZE", 1: "ACRO", 2: "ALT_HOLD",
+        3: "AUTO", 4: "GUIDED", 5: "LOITER",
+        6: "RTL", 7: "CIRCLE", 9: "LAND",
+        11: "DRIFT", 13: "SPORT", 14: "FLIP",
+        15: "AUTOTUNE", 16: "POSHOLD", 17: "BRAKE",
+        18: "THROW", 19: "AVOID_ADSB", 20: "GUIDED_NOGPS",
+        21: "SMART_RTL", 22: "FLOWHOLD", 23: "FOLLOW",
+        24: "ZIGZAG", 25: "SYSTEMID", 26: "AUTOROTATE",
+        27: "AUTO_RTL",
+    }
+
+    def _process_message(self, msg):
+        """
+        単一のMAVLinkメッセージを処理する。
+        HEARTBEAT → モード/Arm追跡、安全停止判定
+        GLOBAL_POSITION_INT → GPS位置更新
+        """
+        msg_type = msg.get_type()
+
+        if msg_type == "HEARTBEAT":
+            self._monitor_hb_count += 1
+            is_guided = (msg.custom_mode == 4)
+            is_land_mode = (msg.custom_mode == 9)
+            is_armed = bool(
+                msg.base_mode
+                & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
+            )
+
+            with self._io_lock:
+                prev_armed = self._is_armed
+                self._is_armed = is_armed
+                self._is_guided = is_guided
+                self._is_land_mode = is_land_mode
+                current_state = self._state
+
+            # HEARTBEAT デバッグ: 約1秒毎にモード情報表示
+            if self._monitor_hb_count % 10 == 0:
+                mode_str = self.MODE_NAMES.get(
+                    msg.custom_mode, str(msg.custom_mode)
+                )
+                armed_str = "ARMED" if is_armed else "DISARMED"
+                print(
+                    f"[HEARTBEAT] mode={mode_str}({msg.custom_mode})"
+                    f" {armed_str}"
+                )
+
+            # ディスアーム検出 → 安全停止
+            if prev_armed and not is_armed:
+                print("\n⚠ ディスアーム検出 → 安全停止")
+                self._running = False
+                return
+
+            # モード変更検出（飛行中にGuided/LAND以外になった場合）
+            if current_state not in (
+                self.STATE_WAITING_ARM,
+                self.STATE_COMPLETE,
+            ):
+                # LANDING状態ではLANDモード(9)を許可
+                if current_state == self.STATE_LANDING:
+                    if not is_land_mode and not is_guided:
+                        print(
+                            "\n⚠ モード変更検出"
+                            "（着陸中にLAND/Guided以外）→ 安全停止"
+                        )
+                        self._running = False
+                        return
+                elif not is_guided:
+                    print(
+                        "\n⚠ モード変更検出"
+                        "（Guided→他モード）→ 安全停止"
+                    )
+                    self._running = False
+                    return
+
+        elif msg_type == "GLOBAL_POSITION_INT":
+            self._monitor_pos_count += 1
+            lat = msg.lat / 1e7
+            lon = msg.lon / 1e7
+            alt = msg.relative_alt / 1000.0  # 相対高度 [m]
+
+            # GPS デバッグ: 約1秒毎に受信ログ
+            if self._monitor_pos_count % 5 == 0:
+                print(
+                    f"[GPS] lat={lat:.7f} lon={lon:.7f}"
+                    f" rel_alt={alt:.2f}m raw={msg.relative_alt}"
+                )
+
+            # 原点設定（初回のみ）
+            if self._origin is None:
+                self._origin = msg
+                print(
+                    f"✓ 原点設定 lat={lat:.7f},"
+                    f" lon={lon:.7f}, alt={alt:.2f}m"
+                )
+
+            # ローカル座標に変換（中心基準）
+            x, y, z = gps_to_local_xyz(
+                lat, lon, alt,
+                self._ref_lat, self._ref_lon, self._ref_alt
+            )
+            with self._io_lock:
+                self._gps_now.update({
+                    'x': x, 'y': y, 'z': z,
+                    'lat': lat, 'lon': lon, 'alt': alt,
+                })
+
     def _monitor_loop(self):
         """
-        HEARTBEAT/GPS監視ループ。
-        - 単一の recv_match() で全メッセージを受信し、get_type() で振り分け。
-          (recv_match(type=...) はバッファ内の他タイプを破棄するため、
-           HEARTBEAT → GLOBAL_POSITION_INT の順に呼ぶと後者が消失する)
-        - HEARTBEAT から Guidedモード / Arm状態を追跡
-        - GLOBAL_POSITION_INT から現在GPS位置を更新
-        - ディスアーム検出 → _running=False で安全停止
-        - 飛行中のモード変更検出 → _running=False で安全停止
+        HEARTBEAT/GPS監視ループ（バッファドレイン方式）。
+
+        旧方式の問題:
+          ループ毎に1メッセージしか処理せず、0.1秒スリープしていたため
+          10メッセージ/秒しか処理できず、バッファ遅延が蓄積していた。
+
+        新方式:
+          1. バッファ内の全メッセージを一気に処理（blocking=False）
+          2. 新着メッセージを短時間待機（最大20ms）
+          3. 続けて残りのバッファも処理
+          4. send_hz に基づいてスリープ
+
+        これにより、バッファに溜まったメッセージを即座にすべて処理し、
+        遅延を解消する。
         """
         send_hz = self.params["send_rate_hz"]
-
-        # mode_names はループ外で一度だけ定義
-        mode_names = {
-            0: "STABILIZE", 1: "ACRO", 2: "ALT_HOLD",
-            3: "AUTO", 4: "GUIDED", 5: "LOITER",
-            6: "RTL", 7: "CIRCLE", 9: "LAND",
-            11: "DRIFT", 13: "SPORT", 14: "FLIP",
-            15: "AUTOTUNE", 16: "POSHOLD", 17: "BRAKE",
-            18: "THROW", 19: "AVOID_ADSB", 20: "GUIDED_NOGPS",
-            21: "SMART_RTL", 22: "FLOWHOLD", 23: "FOLLOW",
-            24: "ZIGZAG", 25: "SYSTEMID", 26: "AUTOROTATE",
-            27: "AUTO_RTL",
-        }
 
         while self._running:
             # デバッグ: ループカウンタ
             self._monitor_loop_count += 1
 
-            # ── 単一recv_matchで全メッセージを受信し、get_type()で振り分け ──
-            #     (type=指定のrecv_matchはバッファ内の非該当メッセージを破棄するため)
+            # ── ステップ1: バッファ内の全メッセージを一気に処理 ──
+            while True:
+                msg = self.master.recv_match(blocking=False)
+                if msg is None:
+                    break
+                self._process_message(msg)
+
+            # ── ステップ2: 新着メッセージを短時間待機（最大20ms）──
             msg = self.master.recv_match(blocking=True, timeout=0.02)
             if msg is not None:
-                msg_type = msg.get_type()
+                self._process_message(msg)
 
-                if msg_type == "HEARTBEAT":
-                    self._monitor_hb_count += 1
-                    is_guided = (msg.custom_mode == 4)
-                    is_land_mode = (msg.custom_mode == 9)
-                    is_armed = bool(
-                        msg.base_mode
-                        & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
-                    )
-
-                    with self._io_lock:
-                        prev_armed = self._is_armed
-                        self._is_armed = is_armed
-                        self._is_guided = is_guided
-                        self._is_land_mode = is_land_mode
-                        current_state = self._state
-
-                    # HEARTBEAT デバッグ: 約1秒毎にモード情報表示
-                    if self._monitor_hb_count % 10 == 0:
-                        mode_str = mode_names.get(
-                            msg.custom_mode, str(msg.custom_mode)
-                        )
-                        armed_str = "ARMED" if is_armed else "DISARMED"
-                        print(
-                            f"[HEARTBEAT] mode={mode_str}({msg.custom_mode})"
-                            f" {armed_str}"
-                        )
-
-                    # ディスアーム検出 → 安全停止
-                    if prev_armed and not is_armed:
-                        print("\n⚠ ディスアーム検出 → 安全停止")
-                        self._running = False
+                # ── ステップ3: 続けて残りのバッファも処理 ──
+                while True:
+                    msg = self.master.recv_match(blocking=False)
+                    if msg is None:
                         break
+                    self._process_message(msg)
 
-                    # モード変更検出（飛行中にGuided/LAND以外になった場合）
-                    if current_state not in (
-                        self.STATE_WAITING_ARM,
-                        self.STATE_COMPLETE,
-                    ):
-                        # LANDING状態ではLANDモード(9)を許可
-                        if current_state == self.STATE_LANDING:
-                            if not is_land_mode and not is_guided:
-                                print(
-                                    "\n⚠ モード変更検出"
-                                    "（着陸中にLAND/Guided以外）→ 安全停止"
-                                )
-                                self._running = False
-                                break
-                        elif not is_guided:
-                            print(
-                                "\n⚠ モード変更検出"
-                                "（Guided→他モード）→ 安全停止"
-                            )
-                            self._running = False
-                            break
-
-                elif msg_type == "GLOBAL_POSITION_INT":
-                    self._monitor_pos_count += 1
-                    lat = msg.lat / 1e7
-                    lon = msg.lon / 1e7
-                    alt = msg.relative_alt / 1000.0  # 相対高度 [m]
-
-                    # GPS デバッグ: 約1秒毎に受信ログ
-                    if self._monitor_pos_count % 5 == 0:
-                        print(
-                            f"[GPS] lat={lat:.7f} lon={lon:.7f}"
-                            f" rel_alt={alt:.2f}m raw={msg.relative_alt}"
-                        )
-
-                    # 原点設定（初回のみ）
-                    if self._origin is None:
-                        self._origin = msg
-                        print(
-                            f"✓ 原点設定 lat={lat:.7f},"
-                            f" lon={lon:.7f}, alt={alt:.2f}m"
-                        )
-
-                    # ローカル座標に変換（中心基準）
-                    x, y, z = gps_to_local_xyz(
-                        lat, lon, alt,
-                        self._ref_lat, self._ref_lon, self._ref_alt
-                    )
-                    with self._io_lock:
-                        self._gps_now.update({'x': x, 'y': y, 'z': z})
-
-            # デバッグ: 約5秒毎にモニターサマリ出力 (send_hz * 5)
+            # ── デバッグ: 約5秒毎にモニターサマリ出力 ──
             if self._monitor_loop_count % (send_hz * 5) == 0:
                 with self._io_lock:
                     current_z = self._gps_now['z']
@@ -642,16 +673,34 @@ class CircleFlightController:
         )
 
     def _send_land(self):
-        """LANDモードに切り替えて着陸する（MAV_CMD_DO_SET_MODE）。"""
-        self.master.mav.command_long_send(
-            self.master.target_system,
-            self.master.target_component,
-            mavutil.mavlink.MAV_CMD_DO_SET_MODE,
-            0,          # confirmation
-            mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,  # param1: base_mode
-            9,          # param2: custom_mode = LAND
-            0, 0, 0, 0, 0,
-        )
+        """
+        LANDモードに切り替えて着陸する。
+
+        mavutil の set_mode() を使用（MAV_CMD_DO_SET_MODE より確実）。
+        確認のため 0.5 秒後に再送する。
+        """
+        self.master.set_mode(9)  # LAND mode (custom_mode = 9)
+        time.sleep(0.5)
+        self.master.set_mode(9)  # 確認のため再送
+
+    def _send_land_fallback(self):
+        """
+        GUIDEDモードのまま高度0に降下させる（LANDモード切替失敗時のフォールバック）。
+
+        現在のGPS位置を維持しつつ、高度目標を0mに設定する。
+        """
+        with self._io_lock:
+            lat = self._gps_now.get('lat', 0.0)
+            lon = self._gps_now.get('lon', 0.0)
+
+        if lat == 0.0 and lon == 0.0:
+            # GPS未受信の場合は中心座標に降下
+            lat = self._ref_lat
+            lon = self._ref_lon
+            print("⚠ GPS未受信のため中心座標に降下します")
+
+        print(f"  [FALLBACK] GUIDED降下: lat={lat:.7f}, lon={lon:.7f}, alt=0.0m")
+        self._send_setpoint(lat, lon, 0.0, 0.0)
 
     # ──────────────────────────────────────────
     #  飛行シーケンス（計画ドキュメント 3.2節, 6.1.3〜6.1.7節）
@@ -941,11 +990,13 @@ class CircleFlightController:
 
         1. land_after=False の場合は着陸をスキップ
         2. loiter_before_land_sec 秒の安定待機
-        3. MAV_CMD_DO_SET_MODE で LANDモードに切り替え
+        3. set_mode(LAND) で LANDモードに切り替え
         4. 以下の複合条件で着陸完了を判定:
            a. ディスアーム検出（_is_armed == False）
            b. 高度が 0.1m 未満で5秒間安定
            c. LANDモード検出から60秒経過（タイムアウト）
+        5. LANDモード切替が10秒以内に検出されない場合:
+           GUIDEDモードのまま高度0に降下（フォールバック）
 
         Returns:
             bool: 着陸成功時 True
@@ -971,16 +1022,19 @@ class CircleFlightController:
                 return False
             time.sleep(1.0)
 
-        # 着陸指令送信（LANDモードに切り替え）
+        # 着陸指令送信（set_mode で LANDモードに切り替え）
         self._send_land()
-        print("✓ 着陸指令送信（LANDモード切替）")
+        print("✓ 着陸指令送信（set_mode LAND）")
 
-        # 着陸検出待機（複合条件）
-        timeout = 60.0
+        # 着陸検出待機（複合条件 + フォールバック）
+        FALLBACK_TIMEOUT = 10.0          # LANDモード未検出時のフォールバック猶予
+        OVERALL_TIMEOUT = 60.0           # 全体タイムアウト
         start = time.time()
         land_mode_detected_time = None   # LANDモード検出時刻
         ground_stable_start = None       # 高度安定検出開始時刻
         prev_z = None
+        fallback_active = False          # フォールバック発動中
+        last_fallback_send = 0.0         # 直近のフォールバックセットポイント送信時刻
 
         while self._running:
             with self._io_lock:
@@ -998,6 +1052,42 @@ class CircleFlightController:
             if is_land and land_mode_detected_time is None:
                 land_mode_detected_time = time.time()
                 print(f"  LANDモード検出（z={current_z:.2f}m）")
+
+            # ── フォールバック判定 ──
+            # LANDモードが10秒以内に検出されなければGUIDED降下に切り替え
+            elapsed = time.time() - start
+            if (not fallback_active
+                    and land_mode_detected_time is None
+                    and elapsed >= FALLBACK_TIMEOUT):
+                print(
+                    f"\n⚠ LANDモード未検出（{FALLBACK_TIMEOUT}秒経過）"
+                    " → GUIDED降下フォールバック"
+                )
+                fallback_active = True
+
+            # フォールバック発動中: 2秒間隔で高度0のセットポイントを送信
+            if fallback_active:
+                now = time.time()
+                if now - last_fallback_send >= 2.0:
+                    self._send_land_fallback()
+                    last_fallback_send = now
+                    # GUIDED降下中に高度が0.2m未満になったら着陸完了とみなす
+                    if current_z < 0.2:
+                        if ground_stable_start is None:
+                            ground_stable_start = now
+                        elif now - ground_stable_start >= 3.0:
+                            print(
+                                f"✓ GUIDED降下完了: z={current_z:.2f}m"
+                                f"（3秒間低高度安定）"
+                            )
+                            self._state = self.STATE_COMPLETE
+                            return True
+                    else:
+                        ground_stable_start = None
+                time.sleep(0.5)
+                continue
+
+            # ── LANDモード正常時の着陸判定 ──
 
             # 条件2: 高度が0.1m未満で5秒間安定
             if current_z < 0.1:
@@ -1033,9 +1123,9 @@ class CircleFlightController:
                     return True
 
             # 全体タイムアウト（60秒）
-            if time.time() - start > timeout:
+            if time.time() - start > OVERALL_TIMEOUT:
                 print(
-                    f"⚠ タイムアウト: 着陸完了待機（{timeout}秒）"
+                    f"⚠ タイムアウト: 着陸完了待機（{OVERALL_TIMEOUT}秒）"
                 )
                 self._state = self.STATE_COMPLETE
                 return True
