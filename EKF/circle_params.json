@@ -7,7 +7,7 @@
   "radius_m": 0.3,
   "altitude_m": 0.6,
   "lap_time_sec": 5.0,
-  "num_laps": 1,
+  "num_laps": 5,
   "_comment_num_wp": "num_waypoints は send_rate_hz * lap_time_sec で自動計算（10Hz×10秒=100点）",
   "direction": "CW",
   "yaw_mode": "fixed",
