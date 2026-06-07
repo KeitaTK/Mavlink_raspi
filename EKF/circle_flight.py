@@ -422,6 +422,9 @@ class CircleFlightController:
     def _monitor_loop(self):
         """
         HEARTBEAT/GPS監視ループ。
+        - 単一の recv_match() で全メッセージを受信し、get_type() で振り分け。
+          (recv_match(type=...) はバッファ内の他タイプを破棄するため、
+           HEARTBEAT → GLOBAL_POSITION_INT の順に呼ぶと後者が消失する)
         - HEARTBEAT から Guidedモード / Arm状態を追跡
         - GLOBAL_POSITION_INT から現在GPS位置を更新
         - ディスアーム検出 → _running=False で安全停止
@@ -429,101 +432,101 @@ class CircleFlightController:
         """
         send_hz = self.params["send_rate_hz"]
 
+        # mode_names はループ外で一度だけ定義
+        mode_names = {
+            0: "STABILIZE", 1: "ACRO", 2: "ALT_HOLD",
+            3: "AUTO", 4: "GUIDED", 5: "LOITER",
+            6: "RTL", 7: "CIRCLE", 9: "LAND",
+            11: "DRIFT", 13: "SPORT", 14: "FLIP",
+            15: "AUTOTUNE", 16: "POSHOLD", 17: "BRAKE",
+            18: "THROW", 19: "AVOID_ADSB", 20: "GUIDED_NOGPS",
+            21: "SMART_RTL", 22: "FLOWHOLD", 23: "FOLLOW",
+            24: "ZIGZAG", 25: "SYSTEMID", 26: "AUTOROTATE",
+            27: "AUTO_RTL",
+        }
+
         while self._running:
             # デバッグ: ループカウンタ
             self._monitor_loop_count += 1
 
-            # ── HEARTBEAT 監視 ──
-            hb = self.master.recv_match(
-                type='HEARTBEAT', blocking=True, timeout=0.01
-            )
-            if hb:
-                self._monitor_hb_count += 1
-                is_guided = (hb.custom_mode == 4)
-                is_armed = bool(
-                    hb.base_mode
-                    & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
-                )
+            # ── 単一recv_matchで全メッセージを受信し、get_type()で振り分け ──
+            #     (type=指定のrecv_matchはバッファ内の非該当メッセージを破棄するため)
+            msg = self.master.recv_match(blocking=True, timeout=0.02)
+            if msg is not None:
+                msg_type = msg.get_type()
 
-                with self._io_lock:
-                    prev_armed = self._is_armed
-                    self._is_armed = is_armed
-                    self._is_guided = is_guided
-                    current_state = self._state
-
-                # HEARTBEAT デバッグ: 約1秒毎にモード情報表示
-                if self._monitor_hb_count % 10 == 0:
-                    mode_names = {
-                        0: "STABILIZE", 1: "ACRO", 2: "ALT_HOLD",
-                        3: "AUTO", 4: "GUIDED", 5: "LOITER",
-                        6: "RTL", 7: "CIRCLE", 9: "LAND",
-                        11: "DRIFT", 13: "SPORT", 14: "FLIP",
-                        15: "AUTOTUNE", 16: "POSHOLD", 17: "BRAKE",
-                        18: "THROW", 19: "AVOID_ADSB", 20: "GUIDED_NOGPS",
-                        21: "SMART_RTL", 22: "FLOWHOLD", 23: "FOLLOW",
-                        24: "ZIGZAG", 25: "SYSTEMID", 26: "AUTOROTATE",
-                        27: "AUTO_RTL",
-                    }
-                    mode_str = mode_names.get(
-                        hb.custom_mode, str(hb.custom_mode)
-                    )
-                    armed_str = "ARMED" if is_armed else "DISARMED"
-                    print(
-                        f"[HEARTBEAT] mode={mode_str}({hb.custom_mode})"
-                        f" {armed_str}"
+                if msg_type == "HEARTBEAT":
+                    self._monitor_hb_count += 1
+                    is_guided = (msg.custom_mode == 4)
+                    is_armed = bool(
+                        msg.base_mode
+                        & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
                     )
 
-                # ディスアーム検出 → 安全停止
-                if prev_armed and not is_armed:
-                    print("\n⚠ ディスアーム検出 → 安全停止")
-                    self._running = False
-                    break
+                    with self._io_lock:
+                        prev_armed = self._is_armed
+                        self._is_armed = is_armed
+                        self._is_guided = is_guided
+                        current_state = self._state
 
-                # モード変更検出（飛行中にGuided以外になった場合）
-                if current_state not in (
-                    self.STATE_WAITING_ARM,
-                    self.STATE_COMPLETE,
-                ):
-                    if not is_guided:
-                        print(
-                            "\n⚠ モード変更検出"
-                            "（Guided→他モード）→ 安全停止"
+                    # HEARTBEAT デバッグ: 約1秒毎にモード情報表示
+                    if self._monitor_hb_count % 10 == 0:
+                        mode_str = mode_names.get(
+                            msg.custom_mode, str(msg.custom_mode)
                         )
+                        armed_str = "ARMED" if is_armed else "DISARMED"
+                        print(
+                            f"[HEARTBEAT] mode={mode_str}({msg.custom_mode})"
+                            f" {armed_str}"
+                        )
+
+                    # ディスアーム検出 → 安全停止
+                    if prev_armed and not is_armed:
+                        print("\n⚠ ディスアーム検出 → 安全停止")
                         self._running = False
                         break
 
-            # ── GPS位置監視 ──
-            pos = self.master.recv_match(
-                type='GLOBAL_POSITION_INT', blocking=True, timeout=0.01
-            )
-            if pos:
-                self._monitor_pos_count += 1
-                lat = pos.lat / 1e7
-                lon = pos.lon / 1e7
-                alt = pos.relative_alt / 1000.0  # 相対高度 [m]
+                    # モード変更検出（飛行中にGuided以外になった場合）
+                    if current_state not in (
+                        self.STATE_WAITING_ARM,
+                        self.STATE_COMPLETE,
+                    ):
+                        if not is_guided:
+                            print(
+                                "\n⚠ モード変更検出"
+                                "（Guided→他モード）→ 安全停止"
+                            )
+                            self._running = False
+                            break
 
-                # GPS デバッグ: 約1秒毎に受信ログ
-                if self._monitor_pos_count % 5 == 0:
-                    print(
-                        f"[GPS] lat={lat:.7f} lon={lon:.7f}"
-                        f" rel_alt={alt:.2f}m raw={pos.relative_alt}"
+                elif msg_type == "GLOBAL_POSITION_INT":
+                    self._monitor_pos_count += 1
+                    lat = msg.lat / 1e7
+                    lon = msg.lon / 1e7
+                    alt = msg.relative_alt / 1000.0  # 相対高度 [m]
+
+                    # GPS デバッグ: 約1秒毎に受信ログ
+                    if self._monitor_pos_count % 5 == 0:
+                        print(
+                            f"[GPS] lat={lat:.7f} lon={lon:.7f}"
+                            f" rel_alt={alt:.2f}m raw={msg.relative_alt}"
+                        )
+
+                    # 原点設定（初回のみ）
+                    if self._origin is None:
+                        self._origin = msg
+                        print(
+                            f"✓ 原点設定 lat={lat:.7f},"
+                            f" lon={lon:.7f}, alt={alt:.2f}m"
+                        )
+
+                    # ローカル座標に変換（中心基準）
+                    x, y, z = gps_to_local_xyz(
+                        lat, lon, alt,
+                        self._ref_lat, self._ref_lon, self._ref_alt
                     )
-
-                # 原点設定（初回のみ）
-                if self._origin is None:
-                    self._origin = pos
-                    print(
-                        f"✓ 原点設定 lat={lat:.7f},"
-                        f" lon={lon:.7f}, alt={alt:.2f}m"
-                    )
-
-                # ローカル座標に変換（中心基準）
-                x, y, z = gps_to_local_xyz(
-                    lat, lon, alt,
-                    self._ref_lat, self._ref_lon, self._ref_alt
-                )
-                with self._io_lock:
-                    self._gps_now.update({'x': x, 'y': y, 'z': z})
+                    with self._io_lock:
+                        self._gps_now.update({'x': x, 'y': y, 'z': z})
 
             # デバッグ: 約5秒毎にモニターサマリ出力 (send_hz * 5)
             if self._monitor_loop_count % (send_hz * 5) == 0:
