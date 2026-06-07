@@ -1,7 +1,7 @@
 {
   "center": {
-    "latitude": 36.0757755,
-    "longitude": 136.2132932
+    "latitude": 36.0757778,
+    "longitude": 136.2132878
   },
   "_comment_radius": "半径 [m], 任意の正の値（> 0）を設定可能。例: 0.3, 1.0, 5.0, 10.0 など",
   "radius_m": 0.65,
