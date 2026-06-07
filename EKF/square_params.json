@@ -1,0 +1,18 @@
+{
+  "center": { "latitude": 36.0757754, "longitude": 136.2132908 },
+  "half_width_m": 0.3,
+  "half_height_m": 0.3,
+  "speed_m_s": 0.3,
+  "altitude_m": 0.7,
+  "stop_at_vertex_sec": 2.0,
+  "num_laps": 1,
+  "direction": "CW",
+  "takeoff_alt_m": 0.5,
+  "send_rate_hz": 10,
+  "yaw_mode": "fixed",
+  "fixed_yaw_deg": 180.0,
+  "land_after": true,
+  "loiter_after_takeoff_sec": 3.0,
+  "loiter_before_land_sec": 3.0,
+  "mask": "0x09F8"
+}
