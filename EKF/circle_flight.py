@@ -377,8 +377,8 @@ class CircleFlightController:
         )
 
         # メッセージレート設定
-        #   GLOBAL_POSITION_INT=33, ATTITUDE=30, HEARTBEAT=0
-        for mid in (33, 30, 0):
+        #   GPS_RAW_INT=24, GLOBAL_POSITION_INT=33, ATTITUDE=30
+        for mid in (24, 33, 30):
             self.master.mav.command_long_send(
                 self.master.target_system,
                 self.master.target_component,
@@ -423,7 +423,7 @@ class CircleFlightController:
         while self._running:
             # ── HEARTBEAT 監視 ──
             hb = self.master.recv_match(
-                type='HEARTBEAT', blocking=False, timeout=0.05
+                type='HEARTBEAT', blocking=True, timeout=0.01
             )
             if hb:
                 is_guided = (hb.custom_mode == 4)
@@ -459,7 +459,7 @@ class CircleFlightController:
 
             # ── GPS位置監視 ──
             pos = self.master.recv_match(
-                type='GLOBAL_POSITION_INT', blocking=False
+                type='GLOBAL_POSITION_INT', blocking=True, timeout=0.01
             )
             if pos:
                 lat = pos.lat / 1e7
@@ -481,6 +481,12 @@ class CircleFlightController:
                 )
                 with self._io_lock:
                     self._gps_now.update({'x': x, 'y': y, 'z': z})
+
+                # デバッグ: 高度受信を確認（5秒毎）
+                if int(time.time()) % 5 == 0:
+                    print(
+                        f"  [DEBUG] GPS受信: alt={alt:.2f}m, z={z:.2f}m"
+                    )
 
             time.sleep(1.0 / send_hz)
 
@@ -656,6 +662,7 @@ class CircleFlightController:
         # 離陸高度到達待機（タイムアウト: 30秒）
         timeout = 30.0
         start = time.time()
+        last_retry = 0.0  # 直近のTAKEOFF再送時刻
 
         while self._running:
             with self._io_lock:
@@ -671,6 +678,11 @@ class CircleFlightController:
                     f"（{timeout}秒, 現在高度={current_z:.2f}m）"
                 )
                 return False
+
+            # 3秒間隔でTAKEOFFコマンドを再送（初回が無視された場合のリカバリ）
+            if time.time() - last_retry >= 3.0:
+                self._send_takeoff(takeoff_alt)
+                last_retry = time.time()
 
             time.sleep(0.1)
 
