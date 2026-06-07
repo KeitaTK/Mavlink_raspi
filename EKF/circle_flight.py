@@ -318,6 +318,11 @@ class CircleFlightController:
         self._state = self.STATE_WAITING_ARM
         self._origin = None              # 初回GPS位置
 
+        # ── デバッグ用カウンタ ──
+        self._monitor_loop_count = 0
+        self._monitor_hb_count = 0
+        self._monitor_pos_count = 0
+
         # ── 基準点: 円の中心座標 ──
         self._ref_lat = self.params["center"]["latitude"]
         self._ref_lon = self.params["center"]["longitude"]
@@ -390,6 +395,10 @@ class CircleFlightController:
             )
         print("✓ メッセージレート設定完了")
 
+        # 初期化時追加情報
+        print(f"[INFO] target_system={self.master.target_system}, target_component={self.master.target_component}")
+        print(f"[INFO] メッセージレート設定: GPS_RAW_INT(24), GLOBAL_POSITION_INT(33), ATTITUDE(30) → 5Hz")
+
         # スレッド起動（計画ドキュメント 5.2節）
         self._running = True
         self._monitor_thread = threading.Thread(
@@ -421,11 +430,15 @@ class CircleFlightController:
         send_hz = self.params["send_rate_hz"]
 
         while self._running:
+            # デバッグ: ループカウンタ
+            self._monitor_loop_count += 1
+
             # ── HEARTBEAT 監視 ──
             hb = self.master.recv_match(
                 type='HEARTBEAT', blocking=True, timeout=0.01
             )
             if hb:
+                self._monitor_hb_count += 1
                 is_guided = (hb.custom_mode == 4)
                 is_armed = bool(
                     hb.base_mode
@@ -437,6 +450,28 @@ class CircleFlightController:
                     self._is_armed = is_armed
                     self._is_guided = is_guided
                     current_state = self._state
+
+                # HEARTBEAT デバッグ: 約1秒毎にモード情報表示
+                if self._monitor_hb_count % 10 == 0:
+                    mode_names = {
+                        0: "STABILIZE", 1: "ACRO", 2: "ALT_HOLD",
+                        3: "AUTO", 4: "GUIDED", 5: "LOITER",
+                        6: "RTL", 7: "CIRCLE", 9: "LAND",
+                        11: "DRIFT", 13: "SPORT", 14: "FLIP",
+                        15: "AUTOTUNE", 16: "POSHOLD", 17: "BRAKE",
+                        18: "THROW", 19: "AVOID_ADSB", 20: "GUIDED_NOGPS",
+                        21: "SMART_RTL", 22: "FLOWHOLD", 23: "FOLLOW",
+                        24: "ZIGZAG", 25: "SYSTEMID", 26: "AUTOROTATE",
+                        27: "AUTO_RTL",
+                    }
+                    mode_str = mode_names.get(
+                        hb.custom_mode, str(hb.custom_mode)
+                    )
+                    armed_str = "ARMED" if is_armed else "DISARMED"
+                    print(
+                        f"[HEARTBEAT] mode={mode_str}({hb.custom_mode})"
+                        f" {armed_str}"
+                    )
 
                 # ディスアーム検出 → 安全停止
                 if prev_armed and not is_armed:
@@ -462,9 +497,17 @@ class CircleFlightController:
                 type='GLOBAL_POSITION_INT', blocking=True, timeout=0.01
             )
             if pos:
+                self._monitor_pos_count += 1
                 lat = pos.lat / 1e7
                 lon = pos.lon / 1e7
                 alt = pos.relative_alt / 1000.0  # 相対高度 [m]
+
+                # GPS デバッグ: 約1秒毎に受信ログ
+                if self._monitor_pos_count % 5 == 0:
+                    print(
+                        f"[GPS] lat={lat:.7f} lon={lon:.7f}"
+                        f" rel_alt={alt:.2f}m raw={pos.relative_alt}"
+                    )
 
                 # 原点設定（初回のみ）
                 if self._origin is None:
@@ -482,11 +525,16 @@ class CircleFlightController:
                 with self._io_lock:
                     self._gps_now.update({'x': x, 'y': y, 'z': z})
 
-                # デバッグ: 高度受信を確認（5秒毎）
-                if int(time.time()) % 5 == 0:
-                    print(
-                        f"  [DEBUG] GPS受信: alt={alt:.2f}m, z={z:.2f}m"
-                    )
+            # デバッグ: 約5秒毎にモニターサマリ出力 (send_hz * 5)
+            if self._monitor_loop_count % (send_hz * 5) == 0:
+                with self._io_lock:
+                    current_z = self._gps_now['z']
+                print(
+                    f"[MONITOR] loop={self._monitor_loop_count}"
+                    f" hb={self._monitor_hb_count}"
+                    f" pos={self._monitor_pos_count}"
+                    f" z={current_z:.2f}m"
+                )
 
             time.sleep(1.0 / send_hz)
 
@@ -663,10 +711,21 @@ class CircleFlightController:
         timeout = 30.0
         start = time.time()
         last_retry = 0.0  # 直近のTAKEOFF再送時刻
+        last_reported = -1  # デバッグ用
 
         while self._running:
             with self._io_lock:
                 current_z = self._gps_now['z']
+
+            # デバッグ: 1秒毎に状態表示
+            elapsed = time.time() - start
+            if int(elapsed) != last_reported:
+                last_reported = int(elapsed)
+                print(
+                    f"[TAKEOFF] 待機中..."
+                    f" {elapsed:.0f}s, z={current_z:.2f}m,"
+                    f" target={takeoff_alt * 0.9:.2f}m"
+                )
 
             if current_z >= takeoff_alt * 0.9:
                 print(f"✓ 離陸高度到達: {current_z:.2f}m")
