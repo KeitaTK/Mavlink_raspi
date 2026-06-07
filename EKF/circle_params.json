@@ -3,8 +3,9 @@
     "latitude": 36.0757800,
     "longitude": 136.2132900
   },
-  "radius_m": 5.0,
-  "altitude_m": 2.0,
+  "_comment_radius": "半径 [m], 任意の正の値（> 0）を設定可能。例: 0.3, 1.0, 5.0, 10.0 など",
+  "radius_m": 0.3,
+  "altitude_m": 0.7,
   "lap_time_sec": 30.0,
   "num_laps": 1,
   "num_waypoints": 36,

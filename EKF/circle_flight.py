@@ -148,9 +148,9 @@ def _validate_params(params):
 
     # radius_m のバリデーション
     radius = params.get("radius_m", 5.0)
-    if radius < 1.0:
+    if radius <= 0.0:
         raise ValueError(
-            f"radius_m が小さすぎます: {radius}（>= 1.0）")
+            f"radius_m は正の値である必要があります: {radius}")
 
     # altitude_m のバリデーション
     altitude = params.get("altitude_m", 2.0)
