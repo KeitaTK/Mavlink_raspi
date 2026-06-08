@@ -107,8 +107,8 @@ params_to_set = {
     'LOIT_BRK_JERK': (300.0, 'AP_Float', 'Loiterブレーキジャーク [cm/s^3]'),
     'LOIT_ANG_MAX': (10.0, 'AP_Float', 'Loiter最大角度 [deg]'),
 
-    'PSC_JERK_NE': (20.0, 'AP_Float', '水平躍度制限 [m/s^3]'),
-    'PSC_JERK_D': (20.0, 'AP_Float', '垂直躍度制限 [m/s^3]'),
+#   'PSC_JERK_NE': (20.0, 'AP_Float', '水平躍度制限 [m/s^3]'),  # ※ ファームウェア非対応のため無効化
+#   'PSC_JERK_D': (20.0, 'AP_Float', '垂直躍度制限 [m/s^3]'),  # ※ ファームウェア非対応のため無効化
 
     # === パイロット制御速度 ===
     'PILOT_SPEED_UP': (250, 'AP_Int16', 'パイロット上昇速度 [cm/s]'),
@@ -139,9 +139,9 @@ params_to_set = {
     'ATC_RAT_YAW_P': (0.2, 'AP_Float', 'Yaw P'),
     'ATC_RAT_YAW_I': (0.02, 'AP_Float', 'Yaw I'),
 
-    'ATC_ACC_R_MAX': (1620, 'AP_Int16', 'ロール最大角加速度 [deg/s^2]'),
-    'ATC_ACC_P_MAX': (1620, 'AP_Int16', 'ピッチ最大角加速度 [deg/s^2]'),
-    'ATC_ACC_Y_MAX': (540, 'AP_Int16', 'ヨー最大角加速度 [deg/s^2]'),
+#   'ATC_ACC_R_MAX': (1620, 'AP_Int16', 'ロール最大角加速度 [deg/s^2]'),  # ※ ファームウェア非対応のため無効化
+#   'ATC_ACC_P_MAX': (1620, 'AP_Int16', 'ピッチ最大角加速度 [deg/s^2]'),  # ※ ファームウェア非対応のため無効化
+#   'ATC_ACC_Y_MAX': (540, 'AP_Int16', 'ヨー最大角加速度 [deg/s^2]'),  # ※ ファームウェア非対応のため無効化
 
 
     # === AP_Observer コア制御パラメータ ===
