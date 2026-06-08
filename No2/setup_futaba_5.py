@@ -108,13 +108,13 @@ params_to_set = {
     'GPS_AUTO_CONFIG': (0, 'AP_Int8', '自動設定無効'),
     'GPS_PRIMARY': (0, 'AP_Int8', 'プライマリGPS'),
 
-    # === Guidedモード設定（EKF3 最新値: 小さな円に適した速度） ===
+    # === Guidedモード設定 ===
     'WPNAV_SPEED_UP': (40.0, 'AP_Float', '上昇速度 [cm/s]'),
     'WPNAV_SPEED_DN': (30.0, 'AP_Float', '下降速度 [cm/s]'),
     'WPNAV_ACCEL_Z': (70.0, 'AP_Float', '垂直加速度 [cm/s^2]'),
-    'WPNAV_SPEED': (100.0, 'AP_Float', '水平速度 [cm/s] (半径0.3mの小さな円に適した速度、1.0 m/s)'),
-    'WPNAV_ACCEL': (200.0, 'AP_Float', '水平加速度 [cm/s^2] (滑らかな加減速、2.0 m/s^2)'),
-    'WPNAV_RADIUS': (50.0, 'AP_Float', '到達半径 [cm] (緩やかな到達判定、0.5m)'),
+    'WPNAV_SPEED': (500.0, 'AP_Float', '水平速度 [cm/s]'),
+    'WPNAV_ACCEL': (500.0, 'AP_Float', '水平加速度 [cm/s^2]'),
+    'WPNAV_RADIUS': (5.0, 'AP_Float', '到達半径 [cm]'),
 
     # === Loiterモード設定 ===
     'LOIT_SPEED': (50.0, 'AP_Float', 'Loiter速度 [cm/s]'),
@@ -137,24 +137,24 @@ params_to_set = {
     'PSC_ACCZ_P': (0.3, 'AP_Float', '垂直加速度制御P'),
     'PSC_ACCZ_I': (1.0, 'AP_Float', '垂直加速度制御I'),
 
-    # === 水平制御PID（EKF3 最新値） ===
-    'PSC_POSXY_P': (1.0, 'AP_Float', '水平位置制御P (デフォルト値、高すぎるとオーバーシュート)'),
-    'PSC_VELXY_P': (2.0, 'AP_Float', '水平速度制御P (デフォルト値、高ゲインで振動防止)'),
-    'PSC_VELXY_I': (1.0, 'AP_Float', '水平速度制御I (デフォルト値、積分飽和防止)'),
-    'PSC_VELXY_D': (0.5, 'AP_Float', '水平速度制御D (デフォルト値、ノイズ増幅防止)'),
+    # === 水平制御PID ===
+    'PSC_POSXY_P': (4.0, 'AP_Float', '水平位置制御P'),
+    'PSC_VELXY_P': (6.0, 'AP_Float', '水平速度制御P'),
+    'PSC_VELXY_I': (2.5, 'AP_Float', '水平速度制御I'),
+    'PSC_VELXY_D': (1.0, 'AP_Float', '水平速度制御D'),
 
-    # === 姿勢制御PID（EKF3 最新値） ===
-    'ATC_RAT_RLL_P': (0.10, 'AP_Float', 'Roll P (標準的小型クアッド値、低すぎると姿勢制御不足)'),
+    # === 姿勢制御PID ===
+    'ATC_RAT_RLL_P': (0.04, 'AP_Float', 'Roll P'),
     'ATC_RAT_RLL_I': (0.05, 'AP_Float', 'Roll I'),
     'ATC_RAT_RLL_D': (0.0012, 'AP_Float', 'Roll D'),
-    'ATC_RAT_PIT_P': (0.10, 'AP_Float', 'Pitch P (標準的小型クアッド値、低すぎると姿勢制御不足)'),
+    'ATC_RAT_PIT_P': (0.05, 'AP_Float', 'Pitch P'),
     'ATC_RAT_PIT_I': (0.05, 'AP_Float', 'Pitch I'),
     'ATC_RAT_PIT_D': (0.0012, 'AP_Float', 'Pitch D'),
     'ATC_RAT_YAW_P': (0.2, 'AP_Float', 'Yaw P'),
     'ATC_RAT_YAW_I': (0.02, 'AP_Float', 'Yaw I'),
 
-    # === AP_Observer コア制御パラメータ（EKF3 最新値） ===
-    'OBS_CORR_GAIN':    (0.1, 'AP_Float', '外力推定に基づく姿勢補正ゲイン (小さな円での過剰補正防止のため10%)'),
+    # === AP_Observer コア制御パラメータ（旧値） ===
+    'OBS_CORR_GAIN':    (0.3, 'AP_Float', '外力推定に基づく姿勢補正ゲイン'),
     'OBS_MAX_CORR_ANG': (0.5, 'AP_Float', 'ロールおよびピッチの最大姿勢補正角 [rad]'),
     'OBS_PRED_TIME':    (0.00, 'AP_Float', '力の予測先行時間 [秒]'),
 
