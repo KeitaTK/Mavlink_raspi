@@ -101,8 +101,8 @@ params_to_set = {
 
     # === Loiterモード設定 ===
     'LOIT_SPEED': (50.0, 'AP_Float', 'Loiter速度 [cm/s]'),
-    'LOIT_ACC_MAX': (200.0, 'AP_Float', 'Loiter最大加速度 [cm/s^2]'),
-    'LOIT_BRK_ACCEL': (150.0, 'AP_Float', 'Loiterブレーキ加速度 [cm/s^2]'),
+    'LOIT_ACC_MAX': (100.0, 'AP_Float', 'Loiter最大加速度 [cm/s^2]'),
+    'LOIT_BRK_ACCEL': (100.0, 'AP_Float', 'Loiterブレーキ加速度 [cm/s^2]'),
     'LOIT_BRK_DELAY': (0.3, 'AP_Float', 'Loiterブレーキ遅延 [s]'),
     'LOIT_BRK_JERK': (300.0, 'AP_Float', 'Loiterブレーキジャーク [cm/s^3]'),
     'LOIT_ANG_MAX': (10.0, 'AP_Float', 'Loiter最大角度 [deg]'),
