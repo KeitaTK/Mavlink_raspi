@@ -81,7 +81,7 @@ params_to_set = {
     'EK3_SRC_OPTIONS': (1, 'AP_Int16', 'Fuse all velocity sources'),
 
     # === EKF安定化設定 ===
-    'EK3_GLITCH_RAD': (5, 'AP_Int8', 'GPS Glitch検出半径 [m]'),
+    'EK3_GLITCH_RAD': (1, 'AP_Int8', 'GPS Glitch検出半径 [m]'),
     'EK3_CHECK_SCALE': (100, 'AP_Int16', 'EKFチェックスケール [%]'),
     'EK3_PRIMARY': (-1, 'AP_Int8', '自動切り替え無効'),
 
