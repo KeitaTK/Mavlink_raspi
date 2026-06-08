@@ -2,7 +2,7 @@
   "center": { "latitude": 36.0757754, "longitude": 136.2132908 },
   "half_width_m": 0.6,
   "half_height_m": 0.6,
-  "speed_m_s": 1.0,
+  "speed_m_s": 1.5,
   "altitude_m": 1.0,
   "stop_at_vertex_sec": 3.0,
   "num_laps": 2,
