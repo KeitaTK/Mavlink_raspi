@@ -142,14 +142,15 @@ def generate_edge_waypoints(v_start, v_end, n):
 def _validate_params(params):
     """
     パラメータのバリデーションを行う。
+    すべてのパラメータは必須。デフォルト値は使用しない。
 
     Raises:
         ValueError: パラメータが制約を満たさない場合
     """
     # center のバリデーション
-    center = params.get("center", {})
-    lat = center.get("latitude", 0)
-    lon = center.get("longitude", 0)
+    center = params["center"]
+    lat = center["latitude"]
+    lon = center["longitude"]
     if not (-90.0 <= lat <= 90.0):
         raise ValueError(
             f"center.latitude が範囲外: {lat}（-90.0 〜 90.0）")
@@ -158,70 +159,107 @@ def _validate_params(params):
             f"center.longitude が範囲外: {lon}（-180.0 〜 180.0）")
 
     # half_width_m のバリデーション
-    hw = params.get("half_width_m", 5.0)
+    hw = params["half_width_m"]
     if hw <= 0.0:
         raise ValueError(
             f"half_width_m は正の値である必要があります: {hw}")
 
     # half_height_m のバリデーション
-    hh = params.get("half_height_m", 5.0)
+    hh = params["half_height_m"]
     if hh <= 0.0:
         raise ValueError(
             f"half_height_m は正の値である必要があります: {hh}")
 
     # speed_m_s のバリデーション
-    speed = params.get("speed_m_s", 1.0)
+    speed = params["speed_m_s"]
     if speed <= 0.0:
         raise ValueError(
             f"speed_m_s は正の値である必要があります: {speed}")
 
     # altitude_m のバリデーション
-    altitude = params.get("altitude_m", 2.0)
+    altitude = params["altitude_m"]
     if altitude < 0.5:
         raise ValueError(
             f"altitude_m が小さすぎます: {altitude}（>= 0.5）")
 
     # stop_at_vertex_sec のバリデーション
-    stop_sec = params.get("stop_at_vertex_sec", 2.0)
+    stop_sec = params["stop_at_vertex_sec"]
     if stop_sec < 0.0:
         raise ValueError(
             f"stop_at_vertex_sec が負の値です: {stop_sec}（>= 0）")
 
     # num_laps のバリデーション
-    num_laps = params.get("num_laps", 1)
+    num_laps = params["num_laps"]
     if num_laps < 1:
         raise ValueError(
             f"num_laps が小さすぎます: {num_laps}（>= 1）")
 
     # direction のバリデーション
-    direction = params.get("direction", "CW")
+    direction = params["direction"]
     if direction not in ("CW", "CCW"):
         raise ValueError(
             f"direction が不正: {direction}（'CW' または 'CCW'）")
 
     # yaw_mode のバリデーション
-    yaw_mode = params.get("yaw_mode", "fixed")
+    yaw_mode = params["yaw_mode"]
     if yaw_mode not in ("fixed", "edge", "center"):
         raise ValueError(
             f"yaw_mode が不正: {yaw_mode}"
             "（'fixed' / 'edge' / 'center'）")
 
     # fixed_yaw_deg のバリデーション
-    fixed_yaw = params.get("fixed_yaw_deg", 0.0)
+    fixed_yaw = params["fixed_yaw_deg"]
     if not (0.0 <= fixed_yaw <= 360.0):
         raise ValueError(
             f"fixed_yaw_deg が範囲外: {fixed_yaw}（0.0 〜 360.0）")
 
     # send_rate_hz の最低限チェック
-    send_hz = params.get("send_rate_hz", 10)
+    send_hz = params["send_rate_hz"]
     if send_hz < 1:
         raise ValueError(
             f"send_rate_hz が小さすぎます: {send_hz}（>= 1）")
+
+    # takeoff_alt_m のバリデーション
+    takeoff_alt = params["takeoff_alt_m"]
+    if takeoff_alt < 0.3:
+        raise ValueError(
+            f"takeoff_alt_m が小さすぎます: {takeoff_alt}（>= 0.3）")
+
+    # wpnav_radius のバリデーション
+    wp_radius = params["wpnav_radius"]
+    if wp_radius <= 0.0:
+        raise ValueError(
+            f"wpnav_radius は正の値である必要があります: {wp_radius}")
+
+    # wp_timeout のバリデーション
+    wp_timeout = params["wp_timeout"]
+    if wp_timeout <= 0.0:
+        raise ValueError(
+            f"wp_timeout は正の値である必要があります: {wp_timeout}")
+
+    # wpnav_flyby_count のバリデーション
+    flyby = params["wpnav_flyby_count"]
+    if flyby < 1:
+        raise ValueError(
+            f"wpnav_flyby_count が小さすぎます: {flyby}（>= 1）")
+
+    # loiter_after_takeoff_sec のバリデーション
+    loiter_takeoff = params["loiter_after_takeoff_sec"]
+    if loiter_takeoff < 0.0:
+        raise ValueError(
+            f"loiter_after_takeoff_sec が負の値です: {loiter_takeoff}（>= 0）")
+
+    # loiter_before_land_sec のバリデーション
+    loiter_land = params["loiter_before_land_sec"]
+    if loiter_land < 0.0:
+        raise ValueError(
+            f"loiter_before_land_sec が負の値です: {loiter_land}（>= 0）")
 
 
 def load_params(path):
     """
     JSONパラメータファイルを読み込み、バリデーションを行う。
+    すべてのキーが必須。デフォルト値やフォールバックは使用しない。
 
     Args:
         path: JSONファイルのパス
@@ -231,30 +269,49 @@ def load_params(path):
 
     Raises:
         FileNotFoundError: ファイルが存在しない場合
-        ValueError: パラメータが制約を満たさない場合
+        ValueError: 必須キー不足、またはパラメータが制約を満たさない場合
+        json.JSONDecodeError: JSONフォーマット不正
     """
     with open(path, 'r') as f:
         params = json.load(f)
+
+    # 必須キーのチェック（全キー必須）
+    MANDATORY_KEYS = [
+        "center",
+        "half_width_m",
+        "half_height_m",
+        "speed_m_s",
+        "altitude_m",
+        "stop_at_vertex_sec",
+        "num_laps",
+        "direction",
+        "yaw_mode",
+        "fixed_yaw_deg",
+        "takeoff_alt_m",
+        "send_rate_hz",
+        "mask",
+        "land_after",
+        "loiter_after_takeoff_sec",
+        "loiter_before_land_sec",
+        "wpnav_radius",
+        "wp_timeout",
+        "wpnav_flyby_count",
+    ]
+    missing = [k for k in MANDATORY_KEYS if k not in params]
+    if missing:
+        raise ValueError(
+            f"必須キーが不足しています: {', '.join(missing)}"
+        )
+
+    # center には latitude / longitude が必須
+    center = params["center"]
+    for sub_key in ("latitude", "longitude"):
+        if sub_key not in center:
+            raise ValueError(
+                f"center.{sub_key} が不足しています"
+            )
+
     _validate_params(params)
-
-    # デフォルト値の補完
-    params.setdefault("center", {"latitude": 0.0, "longitude": 0.0})
-    params.setdefault("half_width_m", 5.0)
-    params.setdefault("half_height_m", 5.0)
-    params.setdefault("speed_m_s", 1.0)
-    params.setdefault("altitude_m", 0.6)
-    params.setdefault("stop_at_vertex_sec", 2.0)
-    params.setdefault("num_laps", 1)
-    params.setdefault("direction", "CW")
-    params.setdefault("yaw_mode", "fixed")
-    params.setdefault("fixed_yaw_deg", 0.0)
-    params.setdefault("takeoff_alt_m", 0.5)
-    params.setdefault("send_rate_hz", 10)
-    params.setdefault("mask", "0x09F8")
-    params.setdefault("land_after", True)
-    params.setdefault("loiter_after_takeoff_sec", 3.0)
-    params.setdefault("loiter_before_land_sec", 3.0)
-
     return params
 
 
@@ -295,10 +352,6 @@ class SquareFlightController:
     # CSV保存ディレクトリ（square_flight.py と同様）
     CSV_DIR = Path.home() / "LOGS_Pixhawk6c"
 
-    # WPNAV 到着判定パラメータ（circle_flight_wpnav.py から流用）
-    WPNAV_RADIUS = 0.1        # 到着判定半径 [m]（10cm）
-    WP_TIMEOUT = 20.0         # 1WPあたりの到着タイムアウト [s]
-    WPNAV_FLYBY_COUNT = 3     # 距離増加の連続検出回数で通過とみなす
 
 
     def __init__(self, param_path):
@@ -378,7 +431,7 @@ class SquareFlightController:
         print(f"  周回数: {p['num_laps']} | 方向: {p['direction']}")
         print(f"  頂点停止: {p['stop_at_vertex_sec']}秒 | 送信レート: {p['send_rate_hz']}Hz")
         print(f"  ヨーモード: {p['yaw_mode']} | land_after: {p['land_after']}")
-        print(f"  mode: WPNAV | WPNAV_RADIUS: {self.WPNAV_RADIUS}m")
+        print(f"  mode: WPNAV | WPNAV_RADIUS: {self.params['wpnav_radius']}m")
 
     # ──────────────────────────────────────────
     #  MAVLink 接続（square_flight.py のパターンを踏襲）
@@ -703,7 +756,7 @@ class SquareFlightController:
             mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
             0,                          # confirmation
             0,                          # param1: Hold time [s]（0 = 即時次WPへ）
-            self.WPNAV_RADIUS,          # param2: Acceptance radius [m]
+            self.params["wpnav_radius"],          # param2: Acceptance radius [m]
             0,                          # param3: Pass radius（0 = 通過）
             yaw_deg,                    # param4: Desired yaw [deg]
             lat_deg,                    # param5: Latitude [deg]
@@ -1108,7 +1161,7 @@ class SquareFlightController:
         print(f"  矩形サイズ: {self.params['half_width_m']*2}m x {self.params['half_height_m']*2}m")
         print(f"  周回数: {num_laps} | 方向: {direction}")
         print(f"  速度: {self.params['speed_m_s']}m/s | 頂点停止: {stop_time}秒")
-        print(f"  mode: WPNAV | WPNAV_RADIUS: {self.WPNAV_RADIUS}m")
+        print(f"  mode: WPNAV | WPNAV_RADIUS: {self.params['wpnav_radius']}m")
         print(f"  推定1周時間: {estimated_lap_time:.1f}秒")
         print(f"  推定総時間: {estimated_lap_time * num_laps:.1f}秒")
 
@@ -1155,7 +1208,7 @@ class SquareFlightController:
                 increasing_count = 0
                 arrived = False
 
-                while time.time() - wp_start < self.WP_TIMEOUT:
+                while time.time() - wp_start < self.params["wp_timeout"]:
                     if not self._running:
                         print("⚠ 飛行中断")
                         return False
@@ -1176,7 +1229,7 @@ class SquareFlightController:
                         min_dist = dist
 
                     # 判定1: 距離 < WPNAV_RADIUS → 到着
-                    if dist < self.WPNAV_RADIUS:
+                    if dist < self.params["wpnav_radius"]:
                         arrived = True
                         break
 
@@ -1186,14 +1239,14 @@ class SquareFlightController:
                     else:
                         increasing_count = 0
 
-                    if increasing_count >= self.WPNAV_FLYBY_COUNT:
+                    if increasing_count >= self.params["wpnav_flyby_count"]:
                         arrived = True
                         break
 
                     time.sleep(0.1)
 
                 # 到着確認
-                reason = "arrived" if min_dist < self.WPNAV_RADIUS else "fly-by"
+                reason = "arrived" if min_dist < self.params["wpnav_radius"] else "fly-by"
                 elapsed_wp = time.time() - wp_start
                 print(
                     f"      V{i} dist={min_dist:.3f}m"
@@ -1204,7 +1257,7 @@ class SquareFlightController:
                 if not arrived:
                     print(
                         f"⚠ V{i} タイムアウト"
-                        f"（{self.WP_TIMEOUT}秒, min_dist={min_dist:.3f}m）— 続行"
+                        f"（{self.params['wp_timeout']}秒, min_dist={min_dist:.3f}m）— 続行"
                     )
 
                 # 最終エッジかつ最終周回では停止しない
