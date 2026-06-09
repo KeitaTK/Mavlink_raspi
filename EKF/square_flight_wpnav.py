@@ -1,12 +1,26 @@
 #!/usr/bin/env python3
 """
-square_flight.py - Guidedモードで四角形（矩形）飛行を実行するスクリプト
+square_flight_wpnav.py - WPNAV互換モードで四角形（矩形）飛行を実行するスクリプト
 
-計画ドキュメント: square_flight_plan.md に基づく実装。
-JSONパラメータファイルから設定を読み込み、
-離陸 → 矩形飛行 → 着陸のシーケンスを自動実行する。
+square_flight.py からの派生。
+core 変更点: execute_square_flight() を WPNAV（MAV_CMD_NAV_WAYPOINT 単発送信 +
+到着確認 → 次頂点）方式に置き換え。
 
-アーキテクチャ: circle_flight.py をベースに、四角形飛行のロジックを追加。
+旧: execute_edge() でエッジを細かく分割し10Hz連続送信 + stop_at_vertex() で頂点ホバリング
+新: 4頂点だけを MAV_CMD_NAV_WAYPOINT で1回ずつ送信 → 到着確認 → 次頂点
+    - WPNAVが頂点間の移動を自律で処理（加速・巡航・減速）
+    - 頂点到着後、stop_at_vertex_sec 秒だけ待機してから次頂点へ
+
+到着判定:
+  - 距離 < WPNAV_RADIUS (30cm) で到着
+  - 距離が増加に転じたら通過とみなす (fly-by)
+  - タイムアウト付き
+
+継承（変更なし）:
+  - 全ヘルパー関数、connect、モニター/レコードスレッド、離陸/着陸、cleanup、main
+  - _send_setpoint, _calc_yaw, stop_at_vertex, move_to_start_vertex
+
+パラメータファイルは square_params.json を共用。
 """
 
 import sys
@@ -99,6 +113,8 @@ def generate_square_vertices(half_width, half_height, direction):
 def generate_edge_waypoints(v_start, v_end, n):
     """
     エッジ上の n 個の waypoint を線形補間で生成する。
+
+    （WPNAVモードでは使用しないが、square_flight.py からの継承として保持）
 
     Args:
         v_start: 始点のローカル座標 (x, y)
@@ -243,21 +259,24 @@ def load_params(path):
 
 
 # =====================================================================
-#  SquareFlightController - メインコントローラークラス
+#  SquareFlightController - メインコントローラークラス（WPNAV 互換版）
 # =====================================================================
 
 class SquareFlightController:
     """
-    Guidedモードで四角形飛行を実行するコントローラークラス。
+    Guidedモードで四角形飛行を実行するコントローラークラス（WPNAV 互換版）。
 
-    内部状態遷移（計画ドキュメント 3.2節）:
+    内部状態遷移:
         WAITING_ARM → TAKEOFF → SQUARE_START → SQUARE_FLYING
         → SQUARE_COMPLETE → LANDING → COMPLETE
 
-    スレッド構成（計画ドキュメント 5.2節）:
+    スレッド構成:
         - メインスレッド: 飛行シーケンス制御
         - モニタースレッド: HEARTBEAT/GPS監視、ディスアーム検出
         - レコードスレッド: CSVデータ記録
+
+    execute_square_flight() のみ WPNAV 方式（MAV_CMD_NAV_WAYPOINT 単発送信 +
+    到着確認 → stop_at_vertex）に書き換え。その他のメソッドは square_flight.py を踏襲。
     """
 
     # ── 状態定数 ──
@@ -269,12 +288,18 @@ class SquareFlightController:
     STATE_LANDING = "LANDING"
     STATE_COMPLETE = "COMPLETE"
 
-    # シリアル接続設定（circle_flight.py のパターンを踏襲）
+    # シリアル接続設定（square_flight.py のパターンを踏襲）
     SERIAL_DEVICE = '/dev/ttyAMA0'
     SERIAL_BAUD = 1000000
 
-    # CSV保存ディレクトリ（circle_flight.py と同様）
+    # CSV保存ディレクトリ（square_flight.py と同様）
     CSV_DIR = Path.home() / "LOGS_Pixhawk6c"
+
+    # WPNAV 到着判定パラメータ（circle_flight_wpnav.py から流用）
+    WPNAV_RADIUS = 0.3        # 到着判定半径 [m]（30cm）
+    WP_TIMEOUT = 20.0         # 1WPあたりの到着タイムアウト [s]
+    WPNAV_FLYBY_COUNT = 3     # 距離増加の連続検出回数で通過とみなす
+
 
     def __init__(self, param_path):
         """
@@ -353,9 +378,10 @@ class SquareFlightController:
         print(f"  周回数: {p['num_laps']} | 方向: {p['direction']}")
         print(f"  頂点停止: {p['stop_at_vertex_sec']}秒 | 送信レート: {p['send_rate_hz']}Hz")
         print(f"  ヨーモード: {p['yaw_mode']} | land_after: {p['land_after']}")
+        print(f"  mode: WPNAV | WPNAV_RADIUS: {self.WPNAV_RADIUS}m")
 
     # ──────────────────────────────────────────
-    #  MAVLink 接続（circle_flight.py のパターンを踏襲）
+    #  MAVLink 接続（square_flight.py のパターンを踏襲）
     # ──────────────────────────────────────────
 
     def connect(self):
@@ -369,7 +395,7 @@ class SquareFlightController:
         print("\n--- MAVLink接続 ---")
         print(f"  デバイス: {self.SERIAL_DEVICE}, {self.SERIAL_BAUD}bps")
 
-        # MAVLink接続（circle_flight.py のパターンを踏襲）
+        # MAVLink接続（square_flight.py のパターンを踏襲）
         self.master = mavutil.mavlink_connection(
             self.SERIAL_DEVICE,
             baud=self.SERIAL_BAUD,
@@ -402,10 +428,12 @@ class SquareFlightController:
         print("✓ メッセージレート設定完了")
 
         # 初期化時追加情報
-        print(f"[INFO] target_system={self.master.target_system}, target_component={self.master.target_component}")
-        print(f"[INFO] メッセージレート設定: GPS_RAW_INT(24), GLOBAL_POSITION_INT(33), ATTITUDE(30) → 5Hz")
+        print(f"[INFO] target_system={self.master.target_system}, "
+              f"target_component={self.master.target_component}")
+        print(f"[INFO] メッセージレート設定: "
+              f"GPS_RAW_INT(24), GLOBAL_POSITION_INT(33), ATTITUDE(30) → 5Hz")
 
-        # スレッド起動（計画ドキュメント 5.2節）
+        # スレッド起動
         self._running = True
         self._monitor_thread = threading.Thread(
             target=self._monitor_loop, daemon=True,
@@ -421,8 +449,9 @@ class SquareFlightController:
 
         return True
 
+
     # ──────────────────────────────────────────
-    #  モニタースレッド（circle_flight.py のパターンを踏襲）
+    #  モニタースレッド（square_flight.py のパターンを踏襲）
     # ──────────────────────────────────────────
 
     # ── モード名マッピング（クラス属性として一度だけ定義）──
@@ -539,7 +568,7 @@ class SquareFlightController:
         """
         HEARTBEAT/GPS監視ループ（バッファドレイン方式）。
 
-        circle_flight.py のモニター方式を踏襲:
+        square_flight.py のモニター方式を踏襲:
            1. バッファ内の全メッセージを一気に処理（blocking=False）
            2. 新着メッセージを短時間待機（最大20ms）
            3. 続けて残りのバッファも処理
@@ -583,13 +612,13 @@ class SquareFlightController:
             time.sleep(1.0 / send_hz)
 
     # ──────────────────────────────────────────
-    #  レコードスレッド（circle_flight.py のパターンを踏襲）
+    #  レコードスレッド（square_flight.py のパターンを踏襲）
     # ──────────────────────────────────────────
 
     def _record_loop(self):
         """
         CSVデータ記録ループ。
-        circle_flight.py と同一フォーマットで、send_rate_hz の間隔で記録する。
+        square_flight.py と同一フォーマットで、send_rate_hz の間隔で記録する。
 
         CSVフォーマット:
             Time, GPS_X, GPS_Y, GPS_Z, Target_X, Target_Y, Target_Z
@@ -610,7 +639,7 @@ class SquareFlightController:
             time.sleep(1.0 / send_hz)
 
     # ──────────────────────────────────────────
-    #  セットポイント送信（circle_flight.py のパターンを踏襲）
+    #  セットポイント送信（move_to_start_vertex / return_to_takeoff / stop_at_vertex 用）
     # ──────────────────────────────────────────
 
     def _send_setpoint(self, lat_deg, lon_deg, alt_m, yaw_deg):
@@ -651,7 +680,47 @@ class SquareFlightController:
             self._target.update({'x': tx, 'y': ty, 'z': alt_m})
 
     # ──────────────────────────────────────────
-    #  ヨー角計算（計画ドキュメント 9節）
+    #  WPNAV ウェイポイント送信（execute_square_flight 用）
+    #  circle_flight_wpnav.py から流用
+    # ──────────────────────────────────────────
+
+    def _send_wpnav_waypoint(self, lat_deg, lon_deg, alt_m, yaw_deg):
+        """
+        MAV_CMD_NAV_WAYPOINT でウェイポイントを1回送信する。
+
+        ArduPilot Guidedモードでは NAV_WAYPOINT を受信すると
+        その位置へ自律航行する。到着判定は呼び出し側で行う。
+
+        Args:
+            lat_deg: 目標緯度 [deg]
+            lon_deg: 目標経度 [deg]
+            alt_m: 目標高度（相対高度）[m]
+            yaw_deg: 目標ヨー角 [deg]（北=0deg, 東=90deg）
+        """
+        self.master.mav.command_long_send(
+            self.master.target_system,
+            self.master.target_component,
+            mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+            0,                          # confirmation
+            0,                          # param1: Hold time [s]（0 = 即時次WPへ）
+            self.WPNAV_RADIUS,          # param2: Acceptance radius [m]
+            0,                          # param3: Pass radius（0 = 通過）
+            yaw_deg,                    # param4: Desired yaw [deg]
+            lat_deg,                    # param5: Latitude [deg]
+            lon_deg,                    # param6: Longitude [deg]
+            alt_m,                      # param7: Altitude [m]
+        )
+
+        # ログ用に目標位置をローカル座標で更新
+        tx, ty, _ = gps_to_local_xyz(
+            lat_deg, lon_deg, alt_m,
+            self._ref_lat, self._ref_lon, self._ref_alt,
+        )
+        with self._io_lock:
+            self._target.update({'x': tx, 'y': ty, 'z': alt_m})
+
+    # ──────────────────────────────────────────
+    #  ヨー角計算（square_flight.py と同一）
     # ──────────────────────────────────────────
 
     def _calc_yaw(self, v_start, v_end):
@@ -663,7 +732,7 @@ class SquareFlightController:
             v_end: 終点のローカル座標 (x, y)
 
         Returns:
-            yaw_deg: ヨー角 [deg]（北=0°, 東=90°）
+            yaw_deg: ヨー角 [deg]（北=0, 東=90）
         """
         yaw_mode = self.params["yaw_mode"]
 
@@ -674,7 +743,7 @@ class SquareFlightController:
             # エッジの進行方向を向く
             dx = v_end[0] - v_start[0]  # 東方向
             dy = v_end[1] - v_start[1]  # 北方向
-            # atan2(dx, dy): 北=0°, 東=90°
+            # atan2(dx, dy): 北=0, 東=90
             return math.degrees(math.atan2(dx, dy)) % 360
 
         else:  # center
@@ -688,7 +757,7 @@ class SquareFlightController:
             return math.degrees(math.atan2(dx, dy)) % 360
 
     # ──────────────────────────────────────────
-    #  離陸 / 着陸指令（circle_flight.py のパターンを踏襲）
+    #  離陸 / 着陸指令（square_flight.py のパターンを踏襲）
     # ──────────────────────────────────────────
 
     def _send_takeoff(self, alt_m):
@@ -738,7 +807,7 @@ class SquareFlightController:
         self._send_setpoint(lat, lon, 0.0, 0.0)
 
     # ──────────────────────────────────────────
-    #  飛行シーケンス（circle_flight.py のパターンを踏襲）
+    #  飛行シーケンス（square_flight.py のパターンを踏襲）
     # ──────────────────────────────────────────
 
     def wait_for_guided_arm(self):
@@ -950,81 +1019,14 @@ class SquareFlightController:
         return False
 
     # ──────────────────────────────────────────
-    #  四角形飛行 コアメソッド（計画ドキュメント 3.1節, 6.3〜6.5節）
+    #  四角形飛行 コアメソッド（WPNAV 方式: コア変更点）
     # ──────────────────────────────────────────
-
-    def execute_edge(self, v_start, v_end):
-        """
-        1エッジの飛行を実行する（方式A: 位置補間）。
-
-        エッジ V_start → V_end を線形補間で細かく分割し、
-        send_rate_hz のレートで連続送信する。
-
-        Args:
-            v_start: 始点のローカル座標 (x, y)
-            v_end: 終点のローカル座標 (x, y)
-
-        Returns:
-            bool: 成功時 True
-        """
-        dx = v_end[0] - v_start[0]
-        dy = v_end[1] - v_start[1]
-        edge_length = math.sqrt(dx**2 + dy**2)
-        edge_time = edge_length / self.params["speed_m_s"]
-
-        send_hz = self.params["send_rate_hz"]
-        n_points = max(2, int(math.ceil(edge_time * send_hz)))
-        dt = 1.0 / send_hz
-
-        altitude = self.params["altitude_m"]
-
-        print(
-            f"    エッジ: ({v_start[0]:+.3f},{v_start[1]:+.3f}) →"
-            f" ({v_end[0]:+.3f},{v_end[1]:+.3f})"
-        )
-        print(
-            f"    長さ={edge_length:.3f}m, 時間={edge_time:.2f}秒,"
-            f" 分割数={n_points}, dt={dt:.3f}秒"
-        )
-
-        # エッジ上の waypoint を生成（線形補間）
-        wps = generate_edge_waypoints(v_start, v_end, n_points)
-
-        edge_start = time.time()
-        wp_send_count = 0
-
-        for i, (x, y) in enumerate(wps):
-            if not self._running:
-                return False
-
-            # ローカル座標 → GPS座標
-            lat, lon, _ = local_xyz_to_gps(
-                x, y, altitude,
-                self._ref_lat, self._ref_lon, self._ref_alt
-            )
-
-            # ヨー角計算
-            yaw = self._calc_yaw(v_start, v_end)
-
-            # セットポイント送信
-            self._send_setpoint(lat, lon, altitude, yaw)
-            wp_send_count += 1
-
-            # 次の送信タイミングまで待機
-            next_time = edge_start + (i + 1) * dt
-            sleep_time = next_time - time.time()
-            if sleep_time > 0:
-                time.sleep(sleep_time)
-
-        elapsed = time.time() - edge_start
-        print(f"    ✓ エッジ完了（{elapsed:.2f}秒, {wp_send_count}回送信）")
-        return True
 
     def stop_at_vertex(self, vertex, duration):
         """
         頂点で指定時間停止（ホバリング）する。
 
-        頂点の座標を send_rate_hz で繰り返し送信し、
+        頂点の座標を send_rate_hz で繰り返し set_position_target_global_int 送信し、
         ArduPilot の位置ホバリング制御に任せる。
 
         Args:
@@ -1062,25 +1064,34 @@ class SquareFlightController:
 
     def execute_square_flight(self):
         """
-        四角形飛行のメインループを実行する。
+        四角形飛行のメインループを WPNAV 方式で実行する。
 
-        for lap in range(num_laps):
-            エッジ0 → 頂点停止 → エッジ1 → 頂点停止 → ...
-            → エッジ3 → （最終周回以外、頂点停止）
+        旧方式（square_flight.py）:
+            10Hz で set_position_target_global_int を連続送信し、
+            ドローンに連続軌道を追従させる。
 
-        最終エッジの終点は V0（閉じた矩形のため）。
+        新方式（本メソッド）:
+            4頂点を MAV_CMD_NAV_WAYPOINT で1回ずつ送信し、
+            到着（距離 < WPNAV_RADIUS=30cm）または通過（fly-by）を
+            確認した後に stop_at_vertex() で待機、次の頂点へ進む。
+
+        到着判定:
+            1. 距離 < WPNAV_RADIUS (30cm) → 到着
+            2. 距離が増加に転じたら（fly-by）→ 通過とみなす
+            3. タイムアウト（WP_TIMEOUT）→ 続行
 
         Returns:
             bool: 飛行成功時 True
         """
         print(
-            f"\n--- [{self.STATE_SQUARE_FLYING}] 四角形飛行実行 ---"
+            f"\n--- [{self.STATE_SQUARE_FLYING}] 四角形飛行実行 (WPNAV) ---"
         )
         self._state = self.STATE_SQUARE_FLYING
 
         num_laps = self.params["num_laps"]
         stop_time = self.params["stop_at_vertex_sec"]
         direction = self.params["direction"]
+        altitude = self.params["altitude_m"]
 
         # 総移動距離と推定時間の計算
         total_edge_length = 0.0
@@ -1097,10 +1108,12 @@ class SquareFlightController:
         print(f"  矩形サイズ: {self.params['half_width_m']*2}m x {self.params['half_height_m']*2}m")
         print(f"  周回数: {num_laps} | 方向: {direction}")
         print(f"  速度: {self.params['speed_m_s']}m/s | 頂点停止: {stop_time}秒")
+        print(f"  mode: WPNAV | WPNAV_RADIUS: {self.WPNAV_RADIUS}m")
         print(f"  推定1周時間: {estimated_lap_time:.1f}秒")
         print(f"  推定総時間: {estimated_lap_time * num_laps:.1f}秒")
 
         flight_start = time.time()
+        wp_send_count = 0
 
         for lap in range(num_laps):
             if not self._running:
@@ -1110,27 +1123,106 @@ class SquareFlightController:
             print(f"\n  --- 周回 {lap + 1}/{num_laps} ---")
 
             for i in range(4):
-                v_start = self.vertices[i]
-                v_end = self.vertices[(i + 1) % 4]
-
-                print(f"  エッジ {i}: V{i} → V{(i + 1) % 4}")
-                if not self.execute_edge(v_start, v_end):
+                if not self._running:
+                    print("⚠ 飛行中断")
                     return False
+
+                # 現在の頂点と次の頂点（ヨー角計算用）
+                v_target = self.vertices[i]           # 目標頂点
+                v_next = self.vertices[(i + 1) % 4]   # 次の頂点
+
+                # ローカル座標 → GPS座標
+                lat_wp, lon_wp, _ = local_xyz_to_gps(
+                    v_target[0], v_target[1], altitude,
+                    self._ref_lat, self._ref_lon, self._ref_alt,
+                )
+
+                # ヨー角計算（現在の頂点 → 次の頂点への進行方向）
+                yaw = self._calc_yaw(v_target, v_next)
+
+                # ── WPNAVウェイポイントを1回送信 ──
+                print(
+                    f"    WP[V{i}] → "
+                    f"lat={lat_wp:.7f} lon={lon_wp:.7f}"
+                    f" yaw={yaw:.1f}deg"
+                )
+                self._send_wpnav_waypoint(lat_wp, lon_wp, altitude, yaw)
+                wp_send_count += 1
+
+                # ── 到着判定ループ ──
+                wp_start = time.time()
+                min_dist = float('inf')
+                increasing_count = 0
+                arrived = False
+
+                while time.time() - wp_start < self.WP_TIMEOUT:
+                    if not self._running:
+                        print("⚠ 飛行中断")
+                        return False
+
+                    with self._io_lock:
+                        gx = self._gps_now['x']
+                        gy = self._gps_now['y']
+
+                    # 目標頂点のローカル座標を計算
+                    wx, wy, _ = gps_to_local_xyz(
+                        lat_wp, lon_wp, altitude,
+                        self._ref_lat, self._ref_lon, self._ref_alt,
+                    )
+                    dist = math.sqrt((gx - wx) ** 2 + (gy - wy) ** 2)
+
+                    # 最小距離を更新
+                    if dist < min_dist:
+                        min_dist = dist
+
+                    # 判定1: 距離 < WPNAV_RADIUS → 到着
+                    if dist < self.WPNAV_RADIUS:
+                        arrived = True
+                        break
+
+                    # 判定2: 距離が増加に転じた → 通過（fly-by）
+                    if dist > min_dist + 0.02:
+                        increasing_count += 1
+                    else:
+                        increasing_count = 0
+
+                    if increasing_count >= self.WPNAV_FLYBY_COUNT:
+                        arrived = True
+                        break
+
+                    time.sleep(0.1)
+
+                # 到着確認
+                reason = "arrived" if min_dist < self.WPNAV_RADIUS else "fly-by"
+                elapsed_wp = time.time() - wp_start
+                print(
+                    f"      V{i} dist={min_dist:.3f}m"
+                    f" {'✓' if arrived else '⚠ TIMEOUT'}"
+                    f" ({elapsed_wp:.1f}s, {reason})"
+                )
+
+                if not arrived:
+                    print(
+                        f"⚠ V{i} タイムアウト"
+                        f"（{self.WP_TIMEOUT}秒, min_dist={min_dist:.3f}m）— 続行"
+                    )
 
                 # 最終エッジかつ最終周回では停止しない
                 is_last = (lap == num_laps - 1) and (i == 3)
                 if not is_last:
-                    if not self.stop_at_vertex(v_end, stop_time):
+                    if not self.stop_at_vertex(v_target, stop_time):
                         return False
-                    print(f"  ✓ 頂点 V{(i + 1) % 4} 到達")
+                    print(f"  ✓ 頂点 V{i} 到達")
+                else:
+                    print(f"  ✓ 頂点 V{i} 到着（最終頂点、停止なし）")
 
         total_elapsed = time.time() - flight_start
-        print(f"\n✓ 全周回完了（{total_elapsed:.1f}秒）")
+        print(f"\n✓ 全周回完了（{total_elapsed:.1f}秒, {wp_send_count}回送信）")
         self._state = self.STATE_SQUARE_COMPLETE
         return True
 
     # ──────────────────────────────────────────
-    #  帰還 / 着陸（circle_flight.py のパターンを踏襲）
+    #  帰還 / 着陸（square_flight.py のパターンを踏襲）
     # ──────────────────────────────────────────
 
     def return_to_takeoff(self):
@@ -1338,7 +1430,7 @@ class SquareFlightController:
         return False
 
     # ──────────────────────────────────────────
-    #  メイン実行 / クリーンアップ（circle_flight.py のパターンを踏襲）
+    #  メイン実行 / クリーンアップ（square_flight.py のパターンを踏襲）
     # ──────────────────────────────────────────
 
     def run(self):
@@ -1350,11 +1442,11 @@ class SquareFlightController:
             2. Guidedモード + Arm 検出
             3. 離陸
             4. 最初の頂点 V0 へ移動
-            5. 四角形飛行実行
+            5. 四角形飛行実行（WPNAV方式）
             6. 離陸地点帰還 → 2秒待機 → 着陸
         """
         print("=" * 60)
-        print("  ArduPilot 四角形飛行制御 - Square Flight")
+        print("  ArduPilot 四角形飛行制御 - Square Flight (WPNAV)")
         print("=" * 60)
 
         try:
@@ -1380,7 +1472,7 @@ class SquareFlightController:
                 self.land()
                 return
 
-            # 5. 四角形飛行実行
+            # 5. 四角形飛行実行（WPNAV方式）
             if not self.execute_square_flight():
                 print("\n✗ 四角形飛行中断 → 着陸試行")
                 self.land()
@@ -1428,14 +1520,14 @@ class SquareFlightController:
         print("✓ プログラム終了")
 
     # ──────────────────────────────────────────
-    #  CSV保存（circle_flight.py のパターンを踏襲）
+    #  CSV保存（square_flight.py のパターンを踏襲）
     # ──────────────────────────────────────────
 
     def _save_csv(self):
         """
         記録データをCSVファイルに保存する。
 
-        保存先: ~/LOGS_Pixhawk6c/{YYYYMMDD_HHMMSS}_square.csv
+        保存先: ~/LOGS_Pixhawk6c/{YYYYMMDD_HHMMSS}_square_wpnav.csv
         フォーマット: Time, GPS_X, GPS_Y, GPS_Z, Target_X, Target_Y, Target_Z
         """
         if not self._data_records:
@@ -1445,7 +1537,7 @@ class SquareFlightController:
         now = datetime.datetime.now(
             pytz.timezone("Asia/Tokyo")
         ).strftime("%Y%m%d_%H%M%S")
-        path = self.CSV_DIR / f"{now}_square.csv"
+        path = self.CSV_DIR / f"{now}_square_wpnav.csv"
 
         with open(path, 'w', newline='') as f:
             writer = csv.writer(f)
@@ -1470,7 +1562,7 @@ def main():
     スクリプトのエントリポイント。
 
     使用法:
-        python square_flight.py [パラメータファイルパス]
+        python square_flight_wpnav.py [パラメータファイルパス]
 
     引数なしの場合、スクリプトと同じディレクトリの
     square_params.json を読み込む。
@@ -1483,7 +1575,7 @@ def main():
 
     if not param_path.exists():
         print(f"✗ パラメータファイルが見つかりません: {param_path}")
-        print("  使用法: python square_flight.py [params.json]")
+        print("  使用法: python square_flight_wpnav.py [params.json]")
         sys.exit(1)
 
     print(f"パラメータファイル: {param_path}")
