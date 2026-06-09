@@ -16,12 +16,11 @@ AUTOモードで全WPをミッション一括登録する方式に変更。
   2. GPS原点取得
   3. ミッション生成・アップロード
   4. 離陸前待機（loiter_after_takeoff_sec）
-  5. AUTOモード設定（ミッション準備）
-  6. LOITERモード切替（アーム用）
-  7. アーム待機（LOITERモード + プロポでアーム）
-  8. アーム検出後即座にAUTOモード切替 → ミッション開始
-  9. MISSION_CURRENT 監視
- 10. 完了検出 → クリーンアップ
+  5. LOITERモード切替（アーム用）
+  6. アーム待機（LOITERモード + プロポでアーム）
+  7. アーム検出後即座にAUTOモード切替 → ミッション開始
+  8. MISSION_CURRENT 監視
+  9. 完了検出 → クリーンアップ
 
 エラーハンドリング:
   - JSONファイル不在 → エラー終了
@@ -728,9 +727,6 @@ class SquareFlightAutoController:
                         return
                     time.sleep(1.0)
                 print("✓ 離陸前待機完了")
-            if not self.set_auto_mode():
-                print("\n✗ AUTOモード切替失敗（ミッション準備）")
-                return
             if not self.set_loiter_mode():
                 print("\n✗ LOITERモード切替失敗")
                 return
