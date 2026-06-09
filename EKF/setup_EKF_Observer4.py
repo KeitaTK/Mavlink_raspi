@@ -57,15 +57,15 @@ params_to_set = {
     'EK3_SRC1_YAW': (3, 'AP_Int8', 'GPS with compass fallback'),
 
     # === EKF3精度設定 ===
-    'EK3_GPS_CHECK': (0, 'AP_Int8', 'GPS健全性チェック'),
+    'EK3_GPS_CHECK': (1, 'AP_Int8', 'GPS健全性チェック'),
     'EK3_POS_I_GATE': (8, 'AP_Int16', '位置ゲート'),
     'EK3_VEL_I_GATE': (8, 'AP_Int16', '速度ゲート'),
     'EK3_HGT_I_GATE': (10, 'AP_Int16', '高度ゲート'),
 
     # === ノイズパラメータ ===
-    'EK3_POSNE_M_NSE': (0.1, 'AP_Float', '水平位置ノイズ [m]'),
-    'EK3_VELNE_M_NSE': (0.15, 'AP_Float', '水平速度ノイズ [m/s]'),
-    'EK3_VELD_M_NSE': (0.2, 'AP_Float', '垂直速度ノイズ [m/s]'),
+    'EK3_POSNE_M_NSE': (0.2, 'AP_Float', '水平位置ノイズ [m]'),
+    'EK3_VELNE_M_NSE': (0.3, 'AP_Float', '水平速度ノイズ [m/s]'),
+    'EK3_VELD_M_NSE': (0.5, 'AP_Float', '垂直速度ノイズ [m/s]'),
     'EK3_YAW_M_NSE': (0.2, 'AP_Float', 'ヨー角ノイズ [rad]'),
     'EK3_ALT_M_NSE': (10.0, 'AP_Float', '気圧センサーノイズ [m]'),
     'EK3_GYRO_P_NSE': (0.02, 'AP_Float', 'ジャイロプロセスノイズ [rad/s]'),
@@ -81,8 +81,8 @@ params_to_set = {
     'EK3_SRC_OPTIONS': (1, 'AP_Int16', 'Fuse all velocity sources'),
 
     # === EKF安定化設定 ===
-    'EK3_GLITCH_RAD': (0, 'AP_Int8', 'GPS Glitch検出半径 [m]'),
-    'EK3_CHECK_SCALE': (200, 'AP_Int16', 'EKFチェックスケール [%]'),
+    'EK3_GLITCH_RAD': (5, 'AP_Int8', 'GPS Glitch検出半径 [m]'),
+    'EK3_CHECK_SCALE': (100, 'AP_Int16', 'EKFチェックスケール [%]'),
     'EK3_PRIMARY': (-1, 'AP_Int8', '自動切り替え無効'),
 
     # === GPS設定 ===
@@ -97,7 +97,7 @@ params_to_set = {
     'WPNAV_SPEED': (500.0, 'AP_Float', '水平速度 [cm/s]'),
     'WPNAV_ACCEL': (500.0, 'AP_Float', '水平加速度 [cm/s^2]'),
     'WPNAV_RADIUS': (5.0, 'AP_Float', '到達半径 [cm]'),
-    'WPNAV_JERK': (15.0, 'AP_Float', '水平躍度 [m/s^3]'),
+#   'WPNAV_JERK': (15.0, 'AP_Float', '水平躍度 [m/s^3]'),  # ※ Futaba5に合わせて無効化
 
     # === Loiterモード設定 ===
     'LOIT_SPEED': (50.0, 'AP_Float', 'Loiter速度 [cm/s]'),
@@ -208,7 +208,7 @@ params_to_set = {
 
     # === GUIDEDモード設定 ===
     'GUID_TIMEOUT': (3.0, 'AP_Float', 'Guidedタイムアウト [s]'),
-    'GUID_OPTIONS': (64, 'AP_Float', 'Guidedオプション (Bit6:WPNAV使用)'),
+    'GUID_OPTIONS': (0, 'AP_Float', 'Guidedオプション'),
 
     # === ログ制御設定 ===
     'LOG_DISARMED': (0, 'AP_Int8', '非アーム時ログ無効'),
