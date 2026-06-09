@@ -198,6 +198,7 @@ class SquareFlightAutoController:
 
         self.master = None
         self._running = False
+        self._pause_monitor = False
         self._monitor_thread = None
         self._record_thread = None
 
@@ -499,6 +500,9 @@ class SquareFlightAutoController:
     def _monitor_loop(self):
         send_hz = self.params["send_rate_hz"]
         while self._running:
+            if self._pause_monitor:
+                time.sleep(0.1)
+                continue
             self._monitor_loop_count += 1
             while True:
                 msg = self.master.recv_match(blocking=False)
@@ -527,6 +531,9 @@ class SquareFlightAutoController:
     def _record_loop(self):
         send_hz = self.params["send_rate_hz"]
         while self._running:
+            if self._pause_monitor:
+                time.sleep(0.1)
+                continue
             with self._io_lock:
                 gps = self._gps_now.copy()
                 tgt = self._target.copy()
@@ -647,7 +654,11 @@ class SquareFlightAutoController:
             self._mission_count = len(self._mission_items)
             self._mission_final_seq = self._mission_count - 1
             self._print_mission(self._mission_items)
-            if not self._upload_mission(self._mission_items):
+            self._pause_monitor = True
+            time.sleep(0.2)
+            ok = self._upload_mission(self._mission_items)
+            self._pause_monitor = False
+            if not ok:
                 print("\n✗ ミッションアップロード失敗")
                 return
             if not self.wait_for_arm():
