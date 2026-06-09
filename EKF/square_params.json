@@ -3,7 +3,7 @@
   "half_width_m": 0.4,
   "half_height_m": 0.4,
   "speed_m_s": 1.5,
-  "altitude_m": 1.2,
+  "altitude_m": 1.1,
   "stop_at_vertex_sec": 1.0,
   "num_laps": 5,
   "direction": "CW",
