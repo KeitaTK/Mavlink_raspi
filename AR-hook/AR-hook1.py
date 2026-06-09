@@ -58,6 +58,8 @@ id1_detected = False
 dist_id1_to_cargo_x = float('nan')
 dist_id1_to_cargo_y = float('nan')
 dist_id1_to_cargo_z = float('nan')
+cargo_center_cam_x = float('nan')
+cargo_center_cam_y = float('nan')
 # ───── キー入力処理 ─────
 def get_key():
     if select.select([sys.stdin], [], [], 0):
@@ -262,10 +264,12 @@ def monitor_vehicle(m):
 def camera_tracker_loop(m, show_window=False):
     global running, target, gps_now, current_yaw_deg, initial_target_set, guided_mode_active, last_center_cam, last_rvec_cargo
     global cargo_center_world, cargo_detected, id1_detected, dist_id1_to_cargo_x, dist_id1_to_cargo_y, dist_id1_to_cargo_z
+    global cargo_center_cam_x, cargo_center_cam_y
     
     print("カメラ初期化中（解像度: 720p, 画面表示: なし）...")
     picam2 = None
     cap = None
+    video_writer = None
     if HAS_PICAMERA2:
         print("Raspberry Pi Camera (Picamera2) を使用します。")
         try:
@@ -423,6 +427,8 @@ def camera_tracker_loop(m, show_window=False):
                         dist_id1_to_cargo_x = dist_x
                         dist_id1_to_cargo_y = dist_y
                         dist_id1_to_cargo_z = dist_z
+                        cargo_center_cam_x = center_cam[0]
+                        cargo_center_cam_y = center_cam[1]
 
                     # 自動で誘導目標コマンドを送信
                     if guided_mode_active and initial_target_set:
@@ -450,6 +456,8 @@ def camera_tracker_loop(m, show_window=False):
                         dist_id1_to_cargo_x = float('nan')
                         dist_id1_to_cargo_y = float('nan')
                         dist_id1_to_cargo_z = float('nan')
+                        cargo_center_cam_x = float('nan')
+                        cargo_center_cam_y = float('nan')
             else:
                 # ids is None
                 with io_lock:
@@ -458,6 +466,8 @@ def camera_tracker_loop(m, show_window=False):
                     dist_id1_to_cargo_x = float('nan')
                     dist_id1_to_cargo_y = float('nan')
                     dist_id1_to_cargo_z = float('nan')
+                    cargo_center_cam_x = float('nan')
+                    cargo_center_cam_y = float('nan')
 
             # 表示が許可されていればウィンドウ表示
             if show_window:
@@ -509,6 +519,15 @@ def camera_tracker_loop(m, show_window=False):
                         else:
                             cv2.putText(display, "ID1 Rel to Center: N/A (ID1 invisible)", (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2, cv2.LINE_AA)
 
+                if video_writer is None:
+                    height, width = display.shape[:2]
+                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                    now_str = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y%m%d_%H%M%S")
+                    video_path = CSV_DIR / f"{now_str}_video.mp4"
+                    video_writer = cv2.VideoWriter(str(video_path), fourcc, 20.0, (width, height))
+                    print(f"✓ ビデオ録画を開始しました: {video_path}")
+                video_writer.write(display)
+
                 cv2.imshow("AR Camera", display)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     running = False
@@ -518,6 +537,9 @@ def camera_tracker_loop(m, show_window=False):
             time.sleep(0.01)
     finally:
         print("カメラ追跡スレッドを終了し、カメラを解放します...")
+        if video_writer is not None:
+            video_writer.release()
+            print("✓ ビデオ録画を終了しました。")
         if cap:
             cap.release()
         if picam2:
@@ -572,6 +594,8 @@ def record_data():
             d_i1_c_x = dist_id1_to_cargo_x
             d_i1_c_y = dist_id1_to_cargo_y
             d_i1_c_z = dist_id1_to_cargo_z
+            c_cam_x = cargo_center_cam_x
+            c_cam_y = cargo_center_cam_y
         data_records.append([
             time.time(), 
             gps['x'], gps['y'], gps['z'], 
@@ -581,7 +605,9 @@ def record_data():
             1 if i1_det else 0,
             d_i1_c_x,
             d_i1_c_y,
-            d_i1_c_z
+            d_i1_c_z,
+            c_cam_x,
+            c_cam_y
         ])
         time.sleep(1 / SEND_HZ)
 def save_csv():
@@ -595,7 +621,8 @@ def save_csv():
         writer.writerow([
             'Time', 'GPS_X', 'GPS_Y', 'GPS_Z', 'Target_X', 'Target_Y', 'Target_Z',
             'Cargo_X', 'Cargo_Y', 'Cargo_Z', 'Cargo_Detected', 'ID1_Detected',
-            'ID1_to_Cargo_DX', 'ID1_to_Cargo_DY', 'ID1_to_Cargo_DZ'
+            'ID1_to_Cargo_DX', 'ID1_to_Cargo_DY', 'ID1_to_Cargo_DZ',
+            'Est_Center_Cam_X', 'Est_Center_Cam_Y'
         ])
         writer.writerows(data_records)
     print(f"\n✓ CSV保存完了: {path} ({len(data_records)} 行)")
@@ -614,7 +641,7 @@ def main():
         threading.Thread(target=monitor_vehicle, args=(mav,), daemon=True).start()
         threading.Thread(target=record_data, daemon=True).start()
         # 起動時にカメラ映像表示の有無を選択
-        choice = input_with_timeout("カメラ映像を表示しますか？ 1:表示 2:非表示 (デフォルト2): ", timeout=5, default='2')
+        choice = input_with_timeout("カメラ映像を表示しますか？ 1:表示 2:非表示 (デフォルト2): ", timeout=15, default='2')
         show_camera_window = (choice.strip() == '1')
         
         # コントロールループをサブスレッドで起動 (キー入力を別スレッドに逃がす)
