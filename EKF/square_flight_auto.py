@@ -477,6 +477,12 @@ class SquareFlightAutoController:
         print("✓ モニター/レコードスレッド起動")
         return True
 
+    SEVERITY_NAMES = {
+        0: "EMERGENCY", 1: "ALERT", 2: "CRITICAL",
+        3: "ERROR", 4: "WARNING", 5: "NOTICE",
+        6: "INFO", 7: "DEBUG",
+    }
+
     def _process_message(self, msg):
         msg_type = msg.get_type()
         if msg_type == "HEARTBEAT":
@@ -504,6 +510,14 @@ class SquareFlightAutoController:
                     print("\n⚠ モード変更検出（AUTO→他モード）→ 安全停止")
                     self._running = False
                     return
+        elif msg_type == "STATUSTEXT":
+            severity = msg.severity
+            if severity <= 4:
+                text = msg.text
+                if isinstance(text, bytes):
+                    text = text.decode('utf-8', errors='replace').rstrip('\x00')
+                sev_name = self.SEVERITY_NAMES.get(severity, f"UNKNOWN({severity})")
+                print(f"[STATUSTEXT] {sev_name}: {text}")
         elif msg_type == "GLOBAL_POSITION_INT":
             self._monitor_pos_count += 1
             lat = msg.lat / 1e7
