@@ -1389,7 +1389,13 @@ class SquareFlightController:
             # 6. 離陸地点上空へ帰還 → 着陸
             if self.params.get("land_after", True):
                 self.return_to_takeoff()   # 離陸地点上空へ移動
-                time.sleep(2.0)             # 2秒待機
+                # 2秒間 takeoff位置のsetpointを0.5秒間隔で送信（GUID_TIMEOUT防止）
+                _start = time.time()
+                while time.time() - _start < 2.0:
+                    self._send_setpoint(self._takeoff_lat, self._takeoff_lon,
+                                        self.params["altitude_m"],
+                                        self.params["fixed_yaw_deg"])
+                    time.sleep(0.5)
                 self.land()                 # 着陸
             print(f"\n✓ [{self.STATE_COMPLETE}] 全シーケンス完了")
 
