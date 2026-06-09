@@ -339,10 +339,24 @@ class SquareFlightAutoController:
                   f"  alt={item['alt']:.1f}m"
                   f"  hold={item['param1']:.1f}s yaw={item['param4']:.1f}deg")
 
-    def _upload_mission(self, items, max_retries=3):
+    def _upload_mission(self, items, max_retries=3, debug=False):
         count = len(items)
         target_sys = self.master.target_system
         target_comp = self.master.target_component
+
+        # --- MISSION_CLEAR_ALL: 既存ミッションを先にクリア ---
+        print("  MISSION_CLEAR_ALL 送信...")
+        self.master.mav.mission_clear_all_send(
+            target_sys, target_comp,
+            mavutil.mavlink.MAV_MISSION_TYPE_MISSION)
+        ack = self.master.recv_match(
+            type='MISSION_ACK', blocking=True, timeout=5.0)
+        if ack is not None:
+            ack_dict = ack.to_dict()
+            print(f"  MISSION_CLEAR_ALL ACK: type={ack_dict.get('type', -1)}")
+        else:
+            print("  MISSION_CLEAR_ALL ACK タイムアウト（続行）")
+
         for attempt in range(max_retries):
             if attempt > 0:
                 print(f"  ミッションアップロード リトライ {attempt}/{max_retries}...")
@@ -355,21 +369,33 @@ class SquareFlightAutoController:
                 target_sys, target_comp, count,
                 mavutil.mavlink.MAV_MISSION_TYPE_MISSION)
             print(f"  MISSION_COUNT({count}) 送信")
+
+            # デバッグ用：FC応答の最初5メッセージtypeをプリント
+            _debug_msgs = 0
+            _debug_max = 5
+
             upload_ok = True
             for seq in range(count):
                 req = None
                 start_wait = time.time()
                 while time.time() - start_wait < 5.0:
                     msg = self.master.recv_match(
-                        type='MISSION_REQUEST_INT', blocking=True, timeout=0.5)
+                        blocking=True, timeout=0.5)
                     if msg is None:
                         continue
-                    msg_dict = msg.to_dict()
-                    if msg_dict.get('seq') == seq:
-                        req = msg_dict
-                        break
+                    msg_type = msg.get_type()
+                    if debug and _debug_msgs < _debug_max:
+                        print(f"  [DEBUG] 受信: type={msg_type}"
+                              f" (seq={seq}待ち, {_debug_msgs+1}/{_debug_max})")
+                        _debug_msgs += 1
+                    if msg_type in ('MISSION_REQUEST', 'MISSION_REQUEST_INT'):
+                        msg_dict = msg.to_dict()
+                        if msg_dict.get('seq') == seq:
+                            req = msg_dict
+                            break
                 if req is None:
-                    print(f"  ✗ MISSION_REQUEST_INT(seq={seq}) タイムアウト")
+                    print(f"  ✗ MISSION_REQUEST/MISSION_REQUEST_INT(seq={seq})"
+                          f" タイムアウト")
                     upload_ok = False
                     break
                 item = items[seq]
