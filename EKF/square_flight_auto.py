@@ -17,8 +17,8 @@ AUTOモードで全WPをミッション一括登録する方式に変更。
   3. ミッション生成・アップロード
   4. 離陸前待機（loiter_after_takeoff_sec）
   5. AUTOモード設定（ミッション準備）
-  6. GUIDEDモード切替（アーム用）
-  7. アーム待機（GUIDEDモード + プロポでアーム）
+  6. LOITERモード切替（アーム用）
+  7. アーム待機（LOITERモード + プロポでアーム）
   8. アーム検出後即座にAUTOモード切替 → ミッション開始
   9. MISSION_CURRENT 監視
  10. 完了検出 → クリーンアップ
@@ -628,19 +628,19 @@ class SquareFlightAutoController:
         print(f"✗ AUTOモード切替タイムアウト（{timeout}秒）")
         return False
 
-    def set_guided_mode(self):
-        print(f"\n--- GUIDEDモード切替 ---")
-        self.master.set_mode(4)
+    def set_loiter_mode(self):
+        print(f"\n--- LOITERモード切替 ---")
+        self.master.set_mode(5)
         start = time.time()
         timeout = 10.0
         while time.time() - start < timeout:
             with self._io_lock:
                 mode = self._custom_mode
-            if mode == 4:
-                print(f"✓ GUIDEDモード検出（{time.time() - start:.1f}秒）")
+            if mode == 5:
+                print(f"✓ LOITERモード検出（{time.time() - start:.1f}秒）")
                 return True
             time.sleep(0.2)
-        print(f"✗ GUIDEDモード切替タイムアウト（{timeout}秒）")
+        print(f"✗ LOITERモード切替タイムアウト（{timeout}秒）")
         return False
 
     def monitor_auto_flight(self):
@@ -731,8 +731,8 @@ class SquareFlightAutoController:
             if not self.set_auto_mode():
                 print("\n✗ AUTOモード切替失敗（ミッション準備）")
                 return
-            if not self.set_guided_mode():
-                print("\n✗ GUIDEDモード切替失敗")
+            if not self.set_loiter_mode():
+                print("\n✗ LOITERモード切替失敗")
                 return
             if not self.wait_for_arm():
                 print("\n✗ アーム待機失敗")
