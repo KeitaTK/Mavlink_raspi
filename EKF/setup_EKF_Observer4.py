@@ -96,7 +96,7 @@ params_to_set = {
     'WPNAV_ACCEL_Z': (150.0, 'AP_Float', '垂直加速度 [cm/s^2]'),  # （旧値: 70.0）→ 垂直加減速の強化
     'WPNAV_SPEED': (50.0, 'AP_Float', '水平速度 [cm/s]'),
     'WPNAV_ACCEL': (50.0, 'AP_Float', '水平加速度 [cm/s^2]'),  # LoiterのLOIT_ACC_MAXに合わせる
-    'WPNAV_RADIUS': (30.0, 'AP_Float', '到達半径 [cm]'),
+    'WPNAV_RADIUS': (5.0, 'AP_Float', '到達半径 [cm]'),
     'WPNAV_JERK': (15.0, 'AP_Float', '水平躍度 [m/s^3]'),
     'GUID_TIMEOUT': (3.0, 'AP_Float', 'Guidedタイムアウト [s]'),
     'GUID_OPTIONS': (64, 'AP_Float', 'Guidedオプション'),
