@@ -16,10 +16,12 @@ AUTOモードで全WPをミッション一括登録する方式に変更。
   2. GPS原点取得
   3. ミッション生成・アップロード
   4. 離陸前待機（loiter_after_takeoff_sec）
-  5. AUTOモード設定（ミッション開始、ディスアーム時のみ受付）
-  6. アーム待機（AUTOモードでアーム → 即離陸開始）
-  7. MISSION_CURRENT 監視
-  8. 完了検出 → クリーンアップ
+  5. AUTOモード設定（ミッション準備）
+  6. GUIDEDモード切替（アーム用）
+  7. アーム待機（GUIDEDモード + プロポでアーム）
+  8. アーム検出後即座にAUTOモード切替 → ミッション開始
+  9. MISSION_CURRENT 監視
+ 10. 完了検出 → クリーンアップ
 
 エラーハンドリング:
   - JSONファイル不在 → エラー終了
@@ -612,6 +614,21 @@ class SquareFlightAutoController:
         print(f"✗ AUTOモード切替タイムアウト（{timeout}秒）")
         return False
 
+    def set_guided_mode(self):
+        print(f"\n--- GUIDEDモード切替 ---")
+        self.master.set_mode(4)
+        start = time.time()
+        timeout = 10.0
+        while time.time() - start < timeout:
+            with self._io_lock:
+                mode = self._custom_mode
+            if mode == 4:
+                print(f"✓ GUIDEDモード検出（{time.time() - start:.1f}秒）")
+                return True
+            time.sleep(0.2)
+        print(f"✗ GUIDEDモード切替タイムアウト（{timeout}秒）")
+        return False
+
     def monitor_auto_flight(self):
         land_after = self.params["land_after"]
         final_seq = self._mission_final_seq
@@ -698,10 +715,17 @@ class SquareFlightAutoController:
                     time.sleep(1.0)
                 print("✓ 離陸前待機完了")
             if not self.set_auto_mode():
-                print("\n✗ AUTOモード切替失敗")
+                print("\n✗ AUTOモード切替失敗（ミッション準備）")
+                return
+            if not self.set_guided_mode():
+                print("\n✗ GUIDEDモード切替失敗")
                 return
             if not self.wait_for_arm():
                 print("\n✗ アーム待機失敗")
+                return
+            print("\n--- アーム検出 → 即座にAUTOモードへ切替 ---")
+            if not self.set_auto_mode():
+                print("\n✗ AUTOモード切替失敗（ミッション開始）")
                 return
             if not self.monitor_auto_flight():
                 print("\n✗ AUTO飛行中断")
