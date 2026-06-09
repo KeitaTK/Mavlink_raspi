@@ -94,7 +94,7 @@ params_to_set = {
     'WPNAV_SPEED_UP': (40.0, 'AP_Float', '上昇速度 [cm/s]'),  # （旧値: 20.0）→ Futaba5に合わせて変更
     'WPNAV_SPEED_DN': (30.0, 'AP_Float', '下降速度 [cm/s]'),  # （旧値: 20.0）→ Futaba5に合わせて変更
     'WPNAV_ACCEL_Z': (150.0, 'AP_Float', '垂直加速度 [cm/s^2]'),  # （旧値: 70.0）→ 垂直加減速の強化
-    'WPNAV_SPEED': (500.0, 'AP_Float', '水平速度 [cm/s]'),  # バグ修正: 500に戻す
+    'WPNAV_SPEED': (50.0, 'AP_Float', '水平速度 [cm/s]'),
     'WPNAV_ACCEL': (50.0, 'AP_Float', '水平加速度 [cm/s^2]'),  # LoiterのLOIT_ACC_MAXに合わせる
     'WPNAV_RADIUS': (30.0, 'AP_Float', '到達半径 [cm]'),
     'WPNAV_JERK': (15.0, 'AP_Float', '水平躍度 [m/s^3]'),
@@ -108,10 +108,7 @@ params_to_set = {
     'LOIT_BRK_DELAY': (0.3, 'AP_Float', 'Loiterブレーキ遅延 [s]'),
     'LOIT_BRK_JERK': (300.0, 'AP_Float', 'Loiterブレーキジャーク [cm/s^3]'),
     'LOIT_ANG_MAX': (10.0, 'AP_Float', 'Loiter最大角度 [deg]'),
-
-#   'PSC_JERK_NE': (20.0, 'AP_Float', '水平躍度制限 [m/s^3]'),  # ※ ファームウェア非対応のため無効化
-#   'PSC_JERK_D': (20.0, 'AP_Float', '垂直躍度制限 [m/s^3]'),  # ※ ファームウェア非対応のため無効化
-
+    
     # === パイロット制御速度 ===
     'PILOT_SPEED_UP': (250, 'AP_Int16', 'パイロット上昇速度 [cm/s]'),
     'PILOT_SPEED_DN': (150, 'AP_Int16', 'パイロット下降速度 [cm/s]'),
