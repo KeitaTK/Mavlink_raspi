@@ -93,9 +93,9 @@ params_to_set = {
     # === Guidedモード設定 ===
     'WPNAV_SPEED_UP': (40.0, 'AP_Float', '上昇速度 [cm/s]'),  # （旧値: 20.0）→ Futaba5に合わせて変更
     'WPNAV_SPEED_DN': (30.0, 'AP_Float', '下降速度 [cm/s]'),  # （旧値: 20.0）→ Futaba5に合わせて変更
-    'WPNAV_ACCEL_Z': (70.0, 'AP_Float', '垂直加速度 [cm/s^2]'),  # （旧値: 200.0）→ Futaba5に合わせて変更
+    'WPNAV_ACCEL_Z': (150.0, 'AP_Float', '垂直加速度 [cm/s^2]'),  # （旧値: 70.0）→ 垂直加減速の強化
     'WPNAV_SPEED': (500.0, 'AP_Float', '水平速度 [cm/s]'),
-    'WPNAV_ACCEL': (500.0, 'AP_Float', '水平加速度 [cm/s^2]'),
+    'WPNAV_ACCEL': (1500.0, 'AP_Float', '水平加速度 [cm/s^2]'),
     'WPNAV_RADIUS': (5.0, 'AP_Float', '到達半径 [cm]'),
 #   'WPNAV_JERK': (15.0, 'AP_Float', '水平躍度 [m/s^3]'),  # ※ Futaba5に合わせて無効化
 
@@ -208,7 +208,7 @@ params_to_set = {
 
     # === GUIDEDモード設定 ===
     'GUID_TIMEOUT': (3.0, 'AP_Float', 'Guidedタイムアウト [s]'),
-    'GUID_OPTIONS': (0, 'AP_Float', 'Guidedオプション'),
+    'GUID_OPTIONS': (64, 'AP_Float', 'Guidedオプション'),
 
     # === ログ制御設定 ===
     'LOG_DISARMED': (0, 'AP_Int8', '非アーム時ログ無効'),
