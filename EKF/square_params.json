@@ -5,7 +5,7 @@
   "speed_m_s": 1.5,
   "altitude_m": 1.2,
   "stop_at_vertex_sec": 1.0,
-  "num_laps": 3,
+  "num_laps": 5,
   "direction": "CW",
   "takeoff_alt_m": 0.5,
   "send_rate_hz": 10,
