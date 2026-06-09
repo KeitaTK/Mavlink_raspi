@@ -91,15 +91,15 @@ params_to_set = {
     'GPS_PRIMARY': (0, 'AP_Int8', 'プライマリGPS'),
 
     # === Guidedモード設定 ===
-    'GUID_TIMEOUT': (3.0, 'AP_Float', 'Guidedタイムアウト [s]'),
-    'GUID_OPTIONS': (64, 'AP_Float', 'Guidedオプション'),
     'WPNAV_SPEED_UP': (40.0, 'AP_Float', '上昇速度 [cm/s]'),  # （旧値: 20.0）→ Futaba5に合わせて変更
     'WPNAV_SPEED_DN': (30.0, 'AP_Float', '下降速度 [cm/s]'),  # （旧値: 20.0）→ Futaba5に合わせて変更
     'WPNAV_ACCEL_Z': (150.0, 'AP_Float', '垂直加速度 [cm/s^2]'),  # （旧値: 70.0）→ 垂直加減速の強化
     'WPNAV_SPEED': (50.0, 'AP_Float', '水平速度 [cm/s]'),
-    'WPNAV_ACCEL': (100.0, 'AP_Float', '水平加速度 [cm/s^2]'),
-    'WPNAV_RADIUS': (10.0, 'AP_Float', '到達半径 [cm]'),
-#   'WPNAV_JERK': (15.0, 'AP_Float', '水平躍度 [m/s^3]'),  # ※ Futaba5に合わせて無効化
+    'WPNAV_ACCEL': (800.0, 'AP_Float', '水平加速度 [cm/s^2]'),
+    'WPNAV_RADIUS': (30.0, 'AP_Float', '到達半径 [cm]'),
+    'WPNAV_JERK': (15.0, 'AP_Float', '水平躍度 [m/s^3]'),
+    'GUID_TIMEOUT': (3.0, 'AP_Float', 'Guidedタイムアウト [s]'),
+    'GUID_OPTIONS': (64, 'AP_Float', 'Guidedオプション'),
 
     # === Loiterモード設定 ===
     'LOIT_SPEED': (50.0, 'AP_Float', 'Loiter速度 [cm/s]'),
