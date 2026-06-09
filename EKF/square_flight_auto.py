@@ -15,9 +15,9 @@ AUTOモードで全WPをミッション一括登録する方式に変更。
   1. MAVLink接続
   2. GPS原点取得
   3. ミッション生成・アップロード
-  4. アーム待機
-  5. 離陸前待機（loiter_after_takeoff_sec）
-  6. AUTOモード設定（ミッション開始）
+  4. 離陸前待機（loiter_after_takeoff_sec）
+  5. AUTOモード設定（ミッション開始、ディスアーム時のみ受付）
+  6. アーム待機（AUTOモードでアーム → 即離陸開始）
   7. MISSION_CURRENT 監視
   8. 完了検出 → クリーンアップ
 
@@ -687,9 +687,6 @@ class SquareFlightAutoController:
             if not ok:
                 print("\n✗ ミッションアップロード失敗")
                 return
-            if not self.wait_for_arm():
-                print("\n✗ アーム待機失敗")
-                return
             loiter_sec = self.params["loiter_after_takeoff_sec"]
             if loiter_sec > 0:
                 print(f"\n--- [{self.STATE_LOITER_ON_GROUND}]"
@@ -702,6 +699,9 @@ class SquareFlightAutoController:
                 print("✓ 離陸前待機完了")
             if not self.set_auto_mode():
                 print("\n✗ AUTOモード切替失敗")
+                return
+            if not self.wait_for_arm():
+                print("\n✗ アーム待機失敗")
                 return
             if not self.monitor_auto_flight():
                 print("\n✗ AUTO飛行中断")
