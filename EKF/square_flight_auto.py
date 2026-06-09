@@ -14,13 +14,15 @@ AUTOモードで全WPをミッション一括登録する方式に変更。
 飛行シーケンス:
   1. MAVLink接続
   2. GPS原点取得
-  3. ミッション生成・アップロード
-  4. 離陸前待機（loiter_after_takeoff_sec）
-  5. LOITERモード切替（アーム用）
-  6. アーム待機（LOITERモード + プロポでアーム）
-  7. アーム検出後即座にAUTOモード切替 → ミッション開始
-  8. MISSION_CURRENT 監視
-  9. 完了検出 → クリーンアップ
+  3. ミッション生成・アップロード（TAKEOFFは含めない。seq0からWAYPOINT）
+  4. LOITERモード切替（アーム用）
+  5. アーム待機（LOITERモード + プロポでアーム）
+  6. 離陸前待機（loiter_after_takeoff_sec）
+  7. GUIDEDモード切替 → MAV_CMD_NAV_TAKEOFF を command_long_send
+  8. 離陸完了（高度到達）を確認
+  9. AUTOモード切替 → ミッション開始
+  10. MISSION_CURRENT 監視
+  11. 完了検出 → クリーンアップ
 
 エラーハンドリング:
   - JSONファイル不在 → エラー終了
@@ -164,6 +166,7 @@ class SquareFlightAutoController:
     STATE_UPLOAD_MISSION = "UPLOAD_MISSION"
     STATE_WAITING_ARM = "WAITING_ARM"
     STATE_LOITER_ON_GROUND = "LOITER_ON_GROUND"
+    STATE_GUIDED_TAKEOFF = "GUIDED_TAKEOFF"
     STATE_AUTO_FLYING = "AUTO_FLYING"
     STATE_COMPLETE = "COMPLETE"
 
@@ -209,6 +212,7 @@ class SquareFlightAutoController:
         self._target = {'x': 0.0, 'y': 0.0, 'z': 0.0}
         self._is_armed = False
         self._is_auto_mode = False
+        self._is_guided = False
         self._custom_mode = -1
         self._data_records = []
         self._state = self.STATE_UPLOAD_MISSION
@@ -258,18 +262,11 @@ class SquareFlightAutoController:
     def _generate_mission(self):
         items = []
         altitude = self.params["altitude_m"]
-        takeoff_alt = self.params["takeoff_alt_m"]
         stop_time = self.params["stop_at_vertex_sec"]
         num_laps = self.params["num_laps"]
-        items.append({
-            'seq': 0,
-            'frame': mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
-            'command': mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
-            'param1': 0, 'param2': 0, 'param3': 0,
-            'param4': self.params["fixed_yaw_deg"],
-            'lat': self._takeoff_lat, 'lon': self._takeoff_lon, 'alt': takeoff_alt,
-        })
-        seq = 1
+        # TAKEOFF はミッションに含めない（ArduCopter は AUTOモードで地上から TAKEOFF 不可）
+        # seq 0 から WAYPOINT を開始
+        seq = 0
         v0_x, v0_y = self.vertices[0]
         lat_v0, lon_v0, _ = local_xyz_to_gps(
             v0_x, v0_y, altitude,
@@ -487,12 +484,14 @@ class SquareFlightAutoController:
         if msg_type == "HEARTBEAT":
             self._monitor_hb_count += 1
             is_auto = (msg.custom_mode == 3)
+            is_guided = (msg.custom_mode == 4)
             is_armed = bool(
                 msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
             with self._io_lock:
                 prev_armed = self._is_armed
                 self._is_armed = is_armed
                 self._is_auto_mode = is_auto
+                self._is_guided = is_guided
                 self._custom_mode = msg.custom_mode
                 current_state = self._state
             if self._monitor_hb_count % 10 == 0:
@@ -507,6 +506,11 @@ class SquareFlightAutoController:
             if current_state == self.STATE_AUTO_FLYING:
                 if not is_auto:
                     print("\n⚠ モード変更検出（AUTO→他モード）→ 安全停止")
+                    self._running = False
+                    return
+            if current_state == self.STATE_GUIDED_TAKEOFF:
+                if not is_guided:
+                    print("\n⚠ モード変更検出（GUIDED→他モード）→ 安全停止")
                     self._running = False
                     return
         elif msg_type == "STATUSTEXT":
@@ -627,6 +631,113 @@ class SquareFlightAutoController:
         print(f"✗ AUTOモード切替タイムアウト（{timeout}秒）")
         return False
 
+    def set_guided_mode(self):
+        print(f"\n--- GUIDEDモード切替 ---")
+        self.master.set_mode(4)
+        start = time.time()
+        timeout = 10.0
+        while time.time() - start < timeout:
+            with self._io_lock:
+                is_guided = self._is_guided
+            if is_guided:
+                print(f"✓ GUIDEDモード検出（{time.time() - start:.1f}秒）")
+                return True
+            time.sleep(0.2)
+        print(f"✗ GUIDEDモード切替タイムアウト（{timeout}秒）")
+        return False
+
+    def _send_takeoff(self, alt_m):
+        """離陸指令を送信する（MAV_CMD_NAV_TAKEOFF）。"""
+        self.master.mav.command_long_send(
+            self.master.target_system,
+            self.master.target_component,
+            mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
+            0,          # confirmation
+            0, 0, 0, 0, 0, 0,
+            alt_m,      # param7: 離陸高度
+        )
+
+    def guided_takeoff(self):
+        """
+        GUIDEDモードで離陸シーケンスを実行する。
+
+        1. loiter_after_takeoff_sec 秒の安定待機
+        2. MAV_CMD_NAV_TAKEOFF 送信（takeoff_alt_m）
+        3. 高度が takeoff_alt_m * 0.9 に達するまで待機
+        4. 上昇トレンド検出（5秒経過後、3回連続上昇で成功とみなす）
+
+        Returns:
+            bool: 離陸成功時 True（タイムアウト: 30秒）
+        """
+        print(f"\n--- [{self.STATE_GUIDED_TAKEOFF}] GUIDED離陸 ---")
+        self._state = self.STATE_GUIDED_TAKEOFF
+
+        takeoff_alt = self.params["takeoff_alt_m"]
+        loiter_sec = self.params["loiter_after_takeoff_sec"]
+
+        # 離陸前の安定待機
+        if loiter_sec > 0:
+            print(f"  離陸前待機 {loiter_sec}秒...")
+            for _ in range(int(loiter_sec)):
+                if not self._running:
+                    return False
+                time.sleep(1.0)
+            print("✓ 離陸前待機完了")
+
+        # 離陸指令送信
+        self._send_takeoff(takeoff_alt)
+        print(f"✓ 離陸指令送信（{takeoff_alt}m）")
+
+        # 離陸高度到達待機（タイムアウト: 30秒）
+        timeout = 30.0
+        start = time.time()
+        last_retry = 0.0
+        last_reported = -1
+        prev_z = 0.0
+        rising_count = 0
+
+        while self._running:
+            with self._io_lock:
+                current_z = self._gps_now['z']
+
+            elapsed = time.time() - start
+            if int(elapsed) != last_reported:
+                last_reported = int(elapsed)
+                print(
+                    f"[TAKEOFF] 待機中..."
+                    f" {elapsed:.0f}s, z={current_z:.2f}m,"
+                    f" target={takeoff_alt * 0.9:.2f}m"
+                )
+
+            if current_z >= takeoff_alt * 0.9:
+                print(f"✓ 離陸高度到達: {current_z:.2f}m")
+                return True
+
+            if elapsed > 5.0:
+                if current_z > prev_z + 0.05:
+                    rising_count += 1
+                    if rising_count >= 3:
+                        print(f"✓ 離陸上昇トレンド検出: z={current_z:.2f}m")
+                        return True
+                else:
+                    rising_count = 0
+            prev_z = current_z
+
+            if time.time() - start > timeout:
+                print(
+                    f"⚠ タイムアウト: 離陸高度到達"
+                    f"（{timeout}秒, 現在高度={current_z:.2f}m）"
+                )
+                return False
+
+            if time.time() - last_retry >= 3.0:
+                self._send_takeoff(takeoff_alt)
+                last_retry = time.time()
+
+            time.sleep(0.1)
+
+        return False
+
     def set_loiter_mode(self):
         print(f"\n--- LOITERモード切替 ---")
         self.master.set_mode(5)
@@ -704,6 +815,8 @@ class SquareFlightAutoController:
             if not self.connect():
                 print("\n✗ 接続失敗")
                 return
+
+            # 1. ミッション生成・アップロード（TAKEOFFなし）
             print(f"\n--- [{self.STATE_UPLOAD_MISSION}] ミッション生成・アップロード ---")
             self._state = self.STATE_UPLOAD_MISSION
             self._mission_items = self._generate_mission()
@@ -717,29 +830,39 @@ class SquareFlightAutoController:
             if not ok:
                 print("\n✗ ミッションアップロード失敗")
                 return
-            loiter_sec = self.params["loiter_after_takeoff_sec"]
-            if loiter_sec > 0:
-                print(f"\n--- [{self.STATE_LOITER_ON_GROUND}]"
-                      f" 離陸前待機 {loiter_sec}秒 ---")
-                self._state = self.STATE_LOITER_ON_GROUND
-                for i in range(int(loiter_sec)):
-                    if not self._running:
-                        return
-                    time.sleep(1.0)
-                print("✓ 離陸前待機完了")
+
+            # 2. LOITERモード切替
+            print(f"\n--- [{self.STATE_LOITER_ON_GROUND}] LOITERモード切替 ---")
+            self._state = self.STATE_LOITER_ON_GROUND
             if not self.set_loiter_mode():
                 print("\n✗ LOITERモード切替失敗")
                 return
+
+            # 3. アーム待機
             if not self.wait_for_arm():
                 print("\n✗ アーム待機失敗")
                 return
-            print("\n--- アーム検出 → 即座にAUTOモードへ切替 ---")
+
+            # 4. GUIDEDモード切替 → 離陸
+            print("\n--- アーム検出 → GUIDEDモード切替 → 離陸 ---")
+            if not self.set_guided_mode():
+                print("\n✗ GUIDEDモード切替失敗")
+                return
+            if not self.guided_takeoff():
+                print("\n✗ 離陸失敗")
+                return
+
+            # 5. AUTOモード切替 → ミッション開始
+            print("\n--- 離陸完了 → AUTOモード切替 → ミッション開始 ---")
             if not self.set_auto_mode():
                 print("\n✗ AUTOモード切替失敗（ミッション開始）")
                 return
+
+            # 6. MISSION_CURRENT 監視
             if not self.monitor_auto_flight():
                 print("\n✗ AUTO飛行中断")
                 return
+
             print(f"\n✓ [{self.STATE_COMPLETE}] 全シーケンス完了")
         except Exception as e:
             print(f"\n✗ 予期せぬエラー: {e}")
