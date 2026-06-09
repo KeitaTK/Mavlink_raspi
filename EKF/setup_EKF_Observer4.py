@@ -99,7 +99,7 @@ params_to_set = {
     'WPNAV_RADIUS': (0.05, 'AP_Float', '到達半径 [m]'),
     'WPNAV_JERK': (15.0, 'AP_Float', '水平躍度 [m/s^3]'),
     'GUID_TIMEOUT': (3.0, 'AP_Float', 'Guidedタイムアウト [s]'),
-    'GUID_OPTIONS': (64, 'AP_Float', 'Guidedオプション'),  # 0ならWPNAVを使わない。 64にすることでWPNAVを使用
+    'GUID_OPTIONS': (0, 'AP_Float', 'Guidedオプション'),  # 0ならWPNAVを使わない。 64にすることでWPNAVを使用
     
     # === Loiterモード設定 ===
     'LOIT_SPEED': (50.0, 'AP_Float', 'Loiter速度 [cm/s]'),
