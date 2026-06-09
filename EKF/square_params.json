@@ -15,7 +15,6 @@
   "loiter_after_takeoff_sec": 3.0,
   "loiter_before_land_sec": 3.0,
   "mask": "0x09F8",
-  "wpnav_radius": 0.1,
   "wp_timeout": 20.0,
   "wpnav_flyby_count": 3
 }

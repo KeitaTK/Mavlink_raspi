@@ -225,12 +225,6 @@ def _validate_params(params):
         raise ValueError(
             f"takeoff_alt_m が小さすぎます: {takeoff_alt}（>= 0.3）")
 
-    # wpnav_radius のバリデーション
-    wp_radius = params["wpnav_radius"]
-    if wp_radius <= 0.0:
-        raise ValueError(
-            f"wpnav_radius は正の値である必要があります: {wp_radius}")
-
     # wp_timeout のバリデーション
     wp_timeout = params["wp_timeout"]
     if wp_timeout <= 0.0:
@@ -293,7 +287,6 @@ def load_params(path):
         "land_after",
         "loiter_after_takeoff_sec",
         "loiter_before_land_sec",
-        "wpnav_radius",
         "wp_timeout",
         "wpnav_flyby_count",
     ]
@@ -414,6 +407,9 @@ class SquareFlightController:
         # ── 送信用マスク（set_position_target_global_int）──
         self._mask = int(self.params["mask"], 16)
 
+        # ── FCから読み取るパラメータ（connect() で設定）──
+        self._fc_wpnav_radius = None    # WPNAV_RADIUS [m]
+
         # ── CSV保存先ディレクトリ作成 ──
         self.CSV_DIR.mkdir(exist_ok=True)
 
@@ -431,7 +427,57 @@ class SquareFlightController:
         print(f"  周回数: {p['num_laps']} | 方向: {p['direction']}")
         print(f"  頂点停止: {p['stop_at_vertex_sec']}秒 | 送信レート: {p['send_rate_hz']}Hz")
         print(f"  ヨーモード: {p['yaw_mode']} | land_after: {p['land_after']}")
-        print(f"  mode: WPNAV | WPNAV_RADIUS: {self.params['wpnav_radius']}m")
+        print(f"  mode: WPNAV | WPNAV_RADIUS: (connect後にFCから読み取り)")
+
+    # ──────────────────────────────────────────
+    #  FCパラメータ読み取り
+    # ──────────────────────────────────────────
+
+    def _read_fc_param(self, param_name, default=None, timeout=3.0):
+        """
+        FCから単一パラメータを PARAM_REQUEST_READ で読み取る。
+
+        Args:
+            param_name: パラメータ名（例: "WPNAV_RADIUS"）
+            default: 読み取り失敗時のデフォルト値
+            timeout: タイムアウト [秒]
+
+        Returns:
+            パラメータ値（float）
+        """
+        if self.master is None:
+            print(f"  ⚠ MAVLink未接続のため {param_name} を読めません")
+            return default
+
+        # バッファ内の古いメッセージをクリア
+        while True:
+            msg = self.master.recv_match(blocking=False)
+            if msg is None:
+                break
+
+        # PARAM_REQUEST_READ 送信
+        self.master.mav.param_request_read_send(
+            self.master.target_system,
+            self.master.target_component,
+            param_name.encode('utf-8'),
+            -1,
+        )
+
+        # PARAM_VALUE 応答を待機
+        start = time.time()
+        while time.time() - start < timeout:
+            msg = self.master.recv_match(
+                type='PARAM_VALUE', blocking=True, timeout=0.1
+            )
+            if msg is None:
+                continue
+            msg_dict = msg.to_dict()
+            msg_param_id = msg_dict.get('param_id', '').rstrip('\x00')
+            if msg_param_id == param_name:
+                return float(msg_dict.get('param_value', default))
+
+        print(f"  ⚠ {param_name} 読み取りタイムアウト（{timeout}秒）→ default={default}")
+        return default
 
     # ──────────────────────────────────────────
     #  MAVLink 接続（square_flight.py のパターンを踏襲）
@@ -485,6 +531,11 @@ class SquareFlightController:
               f"target_component={self.master.target_component}")
         print(f"[INFO] メッセージレート設定: "
               f"GPS_RAW_INT(24), GLOBAL_POSITION_INT(33), ATTITUDE(30) → 5Hz")
+
+        # ── FCパラメータ読み取り ──
+        print("\n--- FCパラメータ読み取り ---")
+        self._fc_wpnav_radius = self._read_fc_param("WPNAV_RADIUS", default=0.1)
+        print(f"  WPNAV_RADIUS = {self._fc_wpnav_radius}m")
 
         # スレッド起動
         self._running = True
@@ -756,7 +807,7 @@ class SquareFlightController:
             mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
             0,                          # confirmation
             0,                          # param1: Hold time [s]（0 = 即時次WPへ）
-            self.params["wpnav_radius"],          # param2: Acceptance radius [m]
+            self._fc_wpnav_radius,          # param2: Acceptance radius [m]
             0,                          # param3: Pass radius（0 = 通過）
             yaw_deg,                    # param4: Desired yaw [deg]
             lat_deg,                    # param5: Latitude [deg]
@@ -1161,7 +1212,7 @@ class SquareFlightController:
         print(f"  矩形サイズ: {self.params['half_width_m']*2}m x {self.params['half_height_m']*2}m")
         print(f"  周回数: {num_laps} | 方向: {direction}")
         print(f"  速度: {self.params['speed_m_s']}m/s | 頂点停止: {stop_time}秒")
-        print(f"  mode: WPNAV | WPNAV_RADIUS: {self.params['wpnav_radius']}m")
+        print(f"  mode: WPNAV | WPNAV_RADIUS: {self._fc_wpnav_radius}m")
         print(f"  推定1周時間: {estimated_lap_time:.1f}秒")
         print(f"  推定総時間: {estimated_lap_time * num_laps:.1f}秒")
 
@@ -1229,7 +1280,7 @@ class SquareFlightController:
                         min_dist = dist
 
                     # 判定1: 距離 < WPNAV_RADIUS → 到着
-                    if dist < self.params["wpnav_radius"]:
+                    if dist < self._fc_wpnav_radius:
                         arrived = True
                         break
 
@@ -1246,7 +1297,7 @@ class SquareFlightController:
                     time.sleep(0.1)
 
                 # 到着確認
-                reason = "arrived" if min_dist < self.params["wpnav_radius"] else "fly-by"
+                reason = "arrived" if min_dist < self._fc_wpnav_radius else "fly-by"
                 elapsed_wp = time.time() - wp_start
                 print(
                     f"      V{i} dist={min_dist:.3f}m"
