@@ -6,7 +6,7 @@
   "altitude_m": 0.6,
   "stop_at_turn_sec": 3.0,
   "num_zigs": 3,
-  "zigzag_axis": "vertical",
+  "zigzag_axis": "horizontal",
   "start_corner": "NE",
   "takeoff_alt_m": 0.5,
   "send_rate_hz": 10,
