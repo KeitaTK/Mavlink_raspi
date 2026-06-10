@@ -1122,9 +1122,9 @@ class ZigzagFlightController:
         print(f"    ✓ エッジ完了（{elapsed:.2f}秒, {wp_send_count}回送信）")
         return True
 
-    def stop_at_turn(self, vertex, duration):
+    def stop_at_turn(self, vertex, duration, label="折返し停止"):
         """
-        折返し点で指定時間停止する。
+        指定頂点で指定時間停止する。
 
         頂点の座標を send_rate_hz で繰り返し送信し、
         ArduPilot の位置ホバリング制御に任せる。
@@ -1132,6 +1132,7 @@ class ZigzagFlightController:
         Args:
             vertex: 頂点のローカル座標 (x, y)
             duration: 停止時間 [秒]
+            label: 表示ラベル（デフォルト: "折返し停止"）
 
         Returns:
             bool: 成功時 True
@@ -1150,7 +1151,7 @@ class ZigzagFlightController:
         dt = 1.0 / send_hz
         yaw = self.params["fixed_yaw_deg"]
 
-        print(f"    折返し停止 {duration:.1f}秒...")
+        print(f"    {label} {duration:.1f}秒...")
 
         stop_start = time.time()
         while time.time() - stop_start < duration:
@@ -1159,7 +1160,7 @@ class ZigzagFlightController:
             self._send_setpoint(lat, lon, altitude, yaw)
             time.sleep(dt)
 
-        print(f"    ✓ 折返し停止完了")
+        print(f"    ✓ {label}完了")
         return True
 
     def execute_zigzag_flight(self):
@@ -1170,8 +1171,8 @@ class ZigzagFlightController:
         頂点数 = num_zigs + 1、エッジ数 = num_zigs
         （各エッジは矩形の対角線セグメント）
 
-        最終エッジ以外では折返し停止（stop_at_turn_sec）、
-        最終頂点では停止しない。
+        中間折返し頂点では折返し停止（stop_at_turn_sec）、
+        最終頂点では待機停止（loiter_at_start_sec）。
 
         Returns:
             bool: 飛行成功時 True
@@ -1183,6 +1184,7 @@ class ZigzagFlightController:
 
         num_zigs = self.params["num_zigs"]
         stop_time = self.params["stop_at_turn_sec"]
+        loiter_time = self.params["loiter_at_start_sec"]
         zigzag_axis = self.params["zigzag_axis"]
 
         # 総移動距離と推定時間の計算
@@ -1195,18 +1197,20 @@ class ZigzagFlightController:
             dy = v_end[1] - v_start[1]
             total_edge_length += math.sqrt(dx**2 + dy**2)
 
-        # 停止回数: 最終頂点を除く全中間頂点
-        num_stops = num_edges - 1  # = num_zigs - 1
+        # 停止回数: 中間折返し (num_edges-1) + 最終頂点 (1)
+        num_turn_stops = num_edges - 1  # 中間折返し
         estimated_total_time = (
             total_edge_length / self.params["speed_m_s"]
-            + stop_time * num_stops
+            + stop_time * num_turn_stops
+            + loiter_time  # 最終頂点待機
         )
         print(f"  矩形サイズ: {self.params['half_width_m']*2}m"
               f" x {self.params['half_height_m']*2}m")
         print(f"  ジグザグ数: {num_zigs} | 軸: {zigzag_axis}")
         print(f"  開始コーナー: {self.params['start_corner']}")
         print(f"  速度: {self.params['speed_m_s']}m/s"
-              f" | 折返し停止: {stop_time}秒")
+              f" | 折返し停止: {stop_time}秒"
+              f" | 最終待機: {loiter_time}秒")
         print(f"  総エッジ数: {num_edges}")
         print(f"  推定総移動距離: {total_edge_length:.1f}m")
         print(f"  推定総時間: {estimated_total_time:.1f}秒")
@@ -1230,11 +1234,20 @@ class ZigzagFlightController:
             if not self.execute_edge(v_start, v_end):
                 return False
 
-            # 最終エッジ以外では折返し停止
+            # 最終エッジ: loiter_at_start_sec で待機、
+            # 中間折返し: stop_at_turn_sec で折返し停止
             is_last = (i == num_edges - 1)
-            if not is_last:
-                if not self.stop_at_turn(v_end, stop_time):
+            wait_sec = loiter_time if is_last else stop_time
+            label = "最終頂点待機" if is_last else "折返し停止"
+
+            if wait_sec > 0:
+                if not self.stop_at_turn(v_end, wait_sec, label=label):
                     return False
+
+            if is_last:
+                print(f"  ✓ 最終頂点 V{i + 1} 到達"
+                      f"（{edge_type}終点、{loiter_time}秒待機完了）")
+            else:
                 print(f"  ✓ 頂点 V{i + 1} 到達（{edge_type}終点）")
 
         total_elapsed = time.time() - flight_start
