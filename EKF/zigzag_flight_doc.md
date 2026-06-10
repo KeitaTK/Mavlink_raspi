@@ -5,8 +5,8 @@
 `zigzag_flight.py` は ArduPilot の Guided モードを使用して、矩形エリア内を
 ジグザグ（蛇行）飛行させるスクリプトです。
 
-矩形エリア内を水平（または垂直）のセグメントで折り返しながら、
-垂直（または水平）方向に進行するパターンを飛行します。
+矩形エリア内を対角線セグメントで折り返しながら横切る、
+真のジグザグパターンを飛行します。
 
 測量・空撮・探索などのアプリケーションで、エリアを効率的にカバーするために使用します。
 
@@ -51,8 +51,8 @@ python zigzag_flight.py /path/to/custom_params.json
 | `speed_m_s` | float | 1.0 | 飛行速度 [m/s]（> 0） |
 | `altitude_m` | float | 0.6 | 飛行高度 [m]（>= 0.5） |
 | `stop_at_turn_sec` | float | 2.0 | 折返し点での停止時間 [秒]（>= 0） |
-| `num_zigs` | int | 3 | 折り返し回数 = 水平/垂直セグメントの本数（>= 2） |
-| `zigzag_axis` | string | "horizontal" | ジグザグの軸："horizontal"（東西セグメント＋南北進行） または "vertical"（南北セグメント＋東西進行） |
+| `num_zigs` | int | 3 | 折り返し回数 = 対角線セグメントの本数（>= 2） |
+| `zigzag_axis` | string | "horizontal" | ジグザグの軸："horizontal"（x座標が東西交互） または "vertical"（y座標が南北交互） |
 | `start_corner` | string | "NE" | 開始コーナー："NE", "NW", "SE", "SW" のいずれか |
 | `takeoff_alt_m` | float | 0.5 | 離陸高度 [m] |
 | `send_rate_hz` | int | 10 | セットポイント送信レート [Hz]（>= 1） |
@@ -75,60 +75,93 @@ python zigzag_flight.py /path/to/custom_params.json
 
 ### zigzag_axis="horizontal", start_corner="NE", num_zigs=3
 
+対角線セグメントが矩形を斜めに横切るパターン：
+
 ```
   北(y+)
   ▲
-  │  NW(-w,+h) ←──── セグメント1 ──── NE(+w,+h) [開始]
-  │    │                                │
-  │    │ コネクタ1                       │
-  │    │ (南へstep)                      │
-  │    ▼                                ▼
-  │  (-w, y1) ──── セグメント2 ────► (+w, y1)
-  │    │                                │
-  │    │ コネクタ2                       │
-  │    │ (南へstep)                      │
-  │    ▼                                ▼
-  │  SW(-w,-h) ←──── セグメント3 ──── SE(+w,-h) [終了]
+  │  NW(-w,+h)                    NE(+w,+h) [開始]
+  │     ●                            ●
+  │      \                          /
+  │       \  セグメント1             /
+  │        \  (NE→対辺西の1/3)     /
+  │         \                      /
+  │          ☆ V1(-w,+h/3)        /
+  │           \                   /
+  │            \  セグメント2      /
+  │             \ (V1→対辺東の2/3)
+  │              \               /
+  │               ☆ V2(+w,-h/3)  /
+  │                \            /
+  │                 \  セグメント3
+  │                  \ (V2→SW) /
+  │                   \        /
+  │                    ●       /
+  │  SW(-w,-h) [終了]        SE(+w,-h)
   │
   └──────────────────────────────────────► 東(x+)
 ```
+
+**頂点列**:
+- V0: NE (+w, +h) — スタート
+- V1: (-w, +h/3) — 対辺（西）の 1/3 地点
+- V2: (+w, -h/3) — 対辺（東）の 2/3 地点
+- V3: SW (-w, -h) — 最終頂点（対角のコーナー）
 
 ### zigzag_axis="vertical", start_corner="NE", num_zigs=3
 
+対角線セグメントが矩形を南北に斜め横切るパターン：
+
 ```
   北(y+)
   ▲
-  │  NW(-w,+h)           NE(+w,+h) [開始]
-  │                          │
-  │                          │ セグメント1 (南へ)
-  │                          │
-  │                          ▼
-  │  (-w, -h)  ◄── コネクタ1 ──  (+w,-h) 
-  │     │
-  │     │ セグメント2 (北へ)
-  │     │
-  │     ▼
-  │  (-w,+h)  ── コネクタ2 ──► (+w,+h)
-  │                                │
-  │                                │ セグメント3 (南へ)
-  │                                │
-  │                                ▼
-  │  SW(-w,-h)                  SE(+w,-h) [終了]
+  │  NW(-w,+h)                    NE(+w,+h) [開始]
+  │     ●                            ●
+  │      \                           |
+  │       \  セグメント1              |
+  │        \  (NE→対辺南の1/3)       |
+  │         \                         |
+  │          ☆ V1(+w/3, -h)          |
+  │          /                         |
+  │         /  セグメント2             |
+  │        /   (V1→対辺北の2/3)       |
+  │       /                           |
+  │      ☆ V2(-w/3, +h)              |
+  │       \                           |
+  │        \  セグメント3             |
+  │         \  (V2→SW)               |
+  │          \                        |
+  │           ●                        |
+  │  SW(-w,-h) [終了]              SE(+w,-h)
   │
   └──────────────────────────────────────► 東(x+)
 ```
 
+**頂点列**:
+- V0: NE (+w, +h) — スタート
+- V1: (+w/3, -h) — 対辺（南）の 1/3 地点
+- V2: (-w/3, +h) — 対辺（北）の 2/3 地点
+- V3: SW (-w, -h) — 最終頂点（対角のコーナー）
+
 ### 頂点生成ロジック
 
-1. `step = 2 * (zigzag_axisがhorizontalならhalf_height, verticalならhalf_width) / (num_zigs - 1)`
-2. `num_zigs` 個の行（horizontal）/ 列（vertical）を生成
-3. 各行/列で：
-   - セグメントの始点と終点を計算
-   - 偶数セグメントと奇数セグメントで進行方向が反転
-4. セグメント間はコネクタ（`step` 分だけ垂直/水平移動）
+1. 頂点数 = `num_zigs + 1`（スタート + `num_zigs - 1` 個の中間折返し点 + 終了）
+2. `zigzag_axis="horizontal"` の場合:
+   - `step_y = 2 * half_height / num_zigs`（1セグメントあたりのy進行量）
+   - y座標: `start_corner` から対角方向に等間隔で進行
+     - 北側スタート (NE/NW): y = half_height から減少（南へ進行）
+     - 南側スタート (SE/SW): y = -half_height から増加（北へ進行）
+   - x座標: ±half_width で交互（東側スタートは +w から開始、西側スタートは -w から開始）
+3. `zigzag_axis="vertical"` の場合:
+   - `step_x = 2 * half_width / num_zigs`（1セグメントあたりのx進行量）
+   - x座標: `start_corner` から対角方向に等間隔で進行
+     - 東側スタート (NE/SE): x = half_width から減少（西へ進行）
+     - 西側スタート (NW/SW): x = -half_width から増加（東へ進行）
+   - y座標: ±half_height で交互（北側スタートは +h から開始、南側スタートは -h から開始）
+4. 戻り値: `[(x0,y0), (x1,y1), ..., (xn,yn)]` — `num_zigs+1` 個の頂点
 
 開始コーナーからの初期進行方向：
-- `zigzag_axis="horizontal"` の場合: 西端のコーナー(NW/SW)からは東へ、東端のコーナー(NE/SE)からは西へ
+- `zigzag_axis="horizontal"` の場合: 東端のコーナー(NE/SE)からは西へ、西端のコーナー(NW/SW)からは東へ
 - `zigzag_axis="vertical"` の場合: 北端のコーナー(NE/NW)からは南へ、南端のコーナー(SE/SW)からは北へ
 
 ## CSVデータ
@@ -145,7 +178,7 @@ Time, GPS_X, GPS_Y, GPS_Z, Target_X, Target_Y, Target_Z
 
 ## 使用例
 
-### 例1: 基本的なジグザグ飛行（東西方向、NEスタート）
+### 例1: 対角線ジグザグ飛行（horizontal, NEスタート）
 ```json
 {
   "center": { "latitude": 36.0757754, "longitude": 136.2132908 },
@@ -160,9 +193,9 @@ Time, GPS_X, GPS_Y, GPS_Z, Target_X, Target_Y, Target_Z
   "yaw_mode": "edge"
 }
 ```
-→ 4m×6m のエリアを東西5セグメントでカバー。ヨーは進行方向を向く。
+→ 4m×6m のエリアを対角線5セグメントでカバー。ヨーは進行方向を向く。
 
-### 例2: 垂直ジグザグ、SWスタート
+### 例2: 対角線ジグザグ飛行（vertical, SWスタート）
 ```json
 {
   "center": { "latitude": 36.0757754, "longitude": 136.2132908 },
@@ -177,7 +210,7 @@ Time, GPS_X, GPS_Y, GPS_Z, Target_X, Target_Y, Target_Z
   "yaw_mode": "center"
 }
 ```
-→ 6m×4m のエリアを南北4セグメントでカバー。ヨーは常に中心を向く。
+→ 6m×4m のエリアを対角線4セグメントでカバー。ヨーは常に中心を向く。
 
 ## 依存関係
 

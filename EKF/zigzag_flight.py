@@ -2,8 +2,8 @@
 """
 zigzag_flight.py - Guidedモードでジグザグ（蛇行）飛行を実行するスクリプト
 
-square_flight.py のアーキテクチャを踏襲し、矩形エリア内を水平セグメントで
-折り返しながら縦方向に進むジグザグ飛行を実装する。
+square_flight.py のアーキテクチャを踏襲し、矩形エリア内を対角線セグメントで
+折り返しながら横切る真のジグザグパターンを実装する。
 
 JSONパラメータファイルから設定を読み込み、
 離陸 → ジグザグ飛行 → 着陸のシーケンスを自動実行する。
@@ -92,12 +92,12 @@ def generate_edge_waypoints(v_start, v_end, n):
 def generate_zigzag_vertices(half_width, half_height, num_zigs,
                               zigzag_axis, start_corner):
     """
-    ジグザグ飛行の全頂点（セグメント始点＋終点）を訪問順に生成する。
+    対角線ジグザグ飛行の全頂点を訪問順に生成する。
 
-    矩形エリア内を水平（または垂直）セグメントで折り返しながら
-    垂直（または水平）方向に進むジグザグパターンの頂点列を返す。
+    num_zigs 本の対角線セグメントで矩形を斜めに横切る。
+    頂点数 = num_zigs + 1（スタート + 中間折返し点 + 終了）。
 
-    頂点定義（中心を原点とするローカル座標、東=x, 北=y）:
+    矩形の角の定義（中心を原点とするローカル座標、東=x, 北=y）:
         NE: (+half_width, +half_height)
         NW: (-half_width, +half_height)
         SW: (-half_width, -half_height)
@@ -107,78 +107,70 @@ def generate_zigzag_vertices(half_width, half_height, num_zigs,
         half_width: 中心から左右の辺までの距離 [m]
         half_height: 中心から上下の辺までの距離 [m]
         num_zigs: 折り返し回数 = セグメント本数（>=2）
-        zigzag_axis: "horizontal"（東西セグメント＋南北進行）または
-                     "vertical"（南北セグメント＋東西進行）
+        zigzag_axis: "horizontal"（x座標が±half_widthで交互）または
+                     "vertical"（y座標が±half_heightで交互）
         start_corner: 開始コーナー "NE", "NW", "SE", "SW"
 
     Returns:
-        [(x, y), ...] — 全頂点のローカル座標（訪問順）、
-                       長さは 2 * num_zigs
-                       （各セグメントに始点＋終点の2点）
+        [(x, y), ...] — num_zigs+1 個の頂点のローカル座標（訪問順）
+
+    例: num_zigs=3, start_corner="NE", zigzag_axis="horizontal"
+        V0: NE (+w, +h)
+        V1: (-w, +h/3)   ← 対辺(西)の1/3地点
+        V2: (+w, -h/3)   ← 対辺(東)の2/3地点
+        V3: SW (-w, -h)  ← 最終頂点
     """
+    w = half_width
+    h = half_height
     vertices = []
 
     if zigzag_axis == "horizontal":
-        # 水平セグメント（東西方向）+ 垂直進行（南北方向）
-        step = 2.0 * half_height / (num_zigs - 1)
-        # 北側スタートか？
+        # x座標が±half_widthで交互に振れる
+        # y座標が start_corner から対角方向に等間隔で進行
+        step_y = 2.0 * h / num_zigs
         north_start = (start_corner in ("NE", "NW"))
-
-        for i in range(num_zigs):
-            # i番目のセグメントのY座標
-            if north_start:
-                y = half_height - i * step
-            else:
-                y = -half_height + i * step
-
-            # 進行方向の決定
-            # 東側コーナー(NE/SE)からは最初西へ、西側コーナー(NW/SW)からは最初東へ
-            if start_corner in ("NE", "SE"):
-                # 東側: 偶数セグメントは西へ、奇数セグメントは東へ
-                if i % 2 == 0:
-                    start_x, end_x = half_width, -half_width
-                else:
-                    start_x, end_x = -half_width, half_width
-            else:
-                # 西側: 偶数セグメントは東へ、奇数セグメントは西へ
-                if i % 2 == 0:
-                    start_x, end_x = -half_width, half_width
-                else:
-                    start_x, end_x = half_width, -half_width
-
-            vertices.append((start_x, y))  # セグメント始点
-            vertices.append((end_x, y))    # セグメント終点
-
-    else:  # zigzag_axis == "vertical"
-        # 垂直セグメント（南北方向）+ 水平進行（東西方向）
-        step = 2.0 * half_width / (num_zigs - 1)
-        # 東側スタートか？
         east_start = (start_corner in ("NE", "SE"))
 
-        for i in range(num_zigs):
-            # i番目のセグメントのX座標
+        for i in range(num_zigs + 1):
+            # y座標: start側のyから対角方向に進行
+            if north_start:
+                y = h - i * step_y
+            else:
+                y = -h + i * step_y
+
+            # x座標: スタート側のxから始め、セグメント毎に対辺のxと交互
             if east_start:
-                x = half_width - i * step
+                # 東側スタート: 偶数iは東(+w), 奇数iは西(-w)
+                x = w if i % 2 == 0 else -w
             else:
-                x = -half_width + i * step
+                # 西側スタート: 偶数iは西(-w), 奇数iは東(+w)
+                x = -w if i % 2 == 0 else w
 
-            # 進行方向の決定
-            # 北側コーナー(NE/NW)からは最初南へ、南側コーナー(SE/SW)からは最初北へ
-            if start_corner in ("NE", "NW"):
-                # 北側: 偶数セグメントは南へ、奇数セグメントは北へ
-                if i % 2 == 0:
-                    start_y, end_y = half_height, -half_height
-                else:
-                    start_y, end_y = -half_height, half_height
+            vertices.append((x, y))
+
+    else:  # zigzag_axis == "vertical"
+        # y座標が±half_heightで交互に振れる
+        # x座標が start_corner から対角方向に等間隔で進行
+        step_x = 2.0 * w / num_zigs
+        north_start = (start_corner in ("NE", "NW"))
+        east_start = (start_corner in ("NE", "SE"))
+
+        for i in range(num_zigs + 1):
+            # x座標: start側のxから対角方向に進行
+            if east_start:
+                x = w - i * step_x
             else:
-                # 南側: 偶数セグメントは北へ、奇数セグメントは南へ
-                if i % 2 == 0:
-                    start_y, end_y = -half_height, half_height
-                else:
-                    start_y, end_y = half_height, -half_height
+                x = -w + i * step_x
 
-            vertices.append((x, start_y))  # セグメント始点
-            vertices.append((x, end_y))    # セグメント終点
+            # y座標: スタート側のyから始め、セグメント毎に対辺のyと交互
+            if north_start:
+                # 北側スタート: 偶数iは北(+h), 奇数iは南(-h)
+                y = h if i % 2 == 0 else -h
+            else:
+                # 南側スタート: 偶数iは南(-h), 奇数iは北(+h)
+                y = -h if i % 2 == 0 else h
+
+            vertices.append((x, y))
 
     return vertices
 
@@ -393,10 +385,9 @@ class ZigzagFlightController:
         print(f"✓ ジグザグ頂点生成完了: {len(self.vertices)}点"
               f"（{self.params['num_zigs']}セグメント）")
         for i, (x, y) in enumerate(self.vertices):
-            seg_id = i // 2 + 1
-            pt_type = "始点" if i % 2 == 0 else "終点"
+            label = "開始" if i == 0 else ("終了" if i == len(self.vertices) - 1 else "折返し")
             print(f"    V{i}: ({x:+.3f}, {y:+.3f})m"
-                  f"  [セグメント{seg_id} {pt_type}]")
+                  f"  [{label}]")
 
         # ── MAVLink接続オブジェクト ──
         self.master = None
@@ -1133,7 +1124,7 @@ class ZigzagFlightController:
 
     def stop_at_turn(self, vertex, duration):
         """
-        折返し点（セグメント終点またはコネクタ終点）で指定時間停止する。
+        折返し点で指定時間停止する。
 
         頂点の座標を send_rate_hz で繰り返し送信し、
         ArduPilot の位置ホバリング制御に任せる。
@@ -1176,9 +1167,10 @@ class ZigzagFlightController:
         ジグザグ飛行のメインループを実行する。
 
         全頂点を順に訪問するエッジ飛行を実行する。
-        頂点数 = 2 * num_zigs、エッジ数 = 2 * num_zigs - 1
+        頂点数 = num_zigs + 1、エッジ数 = num_zigs
+        （各エッジは矩形の対角線セグメント）
 
-        各セグメントエッジの終点で折返し停止（stop_at_turn_sec）、
+        最終エッジ以外では折返し停止（stop_at_turn_sec）、
         最終頂点では停止しない。
 
         Returns:
@@ -1195,7 +1187,7 @@ class ZigzagFlightController:
 
         # 総移動距離と推定時間の計算
         total_edge_length = 0.0
-        num_edges = len(self.vertices) - 1
+        num_edges = len(self.vertices) - 1  # = num_zigs
         for i in range(num_edges):
             v_start = self.vertices[i]
             v_end = self.vertices[i + 1]
@@ -1204,7 +1196,7 @@ class ZigzagFlightController:
             total_edge_length += math.sqrt(dx**2 + dy**2)
 
         # 停止回数: 最終頂点を除く全中間頂点
-        num_stops = num_edges - 1
+        num_stops = num_edges - 1  # = num_zigs - 1
         estimated_total_time = (
             total_edge_length / self.params["speed_m_s"]
             + stop_time * num_stops
@@ -1229,14 +1221,9 @@ class ZigzagFlightController:
             v_start = self.vertices[i]
             v_end = self.vertices[i + 1]
 
-            # セグメント番号とエッジ種別の判定
-            seg_id = i // 2 + 1
-            if i % 2 == 0:
-                # セグメントエッジ（水平または垂直の主セグメント）
-                edge_type = f"セグメント{seg_id}"
-            else:
-                # コネクタエッジ（セグメント間の移動）
-                edge_type = f"コネクタ{seg_id}"
+            # 各エッジは対角線セグメント（全エッジ統一）
+            seg_id = i + 1
+            edge_type = f"セグメント{seg_id}"
 
             print(f"\n  エッジ {i}: {edge_type}"
                   f" V{i} → V{i + 1}")
