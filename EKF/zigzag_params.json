@@ -3,7 +3,7 @@
   "half_width_m": 0.4,
   "half_height_m": 0.4,
   "speed_m_s": 1.0,
-  "altitude_m": 0.6,
+  "altitude_m": 1.0,
   "stop_at_turn_sec": 3.0,
   "num_zigs": 3,
   "zigzag_axis": "horizontal",
