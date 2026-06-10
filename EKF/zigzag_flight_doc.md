@@ -61,6 +61,7 @@ python zigzag_flight.py /path/to/custom_params.json
 | `land_after` | bool | true | 飛行完了後に着陸するか |
 | `loiter_after_takeoff_sec` | float | 3.0 | 離陸後の安定待機時間 [秒] |
 | `loiter_before_land_sec` | float | 3.0 | 着陸前の安定待機時間 [秒] |
+| `loiter_at_start_sec` | float | 3.0 | ジグザグ開始位置到着後のホバリング待機時間 [秒]（>= 0） |
 | `mask` | string | "0x09F8" | セットポイントの制御マスク（16進数文字列） |
 
 ### パラメータのバリデーション

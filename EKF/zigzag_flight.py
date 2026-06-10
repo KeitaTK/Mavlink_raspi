@@ -235,6 +235,12 @@ def _validate_params(params):
         raise ValueError(
             f"stop_at_turn_sec が負の値です: {stop_sec}（>= 0）")
 
+    # loiter_at_start_sec のバリデーション
+    loiter_start = params.get("loiter_at_start_sec", 3.0)
+    if loiter_start < 0.0:
+        raise ValueError(
+            f"loiter_at_start_sec が負の値です: {loiter_start}（>= 0）")
+
     # num_zigs のバリデーション
     num_zigs = params.get("num_zigs", 3)
     if num_zigs < 2:
@@ -311,6 +317,7 @@ def load_params(path):
     params.setdefault("land_after", True)
     params.setdefault("loiter_after_takeoff_sec", 3.0)
     params.setdefault("loiter_before_land_sec", 3.0)
+    params.setdefault("loiter_at_start_sec", 3.0)
 
     return params
 
@@ -445,6 +452,7 @@ class ZigzagFlightController:
         print(f"  ジグザグ数: {p['num_zigs']} | 軸: {p['zigzag_axis']}"
               f" | 開始コーナー: {p['start_corner']}")
         print(f"  折返し停止: {p['stop_at_turn_sec']}秒 | 送信レート: {p['send_rate_hz']}Hz")
+        print(f"  開始位置待機: {p['loiter_at_start_sec']}秒")
         print(f"  ヨーモード: {p['yaw_mode']} | land_after: {p['land_after']}")
 
     # ──────────────────────────────────────────
@@ -953,6 +961,7 @@ class ZigzagFlightController:
         - 目標高度 altitude_m に到達するまで待機
         - 開始頂点から閾値以内に近づくまで待機
         - 到達前に定期的にセットポイントを再送信（3秒間隔）
+        - 到達後、loiter_at_start_sec 秒間ホバリング待機
 
         Returns:
             bool: 到達成功時 True
@@ -1010,6 +1019,25 @@ class ZigzagFlightController:
                         f"✓ 開始位置（V0）到達: 距離={dist:.2f}m"
                         f"（閾値={threshold:.2f}m）"
                     )
+                    # 開始位置到着後のホバリング待機
+                    loiter_sec = self.params.get("loiter_at_start_sec", 3.0)
+                    if loiter_sec > 0.0:
+                        send_hz = self.params["send_rate_hz"]
+                        dt = 1.0 / send_hz
+                        print(
+                            f"  開始位置で {loiter_sec:.1f}秒"
+                            f" ホバリング待機..."
+                        )
+                        loiter_start = time.time()
+                        while time.time() - loiter_start < loiter_sec:
+                            if not self._running:
+                                return False
+                            self._send_setpoint(
+                                lat_v0, lon_v0,
+                                self.params["altitude_m"], yaw
+                            )
+                            time.sleep(dt)
+                        print("  ✓ 開始位置待機完了")
                     return True
 
             # 定期的に目標を再送信（3秒間隔）
