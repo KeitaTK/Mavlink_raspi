@@ -115,10 +115,10 @@ params_to_set = {
     'PILOT_ACCEL_Z': (250, 'AP_Int16', 'パイロット垂直加速度 [cm/s^2]'),
 
     # === 垂直制御PID ===
-    'PSC_POSZ_P': (2.0, 'AP_Float', '高度位置制御P'),
+    'PSC_POSZ_P': (1.0, 'AP_Float', '高度位置制御P'),
     'PSC_VELZ_P': (4.0, 'AP_Float', '垂直速度制御P'),
     'PSC_VELZ_I': (8.0, 'AP_Float', '垂直速度制御I'),
-    'PSC_VELZ_D': (0.02, 'AP_Float', '垂直速度制御D'),
+    'PSC_VELZ_D': (0.01, 'AP_Float', '垂直速度制御D'),
     'PSC_ACCZ_P': (0.3, 'AP_Float', '垂直加速度制御P'),
     'PSC_ACCZ_I': (1.0, 'AP_Float', '垂直加速度制御I'),
 
