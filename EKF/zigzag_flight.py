@@ -398,6 +398,7 @@ class ZigzagFlightController:
         # ── スレッド ──
         self._monitor_thread = None
         self._record_thread = None
+        self._altitude_debug_thread = None
 
         # ── 共有状態（スレッドセーフ、_io_lock で保護）──
         self._io_lock = threading.Lock()
@@ -513,6 +514,14 @@ class ZigzagFlightController:
         self._record_thread.start()
         print("✓ モニター/レコードスレッド起動")
 
+        # 高度デバッグスレッド起動
+        self._altitude_debug_thread = threading.Thread(
+            target=self._altitude_debug_loop, daemon=True,
+            name='alt_debug'
+        )
+        self._altitude_debug_thread.start()
+        print("✓ 高度デバッグスレッド起動")
+
         return True
 
     # ──────────────────────────────────────────
@@ -588,13 +597,6 @@ class ZigzagFlightController:
             lon = msg.lon / 1e7
             alt = msg.relative_alt / 1000.0  # 相対高度 [m]
 
-            # GPS デバッグ: 約1秒毎に受信ログ
-            if self._monitor_pos_count % 5 == 0:
-                print(
-                    f"[GPS] lat={lat:.7f} lon={lon:.7f}"
-                    f" rel_alt={alt:.2f}m raw={msg.relative_alt}"
-                )
-
             # 原点設定（初回のみ）
             if self._origin is None:
                 self._origin = msg
@@ -615,7 +617,6 @@ class ZigzagFlightController:
                     'x': x, 'y': y, 'z': z,
                     'lat': lat, 'lon': lon, 'alt': alt,
                 })
-            print(f"[ALT] z={alt:.2f}m")
 
     def _monitor_loop(self):
         """
@@ -690,6 +691,31 @@ class ZigzagFlightController:
             ])
 
             time.sleep(1.0 / send_hz)
+
+    # ──────────────────────────────────────────
+    #  高度デバッグスレッド
+    # ──────────────────────────────────────────
+
+    def _altitude_debug_loop(self):
+        """
+        高度デバッグループ（2Hz）。
+
+        _gps_now['z'] と _target['z'] を _io_lock 下で読み取り、
+        0.5秒間隔で差分を表示する。
+        _running == False で停止。
+        """
+        while self._running:
+            with self._io_lock:
+                actual_z = self._gps_now['z']
+                target_z = self._target['z']
+            diff = actual_z - target_z
+            sign = '+' if diff >= 0 else ''
+            print(
+                f"[ALT_DEBUG] actual={actual_z:.2f}m"
+                f" target={target_z:.2f}m"
+                f" diff={sign}{diff:.2f}m"
+            )
+            time.sleep(0.5)
 
     # ──────────────────────────────────────────
     #  セットポイント送信（square_flight.py のパターンを踏襲）
@@ -999,7 +1025,7 @@ class ZigzagFlightController:
                 z = self._gps_now['z']
 
             # 高度チェック
-            if not alt_reached and z >= target_alt * 0.9:
+            if not alt_reached and z >= target_alt * 0.95:
                 alt_reached = True
                 print(f"✓ 目標高度到達: {z:.2f}m")
 
@@ -1020,19 +1046,10 @@ class ZigzagFlightController:
                             f"  開始位置で {loiter_sec:.1f}秒"
                             f" ホバリング待機..."
                         )
-                        # GUID_TIMEOUT警告: loiter時間が長い場合に警告
-                        if loiter_sec >= 2.5:
-                            print("  ⚠ [WARNING] loiter_at_start_sec >= 2.5s: GUID_TIMEOUT(3s)に注意")
                         loiter_start = time.time()
-                        last_guid_reset = loiter_start
                         while time.time() - loiter_start < loiter_sec:
                             if not self._running:
                                 return False
-                            # GUID_TIMEOUT対策: 2秒間隔でGuidedモードを再設定
-                            now = time.time()
-                            if now - last_guid_reset >= 2.0:
-                                self.master.set_mode(4)
-                                last_guid_reset = now
                             self._send_setpoint(
                                 lat_v0, lon_v0,
                                 self.params["altitude_m"], yaw
@@ -1565,6 +1582,7 @@ class ZigzagFlightController:
         for thread, name in [
             (self._monitor_thread, "monitor"),
             (self._record_thread, "record"),
+            (self._altitude_debug_thread, "altitude_debug"),
         ]:
             if thread and thread.is_alive():
                 thread.join(timeout=3.0)
