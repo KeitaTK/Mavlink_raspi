@@ -615,6 +615,7 @@ class ZigzagFlightController:
                     'x': x, 'y': y, 'z': z,
                     'lat': lat, 'lon': lon, 'alt': alt,
                 })
+            print(f"[ALT] z={alt:.2f}m")
 
     def _monitor_loop(self):
         """
@@ -1019,10 +1020,19 @@ class ZigzagFlightController:
                             f"  開始位置で {loiter_sec:.1f}秒"
                             f" ホバリング待機..."
                         )
+                        # GUID_TIMEOUT警告: loiter時間が長い場合に警告
+                        if loiter_sec >= 2.5:
+                            print("  ⚠ [WARNING] loiter_at_start_sec >= 2.5s: GUID_TIMEOUT(3s)に注意")
                         loiter_start = time.time()
+                        last_guid_reset = loiter_start
                         while time.time() - loiter_start < loiter_sec:
                             if not self._running:
                                 return False
+                            # GUID_TIMEOUT対策: 2秒間隔でGuidedモードを再設定
+                            now = time.time()
+                            if now - last_guid_reset >= 2.0:
+                                self.master.set_mode(4)
+                                last_guid_reset = now
                             self._send_setpoint(
                                 lat_v0, lon_v0,
                                 self.params["altitude_m"], yaw
@@ -1111,6 +1121,12 @@ class ZigzagFlightController:
             # セットポイント送信
             self._send_setpoint(lat, lon, altitude, yaw)
             wp_send_count += 1
+
+            # 5回に1回、現在高度と目標高度を表示
+            if wp_send_count % 5 == 0:
+                with self._io_lock:
+                    cz = self._gps_now['z']
+                print(f"      [ALT] z={cz:.2f}m target={altitude:.2f}m")
 
             # 次の送信タイミングまで待機
             next_time = edge_start + (i + 1) * dt
