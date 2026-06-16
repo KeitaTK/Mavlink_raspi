@@ -2,7 +2,7 @@
   "start_position": { "latitude": 36.0757832, "longitude": 136.2132921 },
   "altitude_m": 1.0,
   "speed_m_s": 0.5,
-  "target_offset_north_m": -0.6,
+  "target_offset_north_m": -1.0,
   "target_offset_east_m": 0.0,
   "loiter_at_start_sec": 4.0,
   "loiter_at_target_sec": 5.0,
