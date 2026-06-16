@@ -123,7 +123,7 @@ params_to_set = {
     'PSC_ACCZ_I': (1.0, 'AP_Float', '垂直加速度制御I'),
 
     # === 水平制御PID ===
-    'PSC_POSXY_P': (4.0, 'AP_Float', '水平位置制御P'),  # （旧値: 1.0）→ Futaba5に合わせて変更
+    'PSC_POSXY_P': (5.0, 'AP_Float', '水平位置制御P'),  # （旧値: 1.0）→ Futaba5に合わせて変更
     'PSC_VELXY_P': (6.0, 'AP_Float', '水平速度制御P'),  # （旧値: 2.0）→ Futaba5に合わせて変更
     'PSC_VELXY_I': (2.5, 'AP_Float', '水平速度制御I'),  # （旧値: 1.0）→ Futaba5に合わせて変更
     'PSC_VELXY_D': (1.0, 'AP_Float', '水平速度制御D'),  # （旧値: 0.5）→ Futaba5に合わせて変更
