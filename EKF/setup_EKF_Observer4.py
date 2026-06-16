@@ -144,7 +144,7 @@ params_to_set = {
 
 
     # === AP_Observer コア制御パラメータ ===
-    'OBS_CORR_GAIN':    (0.3, 'AP_Float', '外力推定に基づく姿勢補正ゲイン'),  # （旧値: 0.1）→ Futaba5に合わせて変更（補正強すぎによる振動対策）
+    'OBS_CORR_GAIN':    (0.0, 'AP_Float', '外力推定に基づく姿勢補正ゲイン'),  # （旧値: 0.1）→ Futaba5に合わせて変更（補正強すぎによる振動対策）
     'OBS_MAX_CORR_ANG': (0.5, 'AP_Float', 'ロールおよびピッチの最大姿勢補正角 [rad]'),
     'OBS_PRED_TIME':    (0.00, 'AP_Float', '力の予測先行時間 [秒]'),
 
