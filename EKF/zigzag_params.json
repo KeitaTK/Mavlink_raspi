@@ -1,10 +1,10 @@
 {
   "center": { "latitude": 36.0757754, "longitude": 136.2132908 },
   "half_width_m": 0.3,
-  "half_height_m": 0.3,
+  "half_height_m": 0.4,
   "speed_m_s": 20.0,
   "altitude_m": 1.0,
-  "stop_at_turn_sec": 1.0,
+  "stop_at_turn_sec": 2.0,
   "num_zigs": 6,
   "zigzag_axis": "vertical",
   "start_corner": "NE",
