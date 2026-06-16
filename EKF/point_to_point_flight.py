@@ -98,11 +98,6 @@ def _validate_params(params):
         raise ValueError(
             f"altitude_m が小さすぎます: {altitude}（>= 0.5）")
 
-    # speed_m_s のバリデーション
-    speed = params.get("speed_m_s", 0.5)
-    if speed <= 0.0:
-        raise ValueError(
-            f"speed_m_s は正の値である必要があります: {speed}")
 
     # loiter_at_start_sec のバリデーション
     loiter_start = params.get("loiter_at_start_sec", 4.0)
@@ -150,7 +145,6 @@ def load_params(path):
     # デフォルト値の補完
     params.setdefault("start_position", {"latitude": 0.0, "longitude": 0.0})
     params.setdefault("altitude_m", 1.0)
-    params.setdefault("speed_m_s", 0.5)
     params.setdefault("target_offset_north_m", -0.6)
     params.setdefault("target_offset_east_m", 0.0)
     params.setdefault("loiter_at_start_sec", 4.0)
@@ -293,7 +287,7 @@ class PointToPointFlightController:
         p = self.params
         c = p["start_position"]
         print(f"  スタート地点: ({c['latitude']:.7f}, {c['longitude']:.7f})")
-        print(f"  高度: {p['altitude_m']}m | 速度: {p['speed_m_s']}m/s")
+        print(f"  高度: {p['altitude_m']}m")
         print(f"  目標オフセット: 北={p['target_offset_north_m']}m,"
               f" 東={p['target_offset_east_m']}m")
         print(f"  スタート待機: {p['loiter_at_start_sec']}秒"
