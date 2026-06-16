@@ -4,7 +4,7 @@
   "half_height_m": 0.4,
   "speed_m_s": 20.0,
   "altitude_m": 1.0,
-  "stop_at_turn_sec": 1.5,
+  "stop_at_turn_sec": 1.0,
   "num_zigs": 6,
   "zigzag_axis": "vertical",
   "start_corner": "NE",
