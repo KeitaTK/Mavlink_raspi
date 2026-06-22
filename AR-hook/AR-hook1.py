@@ -274,7 +274,7 @@ def camera_tracker_loop(m, show_window=False):
         print("Raspberry Pi Camera (Picamera2) を使用します。")
         try:
             picam2 = Picamera2()
-            config = picam2.create_preview_configuration(main={"format": 'BGR888', "size": (640, 480)})
+            config = picam2.create_preview_configuration(main={"format": 'BGR888', "size": (640, 360)})
             picam2.configure(config)
             picam2.start()
             print("✓ Picamera2 起動完了 (720p)")
@@ -288,7 +288,7 @@ def camera_tracker_loop(m, show_window=False):
             print("❌ エラー: カメラを開けませんでした。追跡スレッドを停止します。")
             return
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
         print("✓ USBカメラ 起動完了 (640x480)")
     # カメラキャリブレーションパラメータの読み込み
     params_file = "camera_params.npz"
@@ -427,8 +427,18 @@ def camera_tracker_loop(m, show_window=False):
                         dist_id1_to_cargo_x = dist_x
                         dist_id1_to_cargo_y = dist_y
                         dist_id1_to_cargo_z = dist_z
-                        cargo_center_cam_x = center_cam[0]
-                        cargo_center_cam_y = center_cam[1]
+                        # 荷物中心(center_cam)の画像上のピクセル座標(u, v)を計算し、画面中心からのずれ(px)を求める
+                        proj_pts, _ = cv2.projectPoints(
+                            np.array([[0.0, 0.0, 0.0]], dtype=np.float32), 
+                            np.zeros(3, dtype=np.float32), 
+                            center_cam.reshape(3), 
+                            camera_matrix, 
+                            distortion_coeff
+                        )
+                        u, v = proj_pts[0][0]
+                        H, W = img.shape[:2]
+                        cargo_center_cam_x = u - W / 2.0
+                        cargo_center_cam_y = v - H / 2.0
 
                     # 自動で誘導目標コマンドを送信
                     if guided_mode_active and initial_target_set:
