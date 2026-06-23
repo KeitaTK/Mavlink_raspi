@@ -20,6 +20,8 @@ STEP = 0.10
 TAKEOFF_ALT = 0.50
 SEND_HZ = 10
 MASK = 0x09F8
+CAMERA_WIDTH = 1640
+CAMERA_HEIGHT = 1232
 # ───── ArUco・カメラ追跡設定 ─────
 MARKER_SIZE = 0.04  # マーカーの一辺の長さ（メートル、4cm）
 ID_CENTER_MARKER = 1  # 正方形の中心に配置されるマーカーID（ID 1）
@@ -266,7 +268,7 @@ def camera_tracker_loop(m, show_window=False):
     global cargo_center_world, cargo_detected, id1_detected, dist_id1_to_cargo_x, dist_id1_to_cargo_y, dist_id1_to_cargo_z
     global cargo_center_cam_x, cargo_center_cam_y
     
-    print("カメラ初期化中（解像度: 720p, 画面表示: なし）...")
+    print(f"カメラ初期化中（解像度: {CAMERA_WIDTH}x{CAMERA_HEIGHT}）...")
     picam2 = None
     cap = None
     video_writer = None
@@ -274,10 +276,10 @@ def camera_tracker_loop(m, show_window=False):
         print("Raspberry Pi Camera (Picamera2) を使用します。")
         try:
             picam2 = Picamera2()
-            config = picam2.create_preview_configuration(main={"format": 'BGR888', "size": (640, 360)})
+            config = picam2.create_preview_configuration(main={"format": 'BGR888', "size": (CAMERA_WIDTH, CAMERA_HEIGHT)})
             picam2.configure(config)
             picam2.start()
-            print("✓ Picamera2 起動完了 (720p)")
+            print(f"✓ Picamera2 起動完了 ({CAMERA_WIDTH}x{CAMERA_HEIGHT})")
         except Exception as e:
             print(f"⚠ Picamera2 の起動に失敗しました: {e}。USBカメラへの切り替えを試みます。")
             picam2 = None
@@ -287,15 +289,16 @@ def camera_tracker_loop(m, show_window=False):
         if not cap.isOpened():
             print("❌ エラー: カメラを開けませんでした。追跡スレッドを停止します。")
             return
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
-        print("✓ USBカメラ 起動完了 (640x480)")
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
+        print(f"✓ USBカメラ 起動完了 ({CAMERA_WIDTH}x{CAMERA_HEIGHT})")
     # カメラキャリブレーションパラメータの読み込み
     params_file = "camera_params.npz"
+    # デフォルト値（640x360用）を新解像度に合わせてスケール調整
     camera_matrix = np.array([
-        [786.38858756,   0.,         351.02240753],
-        [0.,            788.85699087,260.48178893],
-        [0.,              0.,          1.]
+        [786.38858756 * (CAMERA_WIDTH / 640.0),   0.,                                     351.02240753 * (CAMERA_WIDTH / 640.0)],
+        [0.,                                    788.85699087 * (CAMERA_HEIGHT / 360.0),  260.48178893 * (CAMERA_HEIGHT / 360.0)],
+        [0.,                                    0.,                                     1.]
     ])
     distortion_coeff = np.array([-0.03169828, -0.16365523, 0.0051104, -0.00278013, 0.50978427])
     if os.path.exists(params_file):
@@ -451,10 +454,9 @@ def camera_tracker_loop(m, show_window=False):
                         id1_text = "(ID1 vis)" if has_id1 else "(ID1 NOT vis)"
                         last_text = "(using last center)" if used_last_center else ""
                         
-                        dist_drone_to_cargo = np.linalg.norm(center_cam)
                         dist_id1_text = f"X:{dist_x:.3f}, Y:{dist_y:.3f}, Z:{dist_z:.3f}" if has_id1 else "N/A"
                         print(f"[Tracker] 検出IDs: {ids_text} {id1_text} {last_text} | "
-                               f"推定中心距離: {dist_drone_to_cargo:.2f}m | "
+                               f"推定中心(px): [X:{cargo_center_cam_x:.1f}, Y:{cargo_center_cam_y:.1f}] | "
                                f"ID1-中心目標距離(xyz): [{dist_id1_text}] | "
                                f"目標座標 [X:{target_x:.2f}, Y:{target_y:.2f}]")
                         last_print_time = time.time()
@@ -494,7 +496,8 @@ def camera_tracker_loop(m, show_window=False):
                         center_pixel = tuple(center_img_pts[0][0].astype(int))
                         cv2.circle(display, center_pixel, 8, (0, 255, 0), 2, lineType=cv2.LINE_AA)
                         cv2.circle(display, center_pixel, 2, (0, 255, 0), -1, lineType=cv2.LINE_AA)
-                        cv2.putText(display, "Cargo Center", (center_pixel[0] + 10, center_pixel[1] - 10),
+                        cv2.putText(display, f"Cargo Center (px): ({cargo_center_cam_x:.1f}, {cargo_center_cam_y:.1f})", 
+                                    (center_pixel[0] + 10, center_pixel[1] - 10),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
 
                         # 2. 座標系の描画 (X:赤, Y:緑, Z:青)
@@ -530,6 +533,10 @@ def camera_tracker_loop(m, show_window=False):
                             cv2.putText(display, "ID1 Rel to Center: N/A (ID1 invisible)", (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2, cv2.LINE_AA)
 
                 if video_writer is None:
+                    # ディスプレイ用にウィンドウの設定を行う (1640x1232は大きいため縮小表示)
+                    cv2.namedWindow("AR Camera", cv2.WINDOW_NORMAL)
+                    cv2.resizeWindow("AR Camera", 820, 616)
+                    
                     height, width = display.shape[:2]
                     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
                     now_str = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y%m%d_%H%M%S")

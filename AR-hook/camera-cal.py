@@ -19,7 +19,7 @@ def main():
     SQUARE_SIZE = 0.02        # チェスボードの1マスのサイズ [m]
     REQUIRED_IMAGES = 20      # キャリブレーションに必要な画像枚数
     
-    width, height = 640, 360
+    width, height = 1640, 1232
     
     # 3D座標の準備 (0,0,0), (1,0,0), (2,0,0) ...
     objp = np.zeros((CHESSBOARD_SIZE[0] * CHESSBOARD_SIZE[1], 3), np.float32)
@@ -62,6 +62,8 @@ def main():
     print("----------------\n")
 
     try:
+        cv2.namedWindow("Camera Calibration - Capture", cv2.WINDOW_NORMAL)
+        cv2.resizeWindow("Camera Calibration - Capture", 820, 616)
         while True:
             if picam2:
                 frame = picam2.capture_array()
