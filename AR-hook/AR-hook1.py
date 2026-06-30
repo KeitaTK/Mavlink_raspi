@@ -44,6 +44,9 @@ running = True
 recording = True  # ← 常に記録
 target = {'x':0.0, 'y':0.0, 'z':0.0}
 gps_now = {'x':0.0, 'y':0.0, 'z':0.0}
+current_roll_rad = 0.0   # MAVLinkから取得する実時間ロール角（ラジアン）
+current_pitch_rad = 0.0  # MAVLinkから取得する実時間ピッチ角（ラジアン）
+current_yaw_rad = 0.0    # MAVLinkから取得する実時間ヨー角（ラジアン）
 current_yaw_deg = 180.0  # MAVLinkから取得する実時間ヨー角（度）
 data_records = []
 origin = None
@@ -153,29 +156,38 @@ def local_xyz_to_gps(x, y, z):
     alt = REF_ALT + z
     return lat, lon, alt
 # ───── カメラ座標系から世界絶対座標系（東・北・上）への座標変換 ─────
-def camera_to_world_xyz(tvec, yaw_deg, gps_drone):
+def camera_to_world_xyz(tvec, roll_rad, pitch_rad, yaw_rad, gps_drone):
     """
     下向きカメラ座標系の相対ベクトル [x_cam, y_cam, z_cam] を、
-    機体ヨー角（yaw_deg）を用いて世界絶対座標系（East-North-Up）の目標値に変換します。
+    機体姿勢（Roll, Pitch, Yaw）の3D回転行列を用いて世界絶対座標系（East-North-Up）の目標値に変換します。
     """
-    # 下向きカメラ座標系の機体ボディ座標系へのマッピング：
-    # 画像の右方向（Camera +X） -> 機体の右方向（Body +Y）
-    # 画像の下方向（Camera +Y） -> 機体の後方向（Body -X） => 前方向（Body +X） = -Camera Y
-    x_body = -tvec[1]
-    y_body = tvec[0]
+    # 1. カメラ座標系 -> 機体ボディ座標系（FRD: Front-Right-Down）
+    # x_body = -y_cam, y_body = x_cam, z_body = z_cam
+    p_body = np.array([-tvec[1], tvec[0], tvec[2]], dtype=np.float32)
     
-    # ヨー角（ラジアン）
-    yaw_rad = math.radians(yaw_deg)
+    # 2. ロール、ピッチ、ヨーの回転行列を計算
+    cr, sr = math.cos(roll_rad), math.sin(roll_rad)
+    cp, sp = math.cos(pitch_rad), math.sin(pitch_rad)
+    cy, sy = math.cos(yaw_rad), math.sin(yaw_rad)
     
-    # ボディ座標系（前・右）から世界絶対座標系（東・北）への回転変換
-    # 東（x） = gps_now['x'] + x_body * sin(yaw) + y_body * cos(yaw)
-    # 北（y） = gps_now['y'] + x_body * cos(yaw) - y_body * sin(yaw)
-    dx = x_body * math.sin(yaw_rad) + y_body * math.cos(yaw_rad)
-    dy = x_body * math.cos(yaw_rad) - y_body * math.sin(yaw_rad)
+    # R = Rz(yaw) * Ry(pitch) * Rx(roll)
+    R_body_to_ned = np.array([
+        [cp*cy,  sr*sp*cy - cr*sy,  cr*sp*cy + sr*sy],
+        [cp*sy,  sr*sp*sy + cr*cy,  cr*sp*sy - sr*cy],
+        [-sp,    sr*cp,            cr*cp]
+    ], dtype=np.float32)
     
-    target_x = gps_drone['x'] + dx
-    target_y = gps_drone['y'] + dy
-    target_z = gps_drone['z'] - tvec[2]  # カメラZ軸は下向きなので、z方向のオフセットを計算
+    # 機体ボディ座標から地球座標（NED）に変換
+    p_ned = R_body_to_ned.dot(p_body)
+    
+    # 3. NED（北・東・下）から ENU（東・北・上）へ変換
+    dx_enu = p_ned[1]  # East = Y_NED
+    dy_enu = p_ned[0]  # North = X_NED
+    dz_enu = -p_ned[2] # Up = -Z_NED
+    
+    target_x = gps_drone['x'] + dx_enu
+    target_y = gps_drone['y'] + dy_enu
+    target_z = gps_drone['z'] + dz_enu
     
     return target_x, target_y, target_z
 # ───── ポーズ推定関数 ─────
@@ -241,10 +253,13 @@ def monitor_vehicle(m):
                 print("\n✓ ディスアーム検出")
                 running = False  # プログラム停止（記録は最後に保存）
             armed = new_armed  # アーム状態を更新
-        # 実時間の機体姿勢(ヨー角)情報の取得
+        # 実時間の機体姿勢(ロール、ピッチ、ヨー角)情報の取得
         att = m.recv_match(type='ATTITUDE', blocking=False)
         if att:
             with io_lock:
+                current_roll_rad = att.roll
+                current_pitch_rad = att.pitch
+                current_yaw_rad = att.yaw
                 current_yaw_deg = (math.degrees(att.yaw) + 360) % 360
         pos = m.recv_match(type='GLOBAL_POSITION_INT', blocking=False)
         if pos:
@@ -391,13 +406,15 @@ def camera_tracker_loop(m, show_window=False):
                     has_id1 = True
 
                 if has_cargo:
-                    # テレメトリおよび姿勢（Yaw角）データの取得
+                    # テレメトリおよび姿勢（Roll, Pitch, Yaw）データの取得
                     with io_lock:
                         drone_gps = gps_now.copy()
-                        drone_yaw = current_yaw_deg
+                        drone_roll = current_roll_rad
+                        drone_pitch = current_pitch_rad
+                        drone_yaw = current_yaw_rad
 
                     # 荷物中心の世界座標を算出
-                    cargo_x, cargo_y, cargo_z = camera_to_world_xyz(center_cam, drone_yaw, drone_gps)
+                    cargo_x, cargo_y, cargo_z = camera_to_world_xyz(center_cam, drone_roll, drone_pitch, drone_yaw, drone_gps)
 
                     # ID1が見えていれば、中心との差分を使ってドローン目標を算出、および相対xyz座標を計算
                     if has_id1:
@@ -414,7 +431,7 @@ def camera_tracker_loop(m, show_window=False):
                         tvec_error = center_cam
 
                     # カメラ座標から世界絶対座標系（東・北）に変換して目標位置を算出
-                    target_x, target_y, target_z = camera_to_world_xyz(tvec_error, drone_yaw, drone_gps)
+                    target_x, target_y, target_z = camera_to_world_xyz(tvec_error, drone_roll, drone_pitch, drone_yaw, drone_gps)
 
                     # グローバル目標値等の更新
                     with io_lock:
