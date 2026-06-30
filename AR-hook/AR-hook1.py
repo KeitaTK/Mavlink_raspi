@@ -65,6 +65,73 @@ dist_id1_to_cargo_y = float('nan')
 dist_id1_to_cargo_z = float('nan')
 cargo_center_cam_x = float('nan')
 cargo_center_cam_y = float('nan')
+
+# ───── 新規追加: Motive UDP受信スレッド ─────
+import socket, struct
+MOTIVE_FORMAT = '<BiiiHffffd'  # 39バイト
+motive_roll_rad = 0.0
+motive_pitch_rad = 0.0
+motive_yaw_rad = 0.0
+motive_attitude_received = False
+
+def quaternion_to_euler_ned(qx, qy, qz, qw):    # Motive(X=北,Z=東,Y=上左手系) -> NED右手系変換済みquat
+    roll  = math.atan2(2*(qw*qx+qy*qz), 1-2*(qx**2+qy**2))
+    pitch = math.asin(max(-1,min(1, 2*(qw*qy-qz*qx))))
+    yaw   = math.atan2(2*(qw*qz+qx*qy), 1-2*(qy**2+qz**2))
+    return roll, pitch, yaw
+
+def motive_udp_listener():
+    global motive_roll_rad, motive_pitch_rad, motive_yaw_rad, motive_attitude_received
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+    except AttributeError:
+        pass
+    
+    try:
+        sock.bind(('0.0.0.0', 15769))
+    except Exception as e:
+        print(f"[Motive UDP] Bind failed: {e}")
+        return
+
+    sock.settimeout(0.5)
+    print("[Motive UDP] Receiver thread started on port 15769")
+
+    while running:
+        try:
+            data, addr = sock.recvfrom(1024)
+            if len(data) >= 39:
+                unpacked = struct.unpack(MOTIVE_FORMAT, data[:39])
+                rigid_body_id = unpacked[0]
+                if rigid_body_id == 1:
+                    motive_qx = unpacked[5]
+                    motive_qy = unpacked[6]
+                    motive_qz = unpacked[7]
+                    motive_qw = unpacked[8]
+                    
+                    # Convert Motive quat (X=North, Y=Up, Z=East, left-handed) to NED quat (X=North, Y=East, Z=Down, right-handed)
+                    ned_qx = motive_qx
+                    ned_qy = motive_qz
+                    ned_qz = -motive_qy
+                    ned_qw = motive_qw
+                    
+                    r, p, y = quaternion_to_euler_ned(ned_qx, ned_qy, ned_qz, ned_qw)
+                    
+                    with io_lock:
+                        motive_roll_rad = r
+                        motive_pitch_rad = p
+                        motive_yaw_rad = y
+                        motive_attitude_received = True
+        except socket.timeout:
+            continue
+        except Exception as e:
+            print(f"[Motive UDP] Error: {e}")
+            time.sleep(0.1)
+            
+    sock.close()
+    print("[Motive UDP] Receiver thread stopped")
+
 # ───── キー入力処理 ─────
 def get_key():
     if select.select([sys.stdin], [], [], 0):
@@ -409,9 +476,14 @@ def camera_tracker_loop(m, show_window=False):
                     # テレメトリおよび姿勢（Roll, Pitch, Yaw）データの取得
                     with io_lock:
                         drone_gps = gps_now.copy()
-                        drone_roll = current_roll_rad
-                        drone_pitch = current_pitch_rad
-                        drone_yaw = current_yaw_rad
+                        if motive_attitude_received:
+                            drone_roll = motive_roll_rad
+                            drone_pitch = motive_pitch_rad
+                            drone_yaw = motive_yaw_rad
+                        else:
+                            drone_roll = current_roll_rad
+                            drone_pitch = current_pitch_rad
+                            drone_yaw = current_yaw_rad
 
                     # 荷物中心の世界座標を算出
                     cargo_x, cargo_y, cargo_z = camera_to_world_xyz(center_cam, drone_roll, drone_pitch, drone_yaw, drone_gps)
@@ -674,6 +746,7 @@ def main():
         # スレッド起動
         threading.Thread(target=monitor_vehicle, args=(mav,), daemon=True).start()
         threading.Thread(target=record_data, daemon=True).start()
+        threading.Thread(target=motive_udp_listener, daemon=True).start()
         # 起動時にカメラ映像表示の有無を選択
         choice = input_with_timeout("カメラ映像を表示しますか？ 1:表示 2:非表示 (デフォルト2): ", timeout=15, default='2')
         show_camera_window = (choice.strip() == '1')
