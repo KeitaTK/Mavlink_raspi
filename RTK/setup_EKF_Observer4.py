@@ -52,9 +52,9 @@ params_to_set = {
     # === GPS/センサー融合設定 ===
     'EK3_SRC1_POSXY': (3, 'AP_Int8', 'GPS (水平位置)'),
     'EK3_SRC1_VELXY': (3, 'AP_Int8', 'GPS (水平速度)'),
-    'EK3_SRC1_POSZ': (3, 'AP_Int8', 'GPS (垂直位置)'),
+    'EK3_SRC1_POSZ': (1, 'AP_Int8', '高度ソース: 1=気圧センサー (通常のGPS精度では気圧を使うのが最も高度が安定します)'),
     'EK3_SRC1_VELZ': (3, 'AP_Int8', 'GPS (垂直速度)'),
-    'EK3_SRC1_YAW': (3, 'AP_Int8', 'GPS with compass fallback'),
+    'EK3_SRC1_YAW': (1, 'AP_Int8', 'ヨー角ソース: 1=コンパス (1基構成での必須設定)'),
 
     # === EKF3精度設定 ===
     'EK3_GPS_CHECK': (1, 'AP_Int8', 'GPS健全性チェック'),
@@ -63,20 +63,20 @@ params_to_set = {
     'EK3_HGT_I_GATE': (10, 'AP_Int16', '高度ゲート'),
 
     # === ノイズパラメータ ===
-    'EK3_POSNE_M_NSE': (0.2, 'AP_Float', '水平位置ノイズ [m]'),
+    'EK3_POSNE_M_NSE': (0.5, 'AP_Float', '水平位置ノイズ [m] (単独測位のブレを許容するため0.1→0.5の標準値へ緩和)'),
     'EK3_VELNE_M_NSE': (0.3, 'AP_Float', '水平速度ノイズ [m/s]'),
     'EK3_VELD_M_NSE': (0.5, 'AP_Float', '垂直速度ノイズ [m/s]'),
     'EK3_YAW_M_NSE': (0.2, 'AP_Float', 'ヨー角ノイズ [rad]'),
-    'EK3_ALT_M_NSE': (10.0, 'AP_Float', '気圧センサーノイズ [m]'),
-    'EK3_GYRO_P_NSE': (0.02, 'AP_Float', 'ジャイロプロセスノイズ [rad/s]'),
+    'EK3_ALT_M_NSE': (3.0, 'AP_Float', '気圧センサーノイズ [m]'),
+    'EK3_GYRO_P_NSE': (0.01, 'AP_Float', 'ジャイロプロセスノイズ [rad/s]'),
 
     # === コンパス設定 ===
     'COMPASS_ENABLE': (1, 'AP_Int8', 'コンパス有効化'),
-    'COMPASS_USE': (1, 'AP_Int8', '内蔵コンパス使用'),
-    'COMPASS_USE2': (0, 'AP_Int8', '外付コンパス2無効'),
+    'COMPASS_USE': (0, 'AP_Int8', '内蔵コンパス1無効化 (基板ノイズを回避するため使用しない)'),
+    'COMPASS_USE2': (1, 'AP_Int8', '外付コンパス2有効化 (H-RTKモジュール内のクリーンなコンパスを最優先)'),
     'COMPASS_USE3': (0, 'AP_Int8', '外付コンパス3無効'),
     'COMPASS_AUTODEC': (1, 'AP_Int8', '自動磁気偏角有効'),
-    'COMPASS_LEARN': (1.0, 'AP_Float', 'コンパス学習有効'),
+    'COMPASS_LEARN': (0, 'AP_Int8', 'コンパス自動学習無効化'),
     'EK3_MAG_CAL': (3, 'AP_Int8', '地上でheading fusion、空中で3-axis fusion'),
     'EK3_SRC_OPTIONS': (1, 'AP_Int16', 'Fuse all velocity sources'),
 
@@ -86,14 +86,14 @@ params_to_set = {
     'EK3_PRIMARY': (-1, 'AP_Int8', '自動切り替え無効'),
 
     # === GPS設定 ===
-    'GPS1_TYPE': (9, 'AP_Int8', 'DroneCAN GPS'),
+    'GPS_TYPE': (9, 'AP_Int8', 'DroneCAN GPS'),
     'GPS_AUTO_CONFIG': (2, 'AP_Int8', 'DroneCAN AutoConfig'),
     'GPS_PRIMARY': (0, 'AP_Int8', 'プライマリGPS'),
 
     # === CAN/DroneCAN設定 ===
     'CAN_P1_DRIVER': (1, 'AP_Int8', 'CAN1ポート有効化'),
     'CAN_D1_PROTOCOL': (1, 'AP_Int8', 'DroneCANプロトコル'),
-    'GPS_DRV_OPTIONS': (64, 'AP_Int8', 'RTK診断ログ Bit6'),
+    'GPS_DRV_OPTIONS': (0, 'AP_Int8', 'デフォルト'),
     'GPS_AUTO_SWITCH': (0, 'AP_Int8', 'GPS自動切替無効'),
 
     # === Guidedモード設定 ===
