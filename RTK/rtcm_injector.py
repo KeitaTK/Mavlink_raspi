@@ -68,7 +68,17 @@ class RtcmParser:
             if len(self._buf) < 6:
                 break
 
-            frame_len = ((self._buf[1] & 0x3F) << 8) | self._buf[2]
+            reserved = self._buf[1] >> 2
+            if reserved != 0:
+                # False preamble: reserved bits must be zero
+                self._buf.pop(0)
+                continue
+
+            frame_len = ((self._buf[1] & 0x03) << 8) | self._buf[2]
+            if frame_len > 1023:
+                # Invalid frame length (RTCM v3 max payload is 1023)
+                self._buf.pop(0)
+                continue
             total_len = 6 + frame_len
 
             if len(self._buf) < total_len:
