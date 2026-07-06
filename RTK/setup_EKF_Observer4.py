@@ -95,7 +95,6 @@ params_to_set = {
     'CAN_D1_PROTOCOL': (1, 'AP_Int8', 'DroneCANプロトコル'),
     'GPS_DRV_OPTIONS': (64, 'AP_Int8', 'RTK診断ログ Bit6'),
     'GPS_AUTO_SWITCH': (0, 'AP_Int8', 'GPS自動切替無効'),
-    'GPS_RATE_MS': (100, 'AP_Int16', 'GPS 10Hz出力'),
 
     # === Guidedモード設定 ===
     'WPNAV_SPEED_UP': (40.0, 'AP_Float', '上昇速度 [cm/s]'),  # （旧値: 20.0）→ Futaba5に合わせて変更
