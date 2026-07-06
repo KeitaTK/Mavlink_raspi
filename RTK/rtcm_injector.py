@@ -367,8 +367,9 @@ def main():
     master.mav.autopilot_version_request_send(sysid, compid)
     msg = master.recv_match(type='AUTOPILOT_VERSION', blocking=True, timeout=5)
     if msg:
-        print(f"[{_ts()}] Autopilot: version={msg.flight_sw_version}, "
-              f"uid={msg.uid}")
+        print(f"[{_ts()}] Autopilot: sw={msg.flight_sw_version}, "
+              f"os={msg.os_sw_version}, board={msg.board_version}, "
+              f"vendor={msg.vendor_id}, product={msg.product_id}")
     else:
         print(f"[{_ts()}] WARNING: AUTOPILOT_VERSION not received (continuing)")
 
