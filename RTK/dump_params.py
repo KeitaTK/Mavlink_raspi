@@ -4,8 +4,7 @@
 import time, sys
 from pymavlink import mavutil
 
-PORT = "/dev/ttyAMA0"
-BAUD = 115200
+PORT = "udp:127.0.0.1:14550"
 OUTPUT = "params_dump.txt"
 
 # GPS/RTCM関連の重要パラメータ
@@ -16,13 +15,14 @@ KEYS = [
     "SERIAL2_PROTOCOL", "SERIAL2_BAUD",
     "SERIAL3_PROTOCOL", "SERIAL3_BAUD",
     "SERIAL4_PROTOCOL", "SERIAL4_BAUD",
+    "SERIAL5_PROTOCOL", "SERIAL5_BAUD",
     "CAN_P1_DRIVER", "CAN_P2_DRIVER",
     "EK2_ENABLE", "EK3_ENABLE", "EK3_SRC1_POSXY", "EK3_SRC1_VELXY",
     "AHRS_EKF_TYPE",
 ]
 
-print(f"Connecting to {PORT} @ {BAUD}...")
-mav = mavutil.mavlink_connection(PORT, baud=BAUD)
+print(f"Connecting via {PORT} ...")
+mav = mavutil.mavlink_connection(PORT)
 
 # 接続待ち
 print("Waiting for heartbeat...")
