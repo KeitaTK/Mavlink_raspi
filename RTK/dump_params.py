@@ -4,7 +4,6 @@
 import time, sys
 from pymavlink import mavutil
 
-PORT = "udp:127.0.0.1:14550"
 OUTPUT = "params_dump.txt"
 
 # GPS/RTCM関連の重要パラメータ
@@ -21,8 +20,25 @@ KEYS = [
     "AHRS_EKF_TYPE",
 ]
 
-print(f"Connecting via {PORT} ...")
-mav = mavutil.mavlink_connection(PORT)
+# mavlink-router が 14550 を使用中なので、ランダムポートでバインドして接続
+import socket
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.bind(("127.0.0.1", 0))  # ランダムな空きポート
+sock.settimeout(5)
+local_port = sock.getsockname()[1]
+print(f"Bound to 127.0.0.1:{local_port}, target=127.0.0.1:14550")
+
+# mavutil をこのソケットで作成
+mav = mavutil.mavlink_connection(
+    f"udpin:127.0.0.1:{local_port}", input=True
+)
+# 送信先を mavlink-router に向ける
+mav.port.target_addr = ("127.0.0.1", 14550)
+# sendto で送信するよう上書き
+_orig_write = mav.write
+def _sendto_write(buf):
+    sock.sendto(buf, ("127.0.0.1", 14550))
+mav.write = _sendto_write
 
 # 接続待ち
 print("Waiting for heartbeat...")
