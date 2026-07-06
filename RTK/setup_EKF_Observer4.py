@@ -86,7 +86,7 @@ params_to_set = {
     'EK3_PRIMARY': (-1, 'AP_Int8', '自動切り替え無効'),
 
     # === GPS設定 ===
-    'GPS_TYPE': (9, 'AP_Int8', 'DroneCAN GPS'),
+    # 'GPS_TYPE': (9, 'AP_Int8', 'DroneCAN GPS'),
     'GPS_AUTO_CONFIG': (2, 'AP_Int8', 'DroneCAN AutoConfig'),
     'GPS_PRIMARY': (0, 'AP_Int8', 'プライマリGPS'),
 
