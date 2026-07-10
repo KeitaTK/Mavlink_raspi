@@ -74,6 +74,27 @@ motive_pitch_rad = 0.0
 motive_yaw_rad = 0.0
 motive_attitude_received = False
 
+# Drone Motive Position
+motive_drone_x = 0.0
+motive_drone_y = 0.0
+motive_drone_z = 0.0
+motive_drone_pos_received = False
+
+# Cargo Motive Position & Orientation
+motive_cargo_x = 0.0
+motive_cargo_y = 0.0
+motive_cargo_z = 0.0
+motive_cargo_qx = 0.0
+motive_cargo_qy = 0.0
+motive_cargo_qz = 0.0
+motive_cargo_qw = 1.0
+motive_cargo_received = False
+
+# Ground truth relative distance (Drone relative to cargo center, in cargo local frame)
+motive_rel_x = float('nan')
+motive_rel_y = float('nan')
+motive_rel_z = float('nan')
+
 def quaternion_to_euler_ned(qx, qy, qz, qw):    # Motive(X=北,Z=東,Y=上左手系) -> NED右手系変換済みquat
     roll  = math.atan2(2*(qw*qx+qy*qz), 1-2*(qx**2+qy**2))
     pitch = math.asin(max(-1,min(1, 2*(qw*qy-qz*qx))))
@@ -82,6 +103,11 @@ def quaternion_to_euler_ned(qx, qy, qz, qw):    # Motive(X=北,Z=東,Y=上左手
 
 def motive_udp_listener():
     global motive_roll_rad, motive_pitch_rad, motive_yaw_rad, motive_attitude_received
+    global motive_drone_x, motive_drone_y, motive_drone_z, motive_drone_pos_received
+    global motive_cargo_x, motive_cargo_y, motive_cargo_z, motive_cargo_received
+    global motive_cargo_qx, motive_cargo_qy, motive_cargo_qz, motive_cargo_qw
+    global motive_rel_x, motive_rel_y, motive_rel_z
+    
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
@@ -104,6 +130,13 @@ def motive_udp_listener():
             if len(data) >= 39:
                 unpacked = struct.unpack(MOTIVE_FORMAT, data[:39])
                 rigid_body_id = unpacked[0]
+                
+                # GPSからローカルENU座標に変換
+                lat = unpacked[1] / 1e7
+                lon = unpacked[2] / 1e7
+                alt = unpacked[3] / 1000.0
+                mx, my, mz = gps_to_local_xyz(lat, lon, alt)
+                
                 if rigid_body_id == 1:
                     motive_qx = unpacked[5]
                     motive_qy = unpacked[6]
@@ -122,7 +155,56 @@ def motive_udp_listener():
                         motive_roll_rad = r
                         motive_pitch_rad = p
                         motive_yaw_rad = y
+                        motive_drone_x = mx
+                        motive_drone_y = my
+                        motive_drone_z = mz
                         motive_attitude_received = True
+                        motive_drone_pos_received = True
+                        
+                elif rigid_body_id == 2:
+                    motive_cqx = unpacked[5]
+                    motive_cqy = unpacked[6]
+                    motive_cqz = unpacked[7]
+                    motive_cqw = unpacked[8]
+                    
+                    with io_lock:
+                        motive_cargo_x = mx
+                        motive_cargo_y = my
+                        motive_cargo_z = mz
+                        motive_cargo_qx = motive_cqx
+                        motive_cargo_qy = motive_cqy
+                        motive_cargo_qz = motive_cqz
+                        motive_cargo_qw = motive_cqw
+                        motive_cargo_received = True
+                
+                # ドローンと荷物の両方の座標が揃っていれば、荷物ローカル座標系における相対位置（真値）を計算
+                with io_lock:
+                    if motive_drone_pos_received and motive_cargo_received:
+                        # 荷物から見たドローンへの相対位置（ローカルENU座標系での差分）
+                        dp_world = np.array([motive_drone_x - motive_cargo_x,
+                                             motive_drone_y - motive_cargo_y,
+                                             motive_drone_z - motive_cargo_z])
+                        # ENU (East, North, Up) から NED (North, East, Down) に変換
+                        dp_ned = np.array([dp_world[1], dp_world[0], -dp_world[2]])
+                        
+                        # 荷物の姿勢をNEDクオータニオンに変換
+                        nc_qx = motive_cargo_qx
+                        nc_qy = motive_cargo_qz
+                        nc_qz = -motive_cargo_qy
+                        nc_qw = motive_cargo_qw
+                        
+                        # 回転行列（荷物ボディ座標系 -> NED）
+                        R_c = np.array([
+                            [1 - 2*(nc_qy**2 + nc_qz**2),     2*(nc_qx*nc_qy - nc_qw*nc_qz),   2*(nc_qx*nc_qz + nc_qw*nc_qy)],
+                            [2*(nc_qx*nc_qy + nc_qw*nc_qz),   1 - 2*(nc_qx**2 + nc_qz**2),     2*(nc_qy*nc_qz - nc_qw*nc_qx)],
+                            [2*(nc_qx*nc_qz - nc_qw*nc_qy),   2*(nc_qy*nc_qz + nc_qw*nc_qx),   1 - 2*(nc_qx**2 + nc_qy**2)]
+                        ], dtype=np.float32)
+                        
+                        # 荷物ローカル座標系への逆回転 (R_c^T)
+                        dp_cargo = R_c.T.dot(dp_ned)
+                        motive_rel_x = float(dp_cargo[0])
+                        motive_rel_y = float(dp_cargo[1])
+                        motive_rel_z = float(dp_cargo[2])
         except socket.timeout:
             continue
         except Exception as e:
@@ -710,6 +792,26 @@ def record_data():
             d_i1_c_z = dist_id1_to_cargo_z
             c_cam_x = cargo_center_cam_x
             c_cam_y = cargo_center_cam_y
+            
+            # Motiveデータのログ取得
+            m_drone_x = motive_drone_x
+            m_drone_y = motive_drone_y
+            m_drone_z = motive_drone_z
+            m_cargo_x = motive_cargo_x
+            m_cargo_y = motive_cargo_y
+            m_cargo_z = motive_cargo_z
+            m_rel_x = motive_rel_x
+            m_rel_y = motive_rel_y
+            m_rel_z = motive_rel_z
+            m_roll = motive_roll_rad
+            m_pitch = motive_pitch_rad
+            m_yaw = motive_yaw_rad
+            
+            # Pixhawk姿勢データのログ取得
+            p_roll = current_roll_rad
+            p_pitch = current_pitch_rad
+            p_yaw = current_yaw_rad
+            
         data_records.append([
             time.time(), 
             gps['x'], gps['y'], gps['z'], 
@@ -721,7 +823,14 @@ def record_data():
             d_i1_c_y,
             d_i1_c_z,
             c_cam_x,
-            c_cam_y
+            c_cam_y,
+            # Motive カラム
+            m_drone_x, m_drone_y, m_drone_z,
+            m_cargo_x, m_cargo_y, m_cargo_z,
+            m_rel_x, m_rel_y, m_rel_z,
+            m_roll, m_pitch, m_yaw,
+            # Pixhawk姿勢 カラム
+            p_roll, p_pitch, p_yaw
         ])
         time.sleep(1 / SEND_HZ)
 def save_csv():
@@ -736,7 +845,13 @@ def save_csv():
             'Time', 'GPS_X', 'GPS_Y', 'GPS_Z', 'Target_X', 'Target_Y', 'Target_Z',
             'Cargo_X', 'Cargo_Y', 'Cargo_Z', 'Cargo_Detected', 'ID1_Detected',
             'ID1_to_Cargo_DX', 'ID1_to_Cargo_DY', 'ID1_to_Cargo_DZ',
-            'Est_Center_Cam_X', 'Est_Center_Cam_Y'
+            'Est_Center_Cam_X', 'Est_Center_Cam_Y',
+            # 追加カラム
+            'Motive_Drone_X', 'Motive_Drone_Y', 'Motive_Drone_Z',
+            'Motive_Cargo_X', 'Motive_Cargo_Y', 'Motive_Cargo_Z',
+            'Motive_Rel_X', 'Motive_Rel_Y', 'Motive_Rel_Z',
+            'Motive_Roll', 'Motive_Pitch', 'Motive_Yaw',
+            'Pixhawk_Roll', 'Pixhawk_Pitch', 'Pixhawk_Yaw'
         ])
         writer.writerows(data_records)
     print(f"\n✓ CSV保存完了: {path} ({len(data_records)} 行)")
