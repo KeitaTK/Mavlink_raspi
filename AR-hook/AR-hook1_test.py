@@ -44,6 +44,7 @@ running = True
 recording = True  # ← 常に記録
 target = {'x':0.0, 'y':0.0, 'z':0.0}
 gps_now = {'x':0.0, 'y':0.0, 'z':0.0}
+gps_origin = {'x':0.0, 'y':0.0, 'z':0.0}  # ✅ GPS原点（ローカル座標系の原点）
 current_roll_rad = 0.0   # MAVLinkから取得する実時間ロール角（ラジアン）
 current_pitch_rad = 0.0  # MAVLinkから取得する実時間ピッチ角（ラジアン）
 current_yaw_rad = 0.0    # MAVLinkから取得する実時間ヨー角（ラジアン）
@@ -69,18 +70,17 @@ cargo_center_cam_y = float('nan')
 # ───── 新規追加: Motive UDP受信スレッド ─────
 import socket, struct
 MOTIVE_FORMAT = '<BiiiHffffd'  # 39バイト
+# ✅ Drone Motive Position & Attitude (ID1マーカー + センサ)
+motive_drone_x = 0.0
+motive_drone_y = 0.0
+motive_drone_z = 0.0
 motive_roll_rad = 0.0
 motive_pitch_rad = 0.0
 motive_yaw_rad = 0.0
 motive_attitude_received = False
-
-# Drone Motive Position
-motive_drone_x = 0.0
-motive_drone_y = 0.0
-motive_drone_z = 0.0
 motive_drone_pos_received = False
 
-# Cargo Motive Position & Orientation
+# ✅ Cargo Motive Position & Orientation (ID2-5マーカー)
 motive_cargo_x = 0.0
 motive_cargo_y = 0.0
 motive_cargo_z = 0.0
@@ -102,8 +102,9 @@ def quaternion_to_euler_ned(qx, qy, qz, qw):    # Motive(X=北,Z=東,Y=上左手
     return roll, pitch, yaw
 
 def motive_udp_listener():
-    global motive_roll_rad, motive_pitch_rad, motive_yaw_rad, motive_attitude_received
-    global motive_drone_x, motive_drone_y, motive_drone_z, motive_drone_pos_received
+    global motive_drone_x, motive_drone_y, motive_drone_z
+    global motive_roll_rad, motive_pitch_rad, motive_yaw_rad
+    global motive_attitude_received, motive_drone_pos_received
     global motive_cargo_x, motive_cargo_y, motive_cargo_z, motive_cargo_received
     global motive_cargo_qx, motive_cargo_qy, motive_cargo_qz, motive_cargo_qw
     global motive_rel_x, motive_rel_y, motive_rel_z
@@ -138,6 +139,7 @@ def motive_udp_listener():
                 mx, my, mz = gps_to_local_xyz(lat, lon, alt)
                 
                 if rigid_body_id == 1:
+                    # ✅ ID1 = ドローン側マーカー + センサ（ドローン真値）
                     motive_qx = unpacked[5]
                     motive_qy = unpacked[6]
                     motive_qz = unpacked[7]
@@ -152,16 +154,18 @@ def motive_udp_listener():
                     r, p, y = quaternion_to_euler_ned(ned_qx, ned_qy, ned_qz, ned_qw)
                     
                     with io_lock:
-                        motive_roll_rad = r
-                        motive_pitch_rad = p
-                        motive_yaw_rad = y
+                        # ✅ ID1センサから取得したドローン真値
                         motive_drone_x = mx
                         motive_drone_y = my
                         motive_drone_z = mz
+                        motive_roll_rad = r
+                        motive_pitch_rad = p
+                        motive_yaw_rad = y
                         motive_attitude_received = True
                         motive_drone_pos_received = True
                         
                 elif rigid_body_id == 2:
+                    # ✅ ID2-5 = 荷物マーカー（センサなし）
                     motive_cqx = unpacked[5]
                     motive_cqy = unpacked[6]
                     motive_cqz = unpacked[7]
@@ -381,9 +385,11 @@ def estimate_square_center_from_marker(corner, marker_id, marker_size, camera_ma
 
 # ───── 状態監視スレッド ─────
 def monitor_vehicle(m):
-    global running, gps_now, origin, initial_yaw, yaw_t_deg, yaw_acquired, initial_target_set, guided_mode_active, current_yaw_deg
+    global running, gps_now, gps_origin, origin, initial_yaw, yaw_t_deg, yaw_acquired, initial_target_set, guided_mode_active, current_yaw_deg
+    global current_roll_rad, current_pitch_rad, current_yaw_rad
     guided, armed, takeoff_sent, takeoff_reached = False, False, False, False
     start_time = 0
+    gps_origin_set = False
     while running:
         hb = m.recv_match(type='HEARTBEAT', blocking=False, timeout=0.05)
         if hb:
@@ -419,8 +425,24 @@ def monitor_vehicle(m):
             lat, lon, alt = pos.lat / 1e7, pos.lon / 1e7, pos.relative_alt / 1000
             if origin is None:
                 origin = pos
-                print(f"✓ 原点設定 lat={lat}, lon={lon}")
+                print(f"✓ GPS原点設定 lat={lat}, lon={lon}")
+            
+            # ✅ GPS原点の設定（初回のみ）
+            if not gps_origin_set:
+                x, y, z = gps_to_local_xyz(lat, lon, alt)
+                with io_lock:
+                    gps_origin['x'] = x
+                    gps_origin['y'] = y
+                    gps_origin['z'] = z
+                print(f"✓ GPS原点（ローカル座標系）: X={x:.3f}, Y={y:.3f}, Z={z:.3f}")
+                gps_origin_set = True
+            
             x, y, z = gps_to_local_xyz(lat, lon, alt)
+            # ✅ GPS原点からの相対座標に正規化
+            x -= gps_origin['x']
+            y -= gps_origin['y']
+            z -= gps_origin['z']
+            
             with io_lock:
                 gps_now.update({'x': x, 'y': y, 'z': z})
             if takeoff_sent and not takeoff_reached and z >= TAKEOFF_ALT * 0.9:
@@ -559,14 +581,17 @@ def camera_tracker_loop(m, show_window=False):
                     has_id1 = True
 
                 if has_cargo:
-                    # テレメトリおよび姿勢（Roll, Pitch, Yaw）データの取得
+                    # ✅ テレメトリおよび姿勢（Roll, Pitch, Yaw）データの取得
+                    # ID1センサから取得したドローン真値を優先使用
                     with io_lock:
                         drone_gps = gps_now.copy()
                         if motive_attitude_received:
+                            # ✅ ID1センサから取得したドローン真値を使用
                             drone_roll = motive_roll_rad
                             drone_pitch = motive_pitch_rad
                             drone_yaw = motive_yaw_rad
                         else:
+                            # フォールバック: Pixhawk IMU
                             drone_roll = current_roll_rad
                             drone_pitch = current_pitch_rad
                             drone_yaw = current_yaw_rad
@@ -793,7 +818,7 @@ def record_data():
             c_cam_x = cargo_center_cam_x
             c_cam_y = cargo_center_cam_y
             
-            # Motiveデータのログ取得
+            # ✅ Motiveデータのログ取得（ID1センサから）
             m_drone_x = motive_drone_x
             m_drone_y = motive_drone_y
             m_drone_z = motive_drone_z
@@ -824,7 +849,7 @@ def record_data():
             d_i1_c_z,
             c_cam_x,
             c_cam_y,
-            # Motive カラム
+            # ✅ Motive ID1センサ データ
             m_drone_x, m_drone_y, m_drone_z,
             m_cargo_x, m_cargo_y, m_cargo_z,
             m_rel_x, m_rel_y, m_rel_z,
@@ -846,7 +871,7 @@ def save_csv():
             'Cargo_X', 'Cargo_Y', 'Cargo_Z', 'Cargo_Detected', 'ID1_Detected',
             'ID1_to_Cargo_DX', 'ID1_to_Cargo_DY', 'ID1_to_Cargo_DZ',
             'Est_Center_Cam_X', 'Est_Center_Cam_Y',
-            # 追加カラム
+            # ✅ Motive ID1センサ（ドローン真値）
             'Motive_Drone_X', 'Motive_Drone_Y', 'Motive_Drone_Z',
             'Motive_Cargo_X', 'Motive_Cargo_Y', 'Motive_Cargo_Z',
             'Motive_Rel_X', 'Motive_Rel_Y', 'Motive_Rel_Z',
@@ -859,7 +884,7 @@ def save_csv():
 def main():
     global running
     print("="*50)
-    print("ArduPilot 精密制御 - 前向きカメラテスト用 (カメラ・Motive連動用)")
+    print("ArduPilot 精密制御 - 前向きカメラテスト用 (ID1センサ利用)")
     print("="*50)
     
     try:
