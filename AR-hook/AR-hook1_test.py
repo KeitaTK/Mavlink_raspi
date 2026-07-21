@@ -596,6 +596,9 @@ def camera_tracker_loop(m, show_window=False):
                             drone_pitch = current_pitch_rad
                             drone_yaw = current_yaw_rad
 
+                        # ✅ 物理的な向き（南向き）とシステム上の報告値（北向き）の180度オフセットを修正
+                        drone_yaw = (drone_yaw + math.pi) % (2 * math.pi)
+
                     # 荷物中心の世界座標を算出
                     cargo_x, cargo_y, cargo_z = camera_to_world_xyz(center_cam, drone_roll, drone_pitch, drone_yaw, drone_gps)
 
