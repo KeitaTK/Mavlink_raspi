@@ -26,6 +26,11 @@ CAMERA_HEIGHT = 1232
 MARKER_SIZE = 0.04  # マーカーの一辺の長さ（メートル、4cm）
 ID_CENTER_MARKER = 1  # 正方形の中心に配置されるマーカーID（ID 1）
 SQUARE_MARKER_IDS = [2, 3, 4, 5]  # 正方形4頂点のマーカーID（ID2〜ID5）
+# ───── カメラ Motive rigid body 設定 ─────
+CAMERA_RIGID_BODY_ID = 3  # カメラに取り付けたMotiveセンサのID（Motive側で設定したIDと一致させること）
+# カメラ光学中心とMotiveマーカー中心のオフセット（カメラボディ座標系, メートル）
+# 実測後に更新してください（初期値はゼロベクトル）
+CAMERA_OPTICAL_OFFSET = np.array([0.0, 0.0, 0.0], dtype=np.float32)
 SQUARE_SIDE = 0.15  # 正方形の一辺長（メートル）
 HALF_SIDE = SQUARE_SIDE / 2
 MARKER_CENTER_OFFSETS = {
@@ -90,6 +95,21 @@ motive_cargo_qz = 0.0
 motive_cargo_qw = 1.0
 motive_cargo_received = False
 
+# ✅ Camera Motive Position & Orientation (カメラ rigid body, ID=CAMERA_RIGID_BODY_ID)
+motive_camera_x = 0.0
+motive_camera_y = 0.0
+motive_camera_z = 0.0
+motive_camera_qx = 0.0
+motive_camera_qy = 0.0
+motive_camera_qz = 0.0
+motive_camera_qw = 1.0
+motive_camera_received = False
+
+# カメラ座標系 → ENU ワールド座標系の合成回転行列と並進ベクトル
+# motive_udp_listener() がリアルタイムに更新する
+R_cam_to_world = np.eye(3, dtype=np.float32)   # 初期値: 単位行列
+t_cam_world    = np.zeros(3, dtype=np.float32)  # 初期値: 原点
+
 # Ground truth relative distance (Drone relative to cargo center, in cargo local frame)
 motive_rel_x = float('nan')
 motive_rel_y = float('nan')
@@ -101,12 +121,23 @@ def quaternion_to_euler_ned(qx, qy, qz, qw):    # Motive(X=北,Z=東,Y=上左手
     yaw   = math.atan2(2*(qw*qz+qx*qy), 1-2*(qy**2+qz**2))
     return roll, pitch, yaw
 
+def quaternion_to_rotation_matrix(qx, qy, qz, qw):
+    """クォータニオン → 3x3 回転行列 (右手系, 標準形式)"""
+    return np.array([
+        [1 - 2*(qy**2 + qz**2),     2*(qx*qy - qw*qz),       2*(qx*qz + qw*qy)],
+        [2*(qx*qy + qw*qz),         1 - 2*(qx**2 + qz**2),   2*(qy*qz - qw*qx)],
+        [2*(qx*qz - qw*qy),         2*(qy*qz + qw*qx),       1 - 2*(qx**2 + qy**2)]
+    ], dtype=np.float32)
+
 def motive_udp_listener():
     global motive_drone_x, motive_drone_y, motive_drone_z
     global motive_roll_rad, motive_pitch_rad, motive_yaw_rad
     global motive_attitude_received, motive_drone_pos_received
     global motive_cargo_x, motive_cargo_y, motive_cargo_z, motive_cargo_received
     global motive_cargo_qx, motive_cargo_qy, motive_cargo_qz, motive_cargo_qw
+    global motive_camera_x, motive_camera_y, motive_camera_z, motive_camera_received
+    global motive_camera_qx, motive_camera_qy, motive_camera_qz, motive_camera_qw
+    global R_cam_to_world, t_cam_world
     global motive_rel_x, motive_rel_y, motive_rel_z
     
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -180,6 +211,59 @@ def motive_udp_listener():
                         motive_cargo_qz = motive_cqz
                         motive_cargo_qw = motive_cqw
                         motive_cargo_received = True
+
+                elif rigid_body_id == CAMERA_RIGID_BODY_ID:
+                    # ✅ カメラ rigid body = カメラの位置・姿勢（直接計測）
+                    cam_qx_raw = unpacked[5]
+                    cam_qy_raw = unpacked[6]
+                    cam_qz_raw = unpacked[7]
+                    cam_qw_raw = unpacked[8]
+
+                    # Motive (X=North, Y=Up, Z=East, 左手系) → NED 右手系クォータニオンへ変換
+                    ned_cam_qx = cam_qx_raw
+                    ned_cam_qy = cam_qz_raw
+                    ned_cam_qz = -cam_qy_raw
+                    ned_cam_qw = cam_qw_raw
+
+                    # NED クォータニオン → 回転行列（カメラボディ → NED）
+                    R_body_to_ned = quaternion_to_rotation_matrix(ned_cam_qx, ned_cam_qy, ned_cam_qz, ned_cam_qw)
+
+                    # NED → ENU 変換行列 (固定)
+                    # NED(X=N,Y=E,Z=D) -> ENU(X=E,Y=N,Z=U)
+                    R_ned_to_enu = np.array([
+                        [0.0, 1.0,  0.0],
+                        [1.0, 0.0,  0.0],
+                        [0.0, 0.0, -1.0]
+                    ], dtype=np.float32)
+
+                    # OpenCV カメラ座標系 (X=右,Y=下,Z=前) → カメラボディ NED 座標系 への軸変換
+                    # 前向きカメラ想定: body_Front=cam_Z, body_Right=cam_X, body_Down=cam_Y
+                    R_cv_to_body = np.array([
+                        [0.0, 0.0, 1.0],
+                        [1.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0]
+                    ], dtype=np.float32)
+
+                    # 合成: OpenCV座標 → ENU ワールド座標 の回転行列
+                    R_total = R_ned_to_enu @ R_body_to_ned @ R_cv_to_body
+
+                    # カメラ光学中心のワールド座標（Motiveの計測値 + オフセット補正）
+                    cam_pos_enu = np.array([mx, my, mz], dtype=np.float32)
+                    # オフセット補正: マーカー中心 → 光学中心
+                    cam_pos_corrected = cam_pos_enu + R_total @ CAMERA_OPTICAL_OFFSET
+
+                    with io_lock:
+                        motive_camera_x = float(cam_pos_corrected[0])
+                        motive_camera_y = float(cam_pos_corrected[1])
+                        motive_camera_z = float(cam_pos_corrected[2])
+                        motive_camera_qx = cam_qx_raw
+                        motive_camera_qy = cam_qy_raw
+                        motive_camera_qz = cam_qz_raw
+                        motive_camera_qw = cam_qw_raw
+                        # カメラ座標系 → ENU ワールド座標系の変換行列・並進ベクトルを更新
+                        R_cam_to_world = R_total.copy()
+                        t_cam_world    = cam_pos_corrected.copy()
+                        motive_camera_received = True
                 
                 # ドローンと荷物の両方の座標が揃っていれば、荷物ローカル座標系における相対位置（真値）を計算
                 with io_lock:
@@ -309,6 +393,30 @@ def local_xyz_to_gps(x, y, z):
     alt = REF_ALT + z
     return lat, lon, alt
 # ───── カメラ座標系から世界絶対座標系（東・北・上）への座標変換 ─────
+def camera_to_world_xyz_motive(tvec):
+    """
+    【推奨】Motive で計測したカメラ位置・姿勢を用いて
+    OpenCV カメラ座標系のベクトルを ENU ワールド座標に変換する。
+
+    R_cam_to_world と t_cam_world は motive_udp_listener() がリアルタイムに更新する。
+    Motive カメラデータが未受信の場合は None を返す（フォールバック用）。
+
+    Args:
+        tvec: カメラ座標系での3Dベクトル (numpy配列 or リスト, shape=(3,))
+    Returns:
+        (world_x, world_y, world_z) in ENU [m], または None（未受信時）
+    """
+    with io_lock:
+        received = motive_camera_received
+        R = R_cam_to_world.copy()
+        t = t_cam_world.copy()
+
+    if not received:
+        return None  # データ未受信のためフォールバックへ
+
+    p_world = R.dot(np.array(tvec, dtype=np.float32)) + t
+    return float(p_world[0]), float(p_world[1]), float(p_world[2])
+
 def camera_to_world_xyz(tvec, roll_rad, pitch_rad, yaw_rad, gps_drone):
     """
     【前向きテスト用】
@@ -599,8 +707,17 @@ def camera_tracker_loop(m, show_window=False):
                         # ✅ 物理的な向き（南向き）とシステム上の報告値（北向き）の180度オフセットを修正
                         drone_yaw = (drone_yaw + math.pi) % (2 * math.pi)
 
-                    # 荷物中心の世界座標を算出
-                    cargo_x, cargo_y, cargo_z = camera_to_world_xyz(center_cam, drone_roll, drone_pitch, drone_yaw, drone_gps)
+                    # ─── 荷物中心のワールド座標を算出 ───
+                    # 優先: Motiveカメラ rigid body による直接変換
+                    result_motive_cargo = camera_to_world_xyz_motive(center_cam)
+                    if result_motive_cargo is not None:
+                        cargo_x, cargo_y, cargo_z = result_motive_cargo
+                        coord_source = "Motive-Camera"
+                    else:
+                        # フォールバック: 機体姿勢ベースの座標変換
+                        cargo_x, cargo_y, cargo_z = camera_to_world_xyz(
+                            center_cam, drone_roll, drone_pitch, drone_yaw, drone_gps)
+                        coord_source = "IMU-Fallback"
 
                     # ID1が見えていれば、中心との差分を使ってドローン目標を算出、および相対xyz座標を計算
                     if has_id1:
@@ -616,11 +733,19 @@ def camera_tracker_loop(m, show_window=False):
                         # ID1が見えない場合は荷物中心そのものを目標にする（ただしID1目標距離は算出しない）
                         tvec_error = center_cam
 
-                    # カメラ座標から世界絶対座標系（東・北・上）に変換して目標位置を算出
-                    target_x, target_y, target_z = camera_to_world_xyz(tvec_error, drone_roll, drone_pitch, drone_yaw, drone_gps)
+                    # ─── ドローン誘導目標のワールド座標を算出 ───
+                    # 優先: Motiveカメラ rigid body による直接変換
+                    result_motive_target = camera_to_world_xyz_motive(tvec_error)
+                    if result_motive_target is not None:
+                        target_x, target_y, target_z = result_motive_target
+                    else:
+                        # フォールバック: 機体姿勢ベースの座標変換
+                        target_x, target_y, target_z = camera_to_world_xyz(
+                            tvec_error, drone_roll, drone_pitch, drone_yaw, drone_gps)
 
                     # グローバル目標値等の更新
                     with io_lock:
+                        _coord_source_log = coord_source  # ✅ 座標変換ソースをCSV記録用に保存
                         target['x'] = target_x
                         target['y'] = target_y
                         # 前向きテスト用：高さ(Z)方向もマーカーの高さに追随
@@ -663,6 +788,7 @@ def camera_tracker_loop(m, show_window=False):
                         
                         dist_id1_text = f"X:{dist_x:.3f}, Y:{dist_y:.3f}, Z:{dist_z:.3f}" if has_id1 else "N/A"
                         print(f"[Tracker] 検出IDs: {ids_text} {id1_text} {last_text} | "
+                               f"座標ソース: {coord_source} | "
                                f"推定中心(px): [X:{cargo_center_cam_x:.1f}, Y:{cargo_center_cam_y:.1f}] | "
                                f"ID1-中心目標距離(xyz): [{dist_id1_text}] | "
                                f"目標座標 [X:{target_x:.2f}, Y:{target_y:.2f}, Z:{target['z']:.2f}]")
@@ -807,7 +933,11 @@ def control_loop(m):
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
 # ───── データ記録 ─────
+# カメラ座標変換ソースを記録するためのスレッドセーフ変数
+_coord_source_log = "N/A"
+
 def record_data():
+    global _coord_source_log
     while running:
         with io_lock:
             gps = gps_now.copy()
@@ -835,6 +965,13 @@ def record_data():
             m_pitch = motive_pitch_rad
             m_yaw = motive_yaw_rad
             
+            # ✅ カメラ Motive データのログ取得
+            m_cam_x = motive_camera_x
+            m_cam_y = motive_camera_y
+            m_cam_z = motive_camera_z
+            m_cam_rcv = 1 if motive_camera_received else 0
+            coord_src = _coord_source_log
+            
             # Pixhawk姿勢データのログ取得
             p_roll = current_roll_rad
             p_pitch = current_pitch_rad
@@ -857,6 +994,10 @@ def record_data():
             m_cargo_x, m_cargo_y, m_cargo_z,
             m_rel_x, m_rel_y, m_rel_z,
             m_roll, m_pitch, m_yaw,
+            # ✅ カメラ Motive データ
+            m_cam_x, m_cam_y, m_cam_z,
+            m_cam_rcv,
+            coord_src,
             # Pixhawk姿勢 カラム
             p_roll, p_pitch, p_yaw
         ])
@@ -879,6 +1020,10 @@ def save_csv():
             'Motive_Cargo_X', 'Motive_Cargo_Y', 'Motive_Cargo_Z',
             'Motive_Rel_X', 'Motive_Rel_Y', 'Motive_Rel_Z',
             'Motive_Roll', 'Motive_Pitch', 'Motive_Yaw',
+            # ✅ カメラ Motive センサ（カメラ rigid body）
+            'Motive_Camera_X', 'Motive_Camera_Y', 'Motive_Camera_Z',
+            'Motive_Camera_Received',
+            'Coord_Source',
             'Pixhawk_Roll', 'Pixhawk_Pitch', 'Pixhawk_Yaw'
         ])
         writer.writerows(data_records)
