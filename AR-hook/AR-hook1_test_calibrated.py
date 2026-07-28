@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+AR-hook1_test_calibrated.py
+  AR-hook1_test.py の改良版。
+  起動時にArUcoマーカーとMotiveデータを使って R_cv_to_body を自動キャリブレーションする。
+  カメラがどの角度で開始しても、ワールド座標がARとMotiveの誤差を最小化する。
+"""
 import os,sys,select,time,math,threading,termios,tty,csv,datetime,signal
 from pathlib import Path
 import numpy as np
@@ -47,6 +53,9 @@ CSV_DIR.mkdir(exist_ok=True)
 # ───── カメラ向きソース設定 ─────
 # "motive" = Motive rigid body (デフォルト), "ardupilot" = ArduPilot磁気センサー(IMU姿勢)
 CAMERA_ORIENTATION_SOURCE = "motive"
+# ───── キャリブレーション設定 ─────
+CALIB_N_SAMPLES = 30    # キャリブレーション用サンプル数
+CALIB_TIMEOUT = 30.0    # キャリブレーションタイムアウト（秒）
 # ───── 状態変数 ─────
 running = True
 recording = True  # ← 常に記録
@@ -118,6 +127,16 @@ motive_rel_x = float('nan')
 motive_rel_y = float('nan')
 motive_rel_z = float('nan')
 
+# ───── 起動時キャリブレーション: R_cv_to_body の実測推定 ─────
+# デフォルト値（前向きカメラの固定前提）。キャリブレーション成功時に上書きされる。
+R_cv_to_body_calibrated = np.array([
+    [0.0, 0.0, 1.0],
+    [1.0, 0.0, 0.0],
+    [0.0, 1.0, 0.0]
+], dtype=np.float32)
+calibration_done = False
+calibration_residual = float('nan')  # キャリブレーション残差（平均角度誤差 [deg]）
+
 def quaternion_to_euler_ned(qx, qy, qz, qw):    # Motive(X=北,Z=東,Y=上左手系) -> NED右手系変換済みquat
     roll  = math.atan2(2*(qw*qx+qy*qz), 1-2*(qx**2+qy**2))
     pitch = math.asin(max(-1,min(1, 2*(qw*qy-qz*qx))))
@@ -131,6 +150,13 @@ def quaternion_to_rotation_matrix(qx, qy, qz, qw):
         [2*(qx*qy + qw*qz),         1 - 2*(qx**2 + qz**2),   2*(qy*qz - qw*qx)],
         [2*(qx*qz - qw*qy),         2*(qy*qz + qw*qx),       1 - 2*(qx**2 + qy**2)]
     ], dtype=np.float32)
+
+# ───── NED→ENU 変換行列（固定・共通利用） ─────
+R_NED_TO_ENU = np.array([
+    [0.0, 1.0,  0.0],
+    [1.0, 0.0,  0.0],
+    [0.0, 0.0, -1.0]
+], dtype=np.float32)
 
 def motive_udp_listener():
     global motive_drone_x, motive_drone_y, motive_drone_z
@@ -231,24 +257,12 @@ def motive_udp_listener():
                     # NED クォータニオン → 回転行列（カメラボディ → NED）
                     R_body_to_ned = quaternion_to_rotation_matrix(ned_cam_qx, ned_cam_qy, ned_cam_qz, ned_cam_qw)
 
-                    # NED → ENU 変換行列 (固定)
-                    # NED(X=N,Y=E,Z=D) -> ENU(X=E,Y=N,Z=U)
-                    R_ned_to_enu = np.array([
-                        [0.0, 1.0,  0.0],
-                        [1.0, 0.0,  0.0],
-                        [0.0, 0.0, -1.0]
-                    ], dtype=np.float32)
-
-                    # OpenCV カメラ座標系 (X=右,Y=下,Z=前) → カメラボディ NED 座標系 への軸変換
-                    # 前向きカメラ想定: body_Front=cam_Z, body_Right=cam_X, body_Down=cam_Y
-                    R_cv_to_body = np.array([
-                        [0.0, 0.0, 1.0],
-                        [1.0, 0.0, 0.0],
-                        [0.0, 1.0, 0.0]
-                    ], dtype=np.float32)
+                    # ★ 変更点: ハードコード R_cv_to_body → キャリブレーション済みの値を使用
+                    with io_lock:
+                        R_cv_to_body = R_cv_to_body_calibrated.copy()
 
                     # 合成: OpenCV座標 → ENU ワールド座標 の回転行列
-                    R_total = R_ned_to_enu @ R_body_to_ned @ R_cv_to_body
+                    R_total = R_NED_TO_ENU @ R_body_to_ned @ R_cv_to_body
 
                     # カメラ光学中心のワールド座標（Motiveの計測値 + オフセット補正）
                     cam_pos_enu = np.array([mx, my, mz], dtype=np.float32)
@@ -494,6 +508,242 @@ def estimate_square_center_from_marker(corner, marker_id, marker_size, camera_ma
     R, _ = cv2.Rodrigues(rvec)
     return tvec + R.dot(offset)
 
+# ────────────────────────────────────────────────────────────────────
+# ★ 新規追加: 起動時カメラ軸キャリブレーション
+# ────────────────────────────────────────────────────────────────────
+def _solve_R_cv_to_body_from_samples(p_cam_list, d_world_list, R_body_to_ned_list):
+    """
+    複数サンプルから最適な R_cv_to_body を SVD Procrustes 法で推定する。
+
+    原理:
+        各サンプル i について:
+            d_world_i = R_NED_TO_ENU @ R_body_to_ned_i @ R_cv_to_body @ p_cam_i
+        
+        ⇔  R_cv_to_body @ p_cam_i = (R_NED_TO_ENU @ R_body_to_ned_i)^T @ d_world_i
+                                    = q_i (既知)
+        
+        よって、p_cam_i → q_i の最適回転を Procrustes で求める。
+
+    Args:
+        p_cam_list:       list of (3,) ndarray — カメラ座標系での荷物ベクトル
+        d_world_list:     list of (3,) ndarray — ENU ワールドでのカメラ→荷物差分ベクトル
+        R_body_to_ned_list: list of (3,3) ndarray — 各サンプル時の R_body_to_ned
+
+    Returns:
+        R_cv_to_body (3x3 ndarray), residual_deg (float) — 推定結果と平均角度残差
+    """
+    n = len(p_cam_list)
+    P = np.zeros((n, 3), dtype=np.float64)  # p_cam
+    Q = np.zeros((n, 3), dtype=np.float64)  # 目標ベクトル
+
+    for i in range(n):
+        R_combined = R_NED_TO_ENU.astype(np.float64) @ R_body_to_ned_list[i].astype(np.float64)
+        q_i = R_combined.T @ d_world_list[i].astype(np.float64)
+        P[i] = p_cam_list[i].astype(np.float64)
+        Q[i] = q_i
+
+    # 正規化: 方向のみに基づいて回転を推定する（距離のばらつきに影響されないように）
+    P_norm = P / (np.linalg.norm(P, axis=1, keepdims=True) + 1e-12)
+    Q_norm = Q / (np.linalg.norm(Q, axis=1, keepdims=True) + 1e-12)
+
+    # SVD Procrustes: min ||Q_norm - P_norm @ R^T||^2
+    H = P_norm.T @ Q_norm  # (3x3)
+    U, S, Vt = np.linalg.svd(H)
+    # 反転補正（det(R)=+1 を保証）
+    d = np.linalg.det(Vt.T @ U.T)
+    D = np.diag([1.0, 1.0, d])
+    R_est = (Vt.T @ D @ U.T).astype(np.float32)
+
+    # 残差計算: 各サンプルの角度誤差の平均
+    angle_errors = []
+    for i in range(n):
+        q_pred = R_est @ P_norm[i].astype(np.float32)
+        q_true = Q_norm[i].astype(np.float32)
+        cos_angle = np.clip(np.dot(q_pred, q_true), -1.0, 1.0)
+        angle_errors.append(math.degrees(math.acos(float(cos_angle))))
+    
+    residual_deg = float(np.mean(angle_errors))
+    return R_est, residual_deg
+
+
+def calibrate_camera_axis(picam2, cap, camera_matrix, distortion_coeff,
+                          n_samples=CALIB_N_SAMPLES, timeout=CALIB_TIMEOUT):
+    """
+    起動時キャリブレーション:
+    ArUcoマーカー(ID2-5) + Motiveカメラ/荷物位置データを同時に使って
+    R_cv_to_body を実測から自動推定する。
+
+    【前提条件】
+    ・ArUcoマーカー(ID2-5のうち1つ以上)がカメラに見えていること
+    ・Motive UDP受信スレッドが動作中で、カメラ(ID=CAMERA_RIGID_BODY_ID)と
+      荷物(ID=2)の位置データが届いていること
+
+    Args:
+        picam2:             Picamera2 インスタンス (or None)
+        cap:                cv2.VideoCapture インスタンス (or None)
+        camera_matrix:      カメラ内部パラメータ行列
+        distortion_coeff:   歪み係数
+        n_samples:          収集するサンプル数
+        timeout:            タイムアウト（秒）
+
+    Returns:
+        R_cv_to_body (3x3 ndarray) — 推定された軸マッピング行列
+        residual_deg (float)       — 平均角度残差 [deg]
+        None, None                 — キャリブレーション失敗時
+    """
+    global R_cv_to_body_calibrated, calibration_done, calibration_residual
+
+    dictionary = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
+    detector = aruco.ArucoDetector(dictionary)
+
+    p_cam_list = []         # カメラ座標系での荷物中心ベクトル
+    d_world_list = []       # ENU ワールドでの(カメラ→荷物)差分ベクトル
+    R_body_to_ned_list = [] # 各サンプル時の R_body_to_ned
+
+    start_time = time.time()
+    sample_count = 0
+
+    print(f"  サンプル収集開始 (目標: {n_samples}サンプル, タイムアウト: {timeout:.0f}秒)")
+
+    while sample_count < n_samples and running:
+        elapsed = time.time() - start_time
+        if elapsed > timeout:
+            print(f"  ⚠ タイムアウト ({timeout:.0f}秒) に達しました。収集サンプル数: {sample_count}/{n_samples}")
+            break
+
+        # フレーム取得
+        if picam2:
+            img = picam2.capture_array()
+            ret = True
+        else:
+            ret, img = cap.read()
+        if not ret or img is None:
+            time.sleep(0.01)
+            continue
+
+        # マーカー検出
+        corners, ids, _ = detector.detectMarkers(img)
+        if ids is None:
+            time.sleep(0.02)
+            continue
+
+        # ID2-5 の荷物マーカーで PnP 推定
+        obj_points = []
+        img_points = []
+        for i, corner in enumerate(corners):
+            marker_id = int(ids[i][0])
+            if marker_id in MARKER_CENTER_OFFSETS:
+                O_id = MARKER_CENTER_OFFSETS[marker_id]
+                corners_3d = np.array([
+                    [O_id[0] - MARKER_SIZE / 2, O_id[1] + MARKER_SIZE / 2, 0.0],
+                    [O_id[0] + MARKER_SIZE / 2, O_id[1] + MARKER_SIZE / 2, 0.0],
+                    [O_id[0] + MARKER_SIZE / 2, O_id[1] - MARKER_SIZE / 2, 0.0],
+                    [O_id[0] - MARKER_SIZE / 2, O_id[1] - MARKER_SIZE / 2, 0.0],
+                ], dtype=np.float32)
+                obj_points.append(corners_3d)
+                img_points.append(corner.reshape(4, 2))
+
+        if len(obj_points) == 0:
+            time.sleep(0.02)
+            continue
+
+        obj_points_arr = np.vstack(obj_points)
+        img_points_arr = np.vstack(img_points)
+        success, rvec_sol, tvec_sol = cv2.solvePnP(
+            obj_points_arr, img_points_arr,
+            camera_matrix, distortion_coeff,
+            flags=cv2.SOLVEPNP_ITERATIVE
+        )
+        if not success:
+            time.sleep(0.02)
+            continue
+
+        p_cam = tvec_sol.reshape(3).astype(np.float32)  # 荷物中心のカメラ座標系ベクトル
+
+        # Motiveデータの取得（カメラ位置と荷物位置）
+        with io_lock:
+            cam_received = motive_camera_received
+            cargo_received = motive_cargo_received
+            cam_pos = np.array([motive_camera_x, motive_camera_y, motive_camera_z], dtype=np.float32)
+            cargo_pos = np.array([motive_cargo_x, motive_cargo_y, motive_cargo_z], dtype=np.float32)
+            cam_qx = motive_camera_qx
+            cam_qy = motive_camera_qy
+            cam_qz = motive_camera_qz
+            cam_qw = motive_camera_qw
+
+        if not cam_received or not cargo_received:
+            time.sleep(0.02)
+            continue
+
+        # カメラ → 荷物 の ENU ワールド差分ベクトル
+        d_world = cargo_pos - cam_pos
+        
+        # 差分ベクトルのノルムが小さすぎる（カメラと荷物がほぼ同じ位置）場合はスキップ
+        if np.linalg.norm(d_world) < 0.05:
+            time.sleep(0.02)
+            continue
+
+        # カメラの R_body_to_ned を計算（Motiveクォータニオンから）
+        ned_cam_qx = cam_qx      # Motive X → NED X (North)
+        ned_cam_qy = cam_qz      # Motive Z → NED Y (East)
+        ned_cam_qz = -cam_qy     # Motive -Y → NED Z (Down)
+        ned_cam_qw = cam_qw
+        R_body_to_ned = quaternion_to_rotation_matrix(ned_cam_qx, ned_cam_qy, ned_cam_qz, ned_cam_qw)
+
+        p_cam_list.append(p_cam)
+        d_world_list.append(d_world)
+        R_body_to_ned_list.append(R_body_to_ned)
+        sample_count += 1
+
+        if sample_count % 5 == 0 or sample_count == n_samples:
+            print(f"  [{sample_count}/{n_samples}] サンプル収集中... (経過: {elapsed:.1f}秒)")
+
+        time.sleep(0.03)  # フレーム間隔
+
+    if sample_count < 3:
+        print(f"  ❌ サンプル数不足 ({sample_count}サンプル)。キャリブレーションを中止します。")
+        return None, None
+
+    print(f"  {sample_count}サンプルを収集。SVD Procrustes法で R_cv_to_body を推定中...")
+
+    R_est, residual_deg = _solve_R_cv_to_body_from_samples(
+        p_cam_list, d_world_list, R_body_to_ned_list
+    )
+
+    # 直交性チェック
+    I_check = R_est.T @ R_est
+    ortho_err = np.linalg.norm(I_check - np.eye(3))
+    det_R = np.linalg.det(R_est)
+    print(f"  推定結果:")
+    print(f"    R_cv_to_body =")
+    for row in R_est:
+        print(f"      [{row[0]:+.4f}  {row[1]:+.4f}  {row[2]:+.4f}]")
+    print(f"    直交性誤差: {ortho_err:.6f} (理想: 0.0)")
+    print(f"    行列式: {det_R:.6f} (理想: +1.0)")
+    print(f"    平均角度残差: {residual_deg:.2f}°")
+
+    if ortho_err > 0.1 or abs(det_R - 1.0) > 0.1:
+        print(f"  ⚠ 推定された行列の品質が不十分です。デフォルト値を使用します。")
+        return None, None
+
+    # 旧デフォルト値との比較
+    R_default = np.array([
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0]
+    ], dtype=np.float32)
+    diff_from_default = np.linalg.norm(R_est - R_default)
+    print(f"    デフォルト値との差異: {diff_from_default:.4f}")
+
+    # グローバル変数を更新
+    with io_lock:
+        R_cv_to_body_calibrated = R_est.copy()
+        calibration_done = True
+        calibration_residual = residual_deg
+
+    return R_est, residual_deg
+
+
 # ───── 状態監視スレッド ─────
 def monitor_vehicle(m):
     global running, gps_now, gps_origin, origin, initial_yaw, yaw_t_deg, yaw_acquired, initial_target_set, guided_mode_active, current_yaw_deg
@@ -612,6 +862,49 @@ def camera_tracker_loop(m, show_window=False):
             print(f"⚠ カメラパラメータのロードに失敗しました ({e})。デフォルト値を使用します。")
     else:
         print("⚠ camera_params.npz が見つかりません。デフォルトのキャリブレーション値を使用します。")
+
+    # ────────────────────────────────────────────────────────────
+    # ★ 起動時キャリブレーション: R_cv_to_body の自動推定
+    # ────────────────────────────────────────────────────────────
+    if CAMERA_ORIENTATION_SOURCE == "motive":
+        print("\n" + "="*60)
+        print(" ★ カメラ-Motive 軸キャリブレーション")
+        print("   ArUcoマーカー(ID2-5)がカメラに映るようにしてください。")
+        print("   Motiveのカメラ(ID={})と荷物(ID=2)のデータが必要です。".format(CAMERA_RIGID_BODY_ID))
+        print("="*60)
+
+        # Motiveデータが届くまで少し待つ
+        print("  Motiveデータの受信を待機中...")
+        wait_start = time.time()
+        while time.time() - wait_start < 10.0:
+            with io_lock:
+                cam_ok = motive_camera_received
+                cargo_ok = motive_cargo_received
+            if cam_ok and cargo_ok:
+                print("  ✓ Motiveデータ受信確認（カメラ + 荷物）")
+                break
+            time.sleep(0.2)
+        else:
+            with io_lock:
+                cam_ok = motive_camera_received
+                cargo_ok = motive_cargo_received
+            if not cam_ok:
+                print("  ⚠ Motiveカメラデータが受信されていません。")
+            if not cargo_ok:
+                print("  ⚠ Motive荷物データが受信されていません。")
+
+        R_result, residual = calibrate_camera_axis(
+            picam2, cap, camera_matrix, distortion_coeff
+        )
+        if R_result is not None:
+            print(f"  ✓ キャリブレーション完了 (残差: {residual:.2f}°)")
+        else:
+            print("  ⚠ キャリブレーション失敗。デフォルトの R_cv_to_body を使用します。")
+            print("    (前向きカメラ固定前提: body_Front=cam_Z, body_Right=cam_X, body_Down=cam_Y)")
+        print("="*60 + "\n")
+    else:
+        print("  カメラ向きソース: ArduPilot → キャリブレーションをスキップ")
+
     # ArUcoディテクタの設定
     dictionary = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
     detector = aruco.ArucoDetector(dictionary)
@@ -717,6 +1010,9 @@ def camera_tracker_loop(m, show_window=False):
                         if result_motive_cargo is not None:
                             cargo_x, cargo_y, cargo_z = result_motive_cargo
                             coord_source = "Motive-Camera"
+                            # ★ キャリブレーション済みかどうかをソース名に反映
+                            if calibration_done:
+                                coord_source = "Motive-Calibrated"
                         else:
                             # フォールバック: 機体姿勢ベースの座標変換
                             cargo_x, cargo_y, cargo_z = camera_to_world_xyz(
@@ -809,9 +1105,10 @@ def camera_tracker_loop(m, show_window=False):
                         ids_text = ",".join(str(mid) for mid in detected_ids)
                         id1_text = "(ID1 vis)" if has_id1 else "(ID1 NOT vis)"
                         last_text = "(using last center)" if used_last_center else ""
+                        calib_text = "[CAL]" if calibration_done else "[UNCAL]"
                         
                         dist_id1_text = f"X:{dist_x:.3f}, Y:{dist_y:.3f}, Z:{dist_z:.3f}" if has_id1 else "N/A"
-                        print(f"[Tracker] 検出IDs: {ids_text} {id1_text} {last_text} | "
+                        print(f"[Tracker] {calib_text} 検出IDs: {ids_text} {id1_text} {last_text} | "
                                f"座標ソース: {coord_source} | "
                                f"推定中心(px): [X:{cargo_center_cam_x:.1f}, Y:{cargo_center_cam_y:.1f}] | "
                                f"ID1-中心目標距離(xyz): [{dist_id1_text}] | "
@@ -888,6 +1185,11 @@ def camera_tracker_loop(m, show_window=False):
                             cv2.putText(display, text_str, (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2, cv2.LINE_AA)
                         else:
                             cv2.putText(display, "ID1 Rel to Center: N/A (ID1 invisible)", (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2, lineType=cv2.LINE_AA)
+
+                    # 5. ★ キャリブレーション状態を画面に表示
+                    calib_status = f"Calibration: {'DONE (residual {:.1f} deg)'.format(calibration_residual) if calibration_done else 'DEFAULT (uncalibrated)'}"
+                    cv2.putText(display, calib_status, (15, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                                (0, 255, 0) if calibration_done else (0, 128, 255), 1, cv2.LINE_AA)
 
                 if video_writer is None:
                     # ディスプレイ用にウィンドウの設定を行う (1640x1232は大きいため縮小表示)
@@ -1000,6 +1302,10 @@ def record_data():
             p_roll = current_roll_rad
             p_pitch = current_pitch_rad
             p_yaw = current_yaw_rad
+
+            # ★ キャリブレーション情報
+            cal_done = 1 if calibration_done else 0
+            cal_resid = calibration_residual
             
         data_records.append([
             time.time(), 
@@ -1023,7 +1329,9 @@ def record_data():
             m_cam_rcv,
             coord_src,
             # Pixhawk姿勢 カラム
-            p_roll, p_pitch, p_yaw
+            p_roll, p_pitch, p_yaw,
+            # ★ キャリブレーション情報
+            cal_done, cal_resid
         ])
         time.sleep(1 / SEND_HZ)
 def save_csv():
@@ -1048,15 +1356,27 @@ def save_csv():
             'Motive_Camera_X', 'Motive_Camera_Y', 'Motive_Camera_Z',
             'Motive_Camera_Received',
             'Coord_Source',
-            'Pixhawk_Roll', 'Pixhawk_Pitch', 'Pixhawk_Yaw'
+            'Pixhawk_Roll', 'Pixhawk_Pitch', 'Pixhawk_Yaw',
+            # ★ キャリブレーション情報
+            'Calibration_Done', 'Calibration_Residual_Deg'
         ])
         writer.writerows(data_records)
     print(f"\n✓ CSV保存完了: {path} ({len(data_records)} 行)")
+
+    # ★ キャリブレーション結果も別ファイルに保存
+    if calibration_done:
+        calib_path = CSV_DIR / f"{now}_calibration.npz"
+        np.savez(calib_path,
+                 R_cv_to_body=R_cv_to_body_calibrated,
+                 residual_deg=calibration_residual)
+        print(f"✓ キャリブレーション結果保存: {calib_path}")
+
 # ───── メイン関数 ─────
 def main():
     global running
     print("="*50)
-    print("ArduPilot 精密制御 - 前向きカメラテスト用 (ID1センサ利用)")
+    print("ArduPilot 精密制御 - 起動時カメラ軸キャリブレーション版")
+    print("  (カメラ開始角度に依存しないAR-Motive座標アラインメント)")
     print("="*50)
     
     try:
@@ -1090,6 +1410,7 @@ def main():
         control_thread.start()
         
         # カメラ追跡ループをメインスレッドで実行 (OpenCV GUI of main thread workaround)
+        # ★ camera_tracker_loop() 内部でキャリブレーションが自動実行される
         camera_tracker_loop(mav, show_camera_window)
         
     except KeyboardInterrupt:
