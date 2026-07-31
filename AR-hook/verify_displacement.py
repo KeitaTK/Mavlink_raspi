@@ -98,9 +98,8 @@ def load_and_process_csv(filepath):
 
 def main():
     # デフォルトのファイルパス（2回分の実行ログ）
-    
-    default_run1 = "C:/Users/kazzu/Downloads/20260722_151551_1.csv"
-    default_run2 = "C:/Users/kazzu/Downloads/20260722_151657_1.csv"
+    default_run1 = "C:/Users/Ushida/Downloads/20260729_150039_1.csv"
+    default_run2 = "C:/Users/Ushida/Downloads/20260729_150148_1.csv"
     
     run1_path = sys.argv[1] if len(sys.argv) > 1 else default_run1
     run2_path = sys.argv[2] if len(sys.argv) > 2 else default_run2

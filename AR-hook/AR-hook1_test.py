@@ -28,6 +28,10 @@ ID_CENTER_MARKER = 1  # 正方形の中心に配置されるマーカーID（ID 
 SQUARE_MARKER_IDS = [2, 3, 4, 5]  # 正方形4頂点のマーカーID（ID2〜ID5）
 # ───── カメラ Motive rigid body 設定 ─────
 CAMERA_RIGID_BODY_ID = 3  # カメラに取り付けたMotiveセンサのID（Motive側で設定したIDと一致させること）
+# カメラ取り付け方向の設定
+# 'front' : 前向きカメラ（テスト用）  OpenCV Z(前)=body X, X(右)=body Y, Y(下)=body Z
+# 'down'  : 下向きカメラ（実機用）   OpenCV Z(下)=body Z, X(右)=body Y, Y(画像下=機体後方)=-body X
+CAMERA_MOUNT_DIRECTION = 'front'
 # カメラ光学中心とMotiveマーカー中心のオフセット（カメラボディ座標系, メートル）
 # 実測後に更新してください（初期値はゼロベクトル）
 CAMERA_OPTICAL_OFFSET = np.array([0.0, 0.0, 0.0], dtype=np.float32)
@@ -239,15 +243,23 @@ def motive_udp_listener():
                         [0.0, 0.0, -1.0]
                     ], dtype=np.float32)
 
-                    # OpenCV カメラ座標系 (X=右,Y=下,Z=前) → カメラボディ NED 座標系 への軸変換
-                    # 前向きカメラ想定: body_Front=cam_Z, body_Right=cam_X, body_Down=cam_Y
-                    R_cv_to_body = np.array([
-                        [0.0, 0.0, 1.0],
-                        [1.0, 0.0, 0.0],
-                        [0.0, 1.0, 0.0]
-                    ], dtype=np.float32)
+                    # ─── OpenCV カメラ座標系 (X=右,Y=下,Z=前) → カメラボディ NED 座標系 への軸変換 ───
+                    if CAMERA_MOUNT_DIRECTION == 'front':
+                        # 前向きカメラ: cam_Z(光軸=前)→body_X(North), cam_X(右)→body_Y(East), cam_Y(下)→body_Z(Down)
+                        R_cv_to_body = np.array([
+                            [0.0, 0.0, 1.0],
+                            [1.0, 0.0, 0.0],
+                            [0.0, 1.0, 0.0]
+                        ], dtype=np.float32)
+                    else:  # 'down'
+                        # 下向きカメラ: cam_Z(光軸=下)→body_Z(Down), cam_X(右)→body_Y(East), cam_Y(画像下=機体後方)→-body_X
+                        R_cv_to_body = np.array([
+                            [ 0.0, -1.0, 0.0],
+                            [ 1.0,  0.0, 0.0],
+                            [ 0.0,  0.0, 1.0]
+                        ], dtype=np.float32)
 
-                    # 合成: OpenCV座標 → ENU ワールド座標 の回転行列
+                    # 合成: OpenCV座標 → ENU ワールド座標 の回転行列（Motiveリアルタイム姿勢で即時変換）
                     R_total = R_ned_to_enu @ R_body_to_ned @ R_cv_to_body
 
                     # カメラ光学中心のワールド座標（Motiveの計測値 + オフセット補正）
@@ -396,7 +408,9 @@ def local_xyz_to_gps(x, y, z):
     alt = REF_ALT + z
     return lat, lon, alt
 # ───── カメラ座標系から世界絶対座標系（東・北・上）への座標変換 ─────
-def camera_to_world_xyz_motive(tvec):
+_debug_cargo_log_time = 0.0  # デバッグログ用タイムスタンプ
+
+def camera_to_world_xyz_motive(tvec, debug=False):
     """
     【推奨】Motive で計測したカメラ位置・姿勢を用いて
     OpenCV カメラ座標系のベクトルを ENU ワールド座標に変換する。
@@ -405,10 +419,18 @@ def camera_to_world_xyz_motive(tvec):
     Motive カメラデータが未受信の場合は None を返す（フォールバック用）。
 
     Args:
-        tvec: カメラ座標系での3Dベクトル (numpy配列 or リスト, shape=(3,))
+        tvec : カメラ座標系での3Dベクトル (numpy配列 or リスト, shape=(3,))
+        debug: True のとき中間値をコンソール出力（傾き補正の検証用）
     Returns:
         (world_x, world_y, world_z) in ENU [m], または None（未受信時）
+
+    【世界座標が変わる場合のチェック項目】
+      Motiveから毎フレーム取得するカメラ姿勢データ（クォータニオン）から直接リアルタイム変換しています。
+      カメラ傾き時に cargo_center_world が変化する場合は以下を確認してください:
+      1. Motiveソフトウェア上でカメラリジッドボディの「Reset Orientation」を行った際のカメラの向き
+      2. CAMERA_MOUNT_DIRECTION（'front' または 'down'）が実際のカメラ取り付けと一致しているか
     """
+    global _debug_cargo_log_time
     with io_lock:
         received = motive_camera_received
         R = R_cam_to_world.copy()
@@ -417,7 +439,19 @@ def camera_to_world_xyz_motive(tvec):
     if not received:
         return None  # データ未受信のためフォールバックへ
 
-    p_world = R.dot(np.array(tvec, dtype=np.float32)) + t
+    tvec_arr = np.array(tvec, dtype=np.float32)
+    R_rot = R.dot(tvec_arr)  # カメラ→ワールドの回転成分
+    p_world = R_rot + t
+
+    if debug:
+        now = time.time()
+        if now - _debug_cargo_log_time > 2.0:
+            _debug_cargo_log_time = now
+            print(f"[CamDebug] tvec_cam=[{tvec_arr[0]:.3f},{tvec_arr[1]:.3f},{tvec_arr[2]:.3f}] "
+                  f"R_rot=[{R_rot[0]:.3f},{R_rot[1]:.3f},{R_rot[2]:.3f}] "
+                  f"cam_pos=[{t[0]:.3f},{t[1]:.3f},{t[2]:.3f}] "
+                  f"p_world=[{p_world[0]:.3f},{p_world[1]:.3f},{p_world[2]:.3f}]")
+
     return float(p_world[0]), float(p_world[1]), float(p_world[2])
 
 def camera_to_world_xyz(tvec, roll_rad, pitch_rad, yaw_rad, gps_drone):
@@ -713,7 +747,8 @@ def camera_tracker_loop(m, show_window=False):
                     # ─── 荷物中心のワールド座標を算出 ───
                     if CAMERA_ORIENTATION_SOURCE == "motive":
                         # Motiveカメラ rigid body による直接変換を優先
-                        result_motive_cargo = camera_to_world_xyz_motive(center_cam)
+                        # debug=True にするとカメラ傾き補正の検証ログが2秒ごとに出力されます
+                        result_motive_cargo = camera_to_world_xyz_motive(center_cam, debug=False)
                         if result_motive_cargo is not None:
                             cargo_x, cargo_y, cargo_z = result_motive_cargo
                             coord_source = "Motive-Camera"
@@ -1081,6 +1116,7 @@ def main():
         threading.Thread(target=monitor_vehicle, args=(mav,), daemon=True).start()
         threading.Thread(target=record_data, daemon=True).start()
         threading.Thread(target=motive_udp_listener, daemon=True).start()
+
         # 起動時にカメラ映像表示の有無を選択
         choice = input_with_timeout("カメラ映像を表示しますか？ 1:表示 2:非表示 (デフォルト2): ", timeout=15, default='2')
         show_camera_window = (choice.strip() == '1')
