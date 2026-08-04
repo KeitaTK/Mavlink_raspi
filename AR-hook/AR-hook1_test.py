@@ -43,6 +43,21 @@ MARKER_CENTER_OFFSETS = {
     4: np.array([ -HALF_SIDE, -HALF_SIDE, 0.0], dtype=np.float32),  # 左下
     5: np.array([ +HALF_SIDE, -HALF_SIDE, 0.0], dtype=np.float32),  # 右下
 }
+# ───── カメラ座標系オフセット設定 ─────
+# verify_displacement.py から算出された誤差 (Motive - AR生値) を設定します
+# 補正後座標 = 生の検出座標 + オフセット
+# 単位: メートル
+
+# カメラから手先（ID1）へのオフセット
+HAND_OFFSET_CAM_X = 0.0
+HAND_OFFSET_CAM_Y = 0.0
+HAND_OFFSET_CAM_Z = 0.0
+
+# カメラから荷物中心へのオフセット
+CARGO_OFFSET_CAM_X = 0.0
+CARGO_OFFSET_CAM_Y = 0.0
+CARGO_OFFSET_CAM_Z = 0.0
+
 # ───── 基準点設定 ─────
 REF_LAT, REF_LON, REF_ALT = 36.0757800, 136.2132900, 0.0
 TARGET_HEIGHT_ABOVE_TAKEOFF = 1.10
@@ -78,6 +93,12 @@ dist_id1_to_cargo_y = float('nan')
 dist_id1_to_cargo_z = float('nan')
 cargo_center_cam_x = float('nan')
 cargo_center_cam_y = float('nan')
+
+# カメラ座標系での位置情報（CSV記録用、オフセット適用前の生値）
+cargo_cam_raw = [float('nan'), float('nan'), float('nan')]
+hand_cam_raw = [float('nan'), float('nan'), float('nan')]
+motive_cargo_cam = [float('nan'), float('nan'), float('nan')]
+motive_hand_cam = [float('nan'), float('nan'), float('nan')]
 
 # ───── 新規追加: Motive UDP受信スレッド ─────
 import socket, struct
@@ -725,6 +746,41 @@ def camera_tracker_loop(m, show_window=False):
                 if id1_cam is not None:
                     has_id1 = True
 
+                # カメラ座標系検出値の生値を保存 (CSV記録用)
+                c_cam_raw_val = [float('nan'), float('nan'), float('nan')]
+                if center_cam is not None:
+                    c_cam_raw_val = [float(center_cam[0]), float(center_cam[1]), float(center_cam[2])]
+                    # オフセット適用 (カメラから荷物中心へのオフセット)
+                    center_cam = center_cam + np.array([CARGO_OFFSET_CAM_X, CARGO_OFFSET_CAM_Y, CARGO_OFFSET_CAM_Z], dtype=np.float32)
+
+                h_cam_raw_val = [float('nan'), float('nan'), float('nan')]
+                if id1_cam is not None:
+                    h_cam_raw_val = [float(id1_cam[0]), float(id1_cam[1]), float(id1_cam[2])]
+                    # オフセット適用 (カメラから手先へのオフセット)
+                    id1_cam = id1_cam + np.array([HAND_OFFSET_CAM_X, HAND_OFFSET_CAM_Y, HAND_OFFSET_CAM_Z], dtype=np.float32)
+
+                # Motiveデータのカメラ座標系への逆投影真値の算出
+                m_cargo_cam_val = [float('nan'), float('nan'), float('nan')]
+                m_hand_cam_val = [float('nan'), float('nan'), float('nan')]
+                with io_lock:
+                    if motive_camera_received:
+                        R_inv = R_cam_to_world.T
+                        t_cam = t_cam_world
+                        if motive_cargo_received:
+                            c_world = np.array([motive_cargo_x, motive_cargo_y, motive_cargo_z], dtype=np.float32)
+                            c_cam = R_inv.dot(c_world - t_cam)
+                            m_cargo_cam_val = [float(c_cam[0]), float(c_cam[1]), float(c_cam[2])]
+                        if motive_drone_pos_received:
+                            d_world = np.array([motive_drone_x, motive_drone_y, motive_drone_z], dtype=np.float32)
+                            d_cam = R_inv.dot(d_world - t_cam)
+                            m_hand_cam_val = [float(d_cam[0]), float(d_cam[1]), float(d_cam[2])]
+
+                with io_lock:
+                    cargo_cam_raw = c_cam_raw_val
+                    hand_cam_raw = h_cam_raw_val
+                    motive_cargo_cam = m_cargo_cam_val
+                    motive_hand_cam = m_hand_cam_val
+
                 if has_cargo:
                     # ✅ テレメトリおよび姿勢（Roll, Pitch, Yaw）データの取得
                     # ID1センサから取得したドローン真値を優先使用
@@ -862,6 +918,10 @@ def camera_tracker_loop(m, show_window=False):
                         dist_id1_to_cargo_z = float('nan')
                         cargo_center_cam_x = float('nan')
                         cargo_center_cam_y = float('nan')
+                        cargo_cam_raw = [float('nan'), float('nan'), float('nan')]
+                        hand_cam_raw = [float('nan'), float('nan'), float('nan')]
+                        motive_cargo_cam = [float('nan'), float('nan'), float('nan')]
+                        motive_hand_cam = [float('nan'), float('nan'), float('nan')]
             else:
                 # ids is None
                 with io_lock:
@@ -872,6 +932,10 @@ def camera_tracker_loop(m, show_window=False):
                     dist_id1_to_cargo_z = float('nan')
                     cargo_center_cam_x = float('nan')
                     cargo_center_cam_y = float('nan')
+                    cargo_cam_raw = [float('nan'), float('nan'), float('nan')]
+                    hand_cam_raw = [float('nan'), float('nan'), float('nan')]
+                    motive_cargo_cam = [float('nan'), float('nan'), float('nan')]
+                    motive_hand_cam = [float('nan'), float('nan'), float('nan')]
 
             # 表示が許可されていればウィンドウ表示
             if show_window:
@@ -1036,6 +1100,12 @@ def record_data():
             p_pitch = current_pitch_rad
             p_yaw = current_yaw_rad
             
+            # カメラ座標系生値とMotive逆投影真値のコピー
+            c_cam_raw = cargo_cam_raw.copy()
+            h_cam_raw = hand_cam_raw.copy()
+            m_c_cam = motive_cargo_cam.copy()
+            m_h_cam = motive_hand_cam.copy()
+            
         data_records.append([
             time.time(), 
             gps['x'], gps['y'], gps['z'], 
@@ -1058,7 +1128,12 @@ def record_data():
             m_cam_rcv,
             coord_src,
             # Pixhawk姿勢 カラム
-            p_roll, p_pitch, p_yaw
+            p_roll, p_pitch, p_yaw,
+            # ✅ 新規追加：カメラ座標系 生データとMotive逆投影真値
+            c_cam_raw[0], c_cam_raw[1], c_cam_raw[2],
+            h_cam_raw[0], h_cam_raw[1], h_cam_raw[2],
+            m_c_cam[0], m_c_cam[1], m_c_cam[2],
+            m_h_cam[0], m_h_cam[1], m_h_cam[2]
         ])
         time.sleep(1 / SEND_HZ)
 def save_csv():
@@ -1083,7 +1158,13 @@ def save_csv():
             'Motive_Camera_X', 'Motive_Camera_Y', 'Motive_Camera_Z',
             'Motive_Camera_Received',
             'Coord_Source',
-            'Pixhawk_Roll', 'Pixhawk_Pitch', 'Pixhawk_Yaw'
+            'Pixhawk_Roll', 'Pixhawk_Pitch', 'Pixhawk_Yaw',
+            # ✅ カメラ座標系 生データ
+            'Cargo_Cam_X', 'Cargo_Cam_Y', 'Cargo_Cam_Z',
+            'Hand_Cam_X', 'Hand_Cam_Y', 'Hand_Cam_Z',
+            # ✅ カメラ座標系 Motive真値（逆投影）
+            'Motive_Cargo_Cam_X', 'Motive_Cargo_Cam_Y', 'Motive_Cargo_Cam_Z',
+            'Motive_Hand_Cam_X', 'Motive_Hand_Cam_Y', 'Motive_Hand_Cam_Z'
         ])
         writer.writerows(data_records)
     print(f"\n✓ CSV保存完了: {path} ({len(data_records)} 行)")
