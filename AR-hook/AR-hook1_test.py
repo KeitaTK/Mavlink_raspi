@@ -620,9 +620,13 @@ def monitor_vehicle(m):
         time.sleep(1 / SEND_HZ)
 # ───── バックグラウンド・カメラ追跡スレッド ─────
 def camera_tracker_loop(m, show_window=False):
-    global running, target, gps_now, current_yaw_deg, initial_target_set, guided_mode_active, last_center_cam, last_rvec_cargo
-    global cargo_center_world, cargo_detected, id1_detected, dist_id1_to_cargo_x, dist_id1_to_cargo_y, dist_id1_to_cargo_z
+    global running, target, gps_now, current_yaw_deg, initial_target_set, guided_mode_active
+    global last_center_cam, last_rvec_cargo
+    global cargo_center_world, cargo_detected, id1_detected
+    global dist_id1_to_cargo_x, dist_id1_to_cargo_y, dist_id1_to_cargo_z
     global cargo_center_cam_x, cargo_center_cam_y
+    global cargo_cam_raw, hand_cam_raw, motive_cargo_cam, motive_hand_cam
+    global _coord_source_log
     
     print(f"カメラ初期化中（解像度: {CAMERA_WIDTH}x{CAMERA_HEIGHT}）...")
     picam2 = None
@@ -1180,6 +1184,7 @@ def main():
         set_msg_rate(mav)
         
         # ───── カメラ向きソースの選択 ─────
+        global CAMERA_ORIENTATION_SOURCE
         print("\n" + "="*50)
         print(" カメラ向き（姿勢）のソースを選択してください")
         print(" 1: Motive (カメラ rigid body ID={}) ※デフォルト".format(CAMERA_RIGID_BODY_ID))
