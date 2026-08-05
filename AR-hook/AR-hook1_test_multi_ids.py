@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-AR-hook1_test_calibrated.py
-  AR-hook1_test.py の改良版。
-  起動時にArUcoマーカーとMotiveデータを使って R_cv_to_body を自動キャリブレーションする。
-  カメラがどの角度で開始しても、ワールド座標がARとMotiveの誤差を最小化する。
-"""
 import os,sys,select,time,math,threading,termios,tty,csv,datetime,signal
 from pathlib import Path
 import numpy as np
@@ -30,21 +24,52 @@ CAMERA_WIDTH = 1640
 CAMERA_HEIGHT = 1232
 # ───── ArUco・カメラ追跡設定 ─────
 MARKER_SIZE = 0.04  # マーカーの一辺の長さ（メートル、4cm）
-ID_CENTER_MARKER = 1  # 正方形の中心に配置されるマーカーID（ID 1）
-SQUARE_MARKER_IDS = [2, 3, 4, 5]  # 正方形4頂点のマーカーID（ID2〜ID5）
+HAND_MARKER_IDS = [1, 2, 3, 4]  # 手先正方形4頂点のマーカーID（ID1〜ID4）
+CARGO_MARKER_IDS = [5, 6, 7, 8]  # 荷物正方形4頂点のマーカーID（ID5〜ID8）
+
 # ───── カメラ Motive rigid body 設定 ─────
 CAMERA_RIGID_BODY_ID = 3  # カメラに取り付けたMotiveセンサのID（Motive側で設定したIDと一致させること）
+# カメラ取り付け方向の設定
+# 'front' : 前向きカメラ（テスト用）  OpenCV Z(前)=body X, X(右)=body Y, Y(下)=body Z
+# 'down'  : 下向きカメラ（実機用）   OpenCV Z(下)=body Z, X(右)=body Y, Y(画像下=機体後方)=-body X
+CAMERA_MOUNT_DIRECTION = 'front'
 # カメラ光学中心とMotiveマーカー中心のオフセット（カメラボディ座標系, メートル）
 # 実測後に更新してください（初期値はゼロベクトル）
 CAMERA_OPTICAL_OFFSET = np.array([0.0, 0.0, 0.0], dtype=np.float32)
-SQUARE_SIDE = 0.15  # 正方形の一辺長（メートル）
-HALF_SIDE = SQUARE_SIDE / 2
-MARKER_CENTER_OFFSETS = {
-    2: np.array([ +HALF_SIDE, +HALF_SIDE, 0.0], dtype=np.float32),  # 右上
-    3: np.array([ -HALF_SIDE, +HALF_SIDE, 0.0], dtype=np.float32),  # 左上
-    4: np.array([ -HALF_SIDE, -HALF_SIDE, 0.0], dtype=np.float32),  # 左下
-    5: np.array([ +HALF_SIDE, -HALF_SIDE, 0.0], dtype=np.float32),  # 右下
+
+HAND_SQUARE_SIDE = 0.15  # 手先正方形の一辺長（メートル）
+HAND_HALF_SIDE = HAND_SQUARE_SIDE / 2
+HAND_MARKER_OFFSETS = {
+    1: np.array([ +HAND_HALF_SIDE, +HAND_HALF_SIDE, 0.0], dtype=np.float32),  # 右上
+    2: np.array([ -HAND_HALF_SIDE, +HAND_HALF_SIDE, 0.0], dtype=np.float32),  # 左上
+    3: np.array([ -HAND_HALF_SIDE, -HAND_HALF_SIDE, 0.0], dtype=np.float32),  # 左下
+    4: np.array([ +HAND_HALF_SIDE, -HAND_HALF_SIDE, 0.0], dtype=np.float32),  # 右下
 }
+
+CARGO_SQUARE_SIDE = 0.15  # 荷物正方形の一辺長（メートル）
+CARGO_HALF_SIDE = CARGO_SQUARE_SIDE / 2
+CARGO_MARKER_OFFSETS = {
+    5: np.array([ +CARGO_HALF_SIDE, +CARGO_HALF_SIDE, 0.0], dtype=np.float32),  # 右上
+    6: np.array([ -CARGO_HALF_SIDE, +CARGO_HALF_SIDE, 0.0], dtype=np.float32),  # 左上
+    7: np.array([ -CARGO_HALF_SIDE, -CARGO_HALF_SIDE, 0.0], dtype=np.float32),  # 左下
+    8: np.array([ +CARGO_HALF_SIDE, -CARGO_HALF_SIDE, 0.0], dtype=np.float32),  # 右下
+}
+
+# ───── カメラ座標系オフセット設定 ─────
+# verify_displacement.py から算出された誤差 (Motive - AR生値) を設定します
+# 補正後座標 = 生の検出座標 + オフセット
+# 単位: メートル
+
+# カメラから手先へのオフセット
+HAND_OFFSET_CAM_X = 0.0
+HAND_OFFSET_CAM_Y = 0.0
+HAND_OFFSET_CAM_Z = 0.0
+
+# カメラから荷物中心へのオフセット
+CARGO_OFFSET_CAM_X = 0.0
+CARGO_OFFSET_CAM_Y = 0.0
+CARGO_OFFSET_CAM_Z = 0.0
+
 # ───── 基準点設定 ─────
 REF_LAT, REF_LON, REF_ALT = 36.0757800, 136.2132900, 0.0
 TARGET_HEIGHT_ABOVE_TAKEOFF = 1.10
@@ -53,9 +78,6 @@ CSV_DIR.mkdir(exist_ok=True)
 # ───── カメラ向きソース設定 ─────
 # "motive" = Motive rigid body (デフォルト), "ardupilot" = ArduPilot磁気センサー(IMU姿勢)
 CAMERA_ORIENTATION_SOURCE = "motive"
-# ───── キャリブレーション設定 ─────
-CALIB_N_SAMPLES = 30    # キャリブレーション用サンプル数
-CALIB_TIMEOUT = 30.0    # キャリブレーションタイムアウト（秒）
 # ───── 状態変数 ─────
 running = True
 recording = True  # ← 常に記録
@@ -83,6 +105,12 @@ dist_id1_to_cargo_y = float('nan')
 dist_id1_to_cargo_z = float('nan')
 cargo_center_cam_x = float('nan')
 cargo_center_cam_y = float('nan')
+
+# カメラ座標系での位置情報（CSV記録用、オフセット適用前の生値）
+cargo_cam_raw = [float('nan'), float('nan'), float('nan')]
+hand_cam_raw = [float('nan'), float('nan'), float('nan')]
+motive_cargo_cam = [float('nan'), float('nan'), float('nan')]
+motive_hand_cam = [float('nan'), float('nan'), float('nan')]
 
 # ───── 新規追加: Motive UDP受信スレッド ─────
 import socket, struct
@@ -127,16 +155,6 @@ motive_rel_x = float('nan')
 motive_rel_y = float('nan')
 motive_rel_z = float('nan')
 
-# ───── 起動時キャリブレーション: R_cv_to_body の実測推定 ─────
-# デフォルト値（前向きカメラの固定前提）。キャリブレーション成功時に上書きされる。
-R_cv_to_body_calibrated = np.array([
-    [0.0, 0.0, 1.0],
-    [1.0, 0.0, 0.0],
-    [0.0, 1.0, 0.0]
-], dtype=np.float32)
-calibration_done = False
-calibration_residual = float('nan')  # キャリブレーション残差（平均角度誤差 [deg]）
-
 def quaternion_to_euler_ned(qx, qy, qz, qw):    # Motive(X=北,Z=東,Y=上左手系) -> NED右手系変換済みquat
     roll  = math.atan2(2*(qw*qx+qy*qz), 1-2*(qx**2+qy**2))
     pitch = math.asin(max(-1,min(1, 2*(qw*qy-qz*qx))))
@@ -150,13 +168,6 @@ def quaternion_to_rotation_matrix(qx, qy, qz, qw):
         [2*(qx*qy + qw*qz),         1 - 2*(qx**2 + qz**2),   2*(qy*qz - qw*qx)],
         [2*(qx*qz - qw*qy),         2*(qy*qz + qw*qx),       1 - 2*(qx**2 + qy**2)]
     ], dtype=np.float32)
-
-# ───── NED→ENU 変換行列（固定・共通利用） ─────
-R_NED_TO_ENU = np.array([
-    [0.0, 1.0,  0.0],
-    [1.0, 0.0,  0.0],
-    [0.0, 0.0, -1.0]
-], dtype=np.float32)
 
 def motive_udp_listener():
     global motive_drone_x, motive_drone_y, motive_drone_z
@@ -181,7 +192,7 @@ def motive_udp_listener():
     except Exception as e:
         print(f"[Motive UDP] Bind failed: {e}")
         return
-
+ 
     sock.settimeout(0.5)
     print("[Motive UDP] Receiver thread started on port 15769")
 
@@ -257,12 +268,32 @@ def motive_udp_listener():
                     # NED クォータニオン → 回転行列（カメラボディ → NED）
                     R_body_to_ned = quaternion_to_rotation_matrix(ned_cam_qx, ned_cam_qy, ned_cam_qz, ned_cam_qw)
 
-                    # ★ 変更点: ハードコード R_cv_to_body → キャリブレーション済みの値を使用
-                    with io_lock:
-                        R_cv_to_body = R_cv_to_body_calibrated.copy()
+                    # NED → ENU 変換行列 (固定)
+                    # NED(X=N,Y=E,Z=D) -> ENU(X=E,Y=N,Z=U)
+                    R_ned_to_enu = np.array([
+                        [0.0, 1.0,  0.0],
+                        [1.0, 0.0,  0.0],
+                        [0.0, 0.0, -1.0]
+                    ], dtype=np.float32)
 
-                    # 合成: OpenCV座標 → ENU ワールド座標 の回転行列
-                    R_total = R_NED_TO_ENU @ R_body_to_ned @ R_cv_to_body
+                    # ─── OpenCV カメラ座標系 (X=右,Y=下,Z=前) → カメラボディ NED 座標系 への軸変換 ───
+                    if CAMERA_MOUNT_DIRECTION == 'front':
+                        # 前向きカメラ: cam_Z(光軸=前)→body_X(North), cam_X(右)→body_Y(East), cam_Y(下)→body_Z(Down)
+                        R_cv_to_body = np.array([
+                            [0.0, 0.0, 1.0],
+                            [1.0, 0.0, 0.0],
+                            [0.0, 1.0, 0.0]
+                        ], dtype=np.float32)
+                    else:  # 'down'
+                        # 下向きカメラ: cam_Z(光軸=下)→body_Z(Down), cam_X(右)→body_Y(East), cam_Y(画像下=機体後方)→-body_X
+                        R_cv_to_body = np.array([
+                            [ 0.0, -1.0, 0.0],
+                            [ 1.0,  0.0, 0.0],
+                            [ 0.0,  0.0, 1.0]
+                        ], dtype=np.float32)
+
+                    # 合成: OpenCV座標 → ENU ワールド座標 の回転行列（Motiveリアルタイム姿勢で即時変換）
+                    R_total = R_ned_to_enu @ R_body_to_ned @ R_cv_to_body
 
                     # カメラ光学中心のワールド座標（Motiveの計測値 + オフセット補正）
                     cam_pos_enu = np.array([mx, my, mz], dtype=np.float32)
@@ -410,19 +441,17 @@ def local_xyz_to_gps(x, y, z):
     alt = REF_ALT + z
     return lat, lon, alt
 # ───── カメラ座標系から世界絶対座標系（東・北・上）への座標変換 ─────
-def camera_to_world_xyz_motive(tvec):
+_debug_cargo_log_time = 0.0  # デバッグログ用タイムスタンプ
+
+def camera_to_world_xyz_motive(tvec, debug=False):
     """
     【推奨】Motive で計測したカメラ位置・姿勢を用いて
     OpenCV カメラ座標系のベクトルを ENU ワールド座標に変換する。
 
     R_cam_to_world と t_cam_world は motive_udp_listener() がリアルタイムに更新する。
     Motive カメラデータが未受信の場合は None を返す（フォールバック用）。
-
-    Args:
-        tvec: カメラ座標系での3Dベクトル (numpy配列 or リスト, shape=(3,))
-    Returns:
-        (world_x, world_y, world_z) in ENU [m], または None（未受信時）
     """
+    global _debug_cargo_log_time
     with io_lock:
         received = motive_camera_received
         R = R_cam_to_world.copy()
@@ -431,7 +460,19 @@ def camera_to_world_xyz_motive(tvec):
     if not received:
         return None  # データ未受信のためフォールバックへ
 
-    p_world = R.dot(np.array(tvec, dtype=np.float32)) + t
+    tvec_arr = np.array(tvec, dtype=np.float32)
+    R_rot = R.dot(tvec_arr)  # カメラ→ワールドの回転成分
+    p_world = R_rot + t
+
+    if debug:
+        now = time.time()
+        if now - _debug_cargo_log_time > 2.0:
+            _debug_cargo_log_time = now
+            print(f"[CamDebug] tvec_cam=[{tvec_arr[0]:.3f},{tvec_arr[1]:.3f},{tvec_arr[2]:.3f}] "
+                  f"R_rot=[{R_rot[0]:.3f},{R_rot[1]:.3f},{R_rot[2]:.3f}] "
+                  f"cam_pos=[{t[0]:.3f},{t[1]:.3f},{t[2]:.3f}] "
+                  f"p_world=[{p_world[0]:.3f},{p_world[1]:.3f},{p_world[2]:.3f}]")
+
     return float(p_world[0]), float(p_world[1]), float(p_world[2])
 
 def camera_to_world_xyz(tvec, roll_rad, pitch_rad, yaw_rad, gps_drone):
@@ -441,10 +482,6 @@ def camera_to_world_xyz(tvec, roll_rad, pitch_rad, yaw_rad, gps_drone):
     機体姿勢（Roll, Pitch, Yaw）の3D回転行列を用いて世界絶対座標系（East-North-Up）の目標値に変換します。
     """
     # 1. カメラ座標系 -> 機体ボディ座標系（FRD: Front-Right-Down）へのマウントマッピング修正
-    # 前向きカメラの場合：
-    #   機体前方 (X_body) = カメラ光軸奥 (Z_cam) -> tvec[2]
-    #   機体右方 (Y_body) = カメラ画像右 (X_cam) -> tvec[0]
-    #   機体下方 (Z_body) = カメラ画像下 (Y_cam) -> tvec[1]
     p_body = np.array([tvec[2], tvec[0], tvec[1]], dtype=np.float32)
     
     # 2. ロール、ピッチ、ヨーの回転行列を計算
@@ -499,250 +536,14 @@ def estimate_square_center_from_marker(corner, marker_id, marker_size, camera_ma
     rvecs, tvecs = my_estimatePoseSingleMarkers([corner], marker_size, camera_matrix, distortion_coeff)
     rvec = rvecs[0].reshape(3)
     tvec = tvecs[0].reshape(3)
-    # ID1 (ドローン側) はここで特別扱いしない。
-    # ここでは常にマーカー位置（または頂点オフセット適用後の中心推定）を返す。
-    offset = MARKER_CENTER_OFFSETS.get(marker_id)
+    # 手先(ID 1-4)か荷物(ID 5-8)のオフセットを取得して適用
+    offset = HAND_MARKER_OFFSETS.get(marker_id)
     if offset is None:
-        # マーカーが正方形の頂点リストにない場合は、そのまま tvec を返す（例: ID1など）
+        offset = CARGO_MARKER_OFFSETS.get(marker_id)
+    if offset is None:
         return tvec
     R, _ = cv2.Rodrigues(rvec)
     return tvec + R.dot(offset)
-
-# ────────────────────────────────────────────────────────────────────
-# ★ 新規追加: 起動時カメラ軸キャリブレーション
-# ────────────────────────────────────────────────────────────────────
-def _solve_R_cv_to_body_from_samples(p_cam_list, d_world_list, R_body_to_ned_list):
-    """
-    複数サンプルから最適な R_cv_to_body を SVD Procrustes 法で推定する。
-
-    原理:
-        各サンプル i について:
-            d_world_i = R_NED_TO_ENU @ R_body_to_ned_i @ R_cv_to_body @ p_cam_i
-        
-        ⇔  R_cv_to_body @ p_cam_i = (R_NED_TO_ENU @ R_body_to_ned_i)^T @ d_world_i
-                                    = q_i (既知)
-        
-        よって、p_cam_i → q_i の最適回転を Procrustes で求める。
-
-    Args:
-        p_cam_list:       list of (3,) ndarray — カメラ座標系での荷物ベクトル
-        d_world_list:     list of (3,) ndarray — ENU ワールドでのカメラ→荷物差分ベクトル
-        R_body_to_ned_list: list of (3,3) ndarray — 各サンプル時の R_body_to_ned
-
-    Returns:
-        R_cv_to_body (3x3 ndarray), residual_deg (float) — 推定結果と平均角度残差
-    """
-    n = len(p_cam_list)
-    P = np.zeros((n, 3), dtype=np.float64)  # p_cam
-    Q = np.zeros((n, 3), dtype=np.float64)  # 目標ベクトル
-
-    for i in range(n):
-        R_combined = R_NED_TO_ENU.astype(np.float64) @ R_body_to_ned_list[i].astype(np.float64)
-        q_i = R_combined.T @ d_world_list[i].astype(np.float64)
-        P[i] = p_cam_list[i].astype(np.float64)
-        Q[i] = q_i
-
-    # 正規化: 方向のみに基づいて回転を推定する（距離のばらつきに影響されないように）
-    P_norm = P / (np.linalg.norm(P, axis=1, keepdims=True) + 1e-12)
-    Q_norm = Q / (np.linalg.norm(Q, axis=1, keepdims=True) + 1e-12)
-
-    # SVD Procrustes: min ||Q_norm - P_norm @ R^T||^2
-    H = P_norm.T @ Q_norm  # (3x3)
-    U, S, Vt = np.linalg.svd(H)
-    # 反転補正（det(R)=+1 を保証）
-    d = np.linalg.det(Vt.T @ U.T)
-    D = np.diag([1.0, 1.0, d])
-    R_est = (Vt.T @ D @ U.T).astype(np.float32)
-
-    # 残差計算: 各サンプルの角度誤差の平均
-    angle_errors = []
-    for i in range(n):
-        q_pred = R_est @ P_norm[i].astype(np.float32)
-        q_true = Q_norm[i].astype(np.float32)
-        cos_angle = np.clip(np.dot(q_pred, q_true), -1.0, 1.0)
-        angle_errors.append(math.degrees(math.acos(float(cos_angle))))
-    
-    residual_deg = float(np.mean(angle_errors))
-    return R_est, residual_deg
-
-
-def calibrate_camera_axis(picam2, cap, camera_matrix, distortion_coeff,
-                          n_samples=CALIB_N_SAMPLES, timeout=CALIB_TIMEOUT):
-    """
-    起動時キャリブレーション:
-    ArUcoマーカー(ID2-5) + Motiveカメラ/荷物位置データを同時に使って
-    R_cv_to_body を実測から自動推定する。
-
-    【前提条件】
-    ・ArUcoマーカー(ID2-5のうち1つ以上)がカメラに見えていること
-    ・Motive UDP受信スレッドが動作中で、カメラ(ID=CAMERA_RIGID_BODY_ID)と
-      荷物(ID=2)の位置データが届いていること
-
-    Args:
-        picam2:             Picamera2 インスタンス (or None)
-        cap:                cv2.VideoCapture インスタンス (or None)
-        camera_matrix:      カメラ内部パラメータ行列
-        distortion_coeff:   歪み係数
-        n_samples:          収集するサンプル数
-        timeout:            タイムアウト（秒）
-
-    Returns:
-        R_cv_to_body (3x3 ndarray) — 推定された軸マッピング行列
-        residual_deg (float)       — 平均角度残差 [deg]
-        None, None                 — キャリブレーション失敗時
-    """
-    global R_cv_to_body_calibrated, calibration_done, calibration_residual
-
-    dictionary = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
-    detector = aruco.ArucoDetector(dictionary)
-
-    p_cam_list = []         # カメラ座標系での荷物中心ベクトル
-    d_world_list = []       # ENU ワールドでの(カメラ→荷物)差分ベクトル
-    R_body_to_ned_list = [] # 各サンプル時の R_body_to_ned
-
-    start_time = time.time()
-    sample_count = 0
-
-    print(f"  サンプル収集開始 (目標: {n_samples}サンプル, タイムアウト: {timeout:.0f}秒)")
-
-    while sample_count < n_samples and running:
-        elapsed = time.time() - start_time
-        if elapsed > timeout:
-            print(f"  ⚠ タイムアウト ({timeout:.0f}秒) に達しました。収集サンプル数: {sample_count}/{n_samples}")
-            break
-
-        # フレーム取得
-        if picam2:
-            img = picam2.capture_array()
-            ret = True
-        else:
-            ret, img = cap.read()
-        if not ret or img is None:
-            time.sleep(0.01)
-            continue
-
-        # マーカー検出
-        corners, ids, _ = detector.detectMarkers(img)
-        if ids is None:
-            time.sleep(0.02)
-            continue
-
-        # ID2-5 の荷物マーカーで PnP 推定
-        obj_points = []
-        img_points = []
-        for i, corner in enumerate(corners):
-            marker_id = int(ids[i][0])
-            if marker_id in MARKER_CENTER_OFFSETS:
-                O_id = MARKER_CENTER_OFFSETS[marker_id]
-                corners_3d = np.array([
-                    [O_id[0] - MARKER_SIZE / 2, O_id[1] + MARKER_SIZE / 2, 0.0],
-                    [O_id[0] + MARKER_SIZE / 2, O_id[1] + MARKER_SIZE / 2, 0.0],
-                    [O_id[0] + MARKER_SIZE / 2, O_id[1] - MARKER_SIZE / 2, 0.0],
-                    [O_id[0] - MARKER_SIZE / 2, O_id[1] - MARKER_SIZE / 2, 0.0],
-                ], dtype=np.float32)
-                obj_points.append(corners_3d)
-                img_points.append(corner.reshape(4, 2))
-
-        if len(obj_points) == 0:
-            time.sleep(0.02)
-            continue
-
-        obj_points_arr = np.vstack(obj_points)
-        img_points_arr = np.vstack(img_points)
-        success, rvec_sol, tvec_sol = cv2.solvePnP(
-            obj_points_arr, img_points_arr,
-            camera_matrix, distortion_coeff,
-            flags=cv2.SOLVEPNP_ITERATIVE
-        )
-        if not success:
-            time.sleep(0.02)
-            continue
-
-        p_cam = tvec_sol.reshape(3).astype(np.float32)  # 荷物中心のカメラ座標系ベクトル
-
-        # Motiveデータの取得（カメラ位置と荷物位置）
-        with io_lock:
-            cam_received = motive_camera_received
-            cargo_received = motive_cargo_received
-            cam_pos = np.array([motive_camera_x, motive_camera_y, motive_camera_z], dtype=np.float32)
-            cargo_pos = np.array([motive_cargo_x, motive_cargo_y, motive_cargo_z], dtype=np.float32)
-            cam_qx = motive_camera_qx
-            cam_qy = motive_camera_qy
-            cam_qz = motive_camera_qz
-            cam_qw = motive_camera_qw
-
-        if not cam_received or not cargo_received:
-            time.sleep(0.02)
-            continue
-
-        # カメラ → 荷物 の ENU ワールド差分ベクトル
-        d_world = cargo_pos - cam_pos
-        
-        # 差分ベクトルのノルムが小さすぎる（カメラと荷物がほぼ同じ位置）場合はスキップ
-        if np.linalg.norm(d_world) < 0.05:
-            time.sleep(0.02)
-            continue
-
-        # カメラの R_body_to_ned を計算（Motiveクォータニオンから）
-        ned_cam_qx = cam_qx      # Motive X → NED X (North)
-        ned_cam_qy = cam_qz      # Motive Z → NED Y (East)
-        ned_cam_qz = -cam_qy     # Motive -Y → NED Z (Down)
-        ned_cam_qw = cam_qw
-        R_body_to_ned = quaternion_to_rotation_matrix(ned_cam_qx, ned_cam_qy, ned_cam_qz, ned_cam_qw)
-
-        p_cam_list.append(p_cam)
-        d_world_list.append(d_world)
-        R_body_to_ned_list.append(R_body_to_ned)
-        sample_count += 1
-
-        if sample_count % 5 == 0 or sample_count == n_samples:
-            print(f"  [{sample_count}/{n_samples}] サンプル収集中... (経過: {elapsed:.1f}秒)")
-
-        time.sleep(0.03)  # フレーム間隔
-
-    if sample_count < 3:
-        print(f"  ❌ サンプル数不足 ({sample_count}サンプル)。キャリブレーションを中止します。")
-        return None, None
-
-    print(f"  {sample_count}サンプルを収集。SVD Procrustes法で R_cv_to_body を推定中...")
-
-    R_est, residual_deg = _solve_R_cv_to_body_from_samples(
-        p_cam_list, d_world_list, R_body_to_ned_list
-    )
-
-    # 直交性チェック
-    I_check = R_est.T @ R_est
-    ortho_err = np.linalg.norm(I_check - np.eye(3))
-    det_R = np.linalg.det(R_est)
-    print(f"  推定結果:")
-    print(f"    R_cv_to_body =")
-    for row in R_est:
-        print(f"      [{row[0]:+.4f}  {row[1]:+.4f}  {row[2]:+.4f}]")
-    print(f"    直交性誤差: {ortho_err:.6f} (理想: 0.0)")
-    print(f"    行列式: {det_R:.6f} (理想: +1.0)")
-    print(f"    平均角度残差: {residual_deg:.2f}°")
-
-    if ortho_err > 0.1 or abs(det_R - 1.0) > 0.1:
-        print(f"  ⚠ 推定された行列の品質が不十分です。デフォルト値を使用します。")
-        return None, None
-
-    # 旧デフォルト値との比較
-    R_default = np.array([
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0]
-    ], dtype=np.float32)
-    diff_from_default = np.linalg.norm(R_est - R_default)
-    print(f"    デフォルト値との差異: {diff_from_default:.4f}")
-
-    # グローバル変数を更新
-    with io_lock:
-        R_cv_to_body_calibrated = R_est.copy()
-        calibration_done = True
-        calibration_residual = residual_deg
-
-    return R_est, residual_deg
-
 
 # ───── 状態監視スレッド ─────
 def monitor_vehicle(m):
@@ -818,6 +619,7 @@ def camera_tracker_loop(m, show_window=False):
     global running, target, gps_now, current_yaw_deg, initial_target_set, guided_mode_active, last_center_cam, last_rvec_cargo
     global cargo_center_world, cargo_detected, id1_detected, dist_id1_to_cargo_x, dist_id1_to_cargo_y, dist_id1_to_cargo_z
     global cargo_center_cam_x, cargo_center_cam_y
+    global cargo_cam_raw, hand_cam_raw, motive_cargo_cam, motive_hand_cam
     
     print(f"カメラ初期化中（解像度: {CAMERA_WIDTH}x{CAMERA_HEIGHT}）...")
     picam2 = None
@@ -862,53 +664,10 @@ def camera_tracker_loop(m, show_window=False):
             print(f"⚠ カメラパラメータのロードに失敗しました ({e})。デフォルト値を使用します。")
     else:
         print("⚠ camera_params.npz が見つかりません。デフォルトのキャリブレーション値を使用します。")
-
-    # ────────────────────────────────────────────────────────────
-    # ★ 起動時キャリブレーション: R_cv_to_body の自動推定
-    # ────────────────────────────────────────────────────────────
-    if CAMERA_ORIENTATION_SOURCE == "motive":
-        print("\n" + "="*60)
-        print(" ★ カメラ-Motive 軸キャリブレーション")
-        print("   ArUcoマーカー(ID2-5)がカメラに映るようにしてください。")
-        print("   Motiveのカメラ(ID={})と荷物(ID=2)のデータが必要です。".format(CAMERA_RIGID_BODY_ID))
-        print("="*60)
-
-        # Motiveデータが届くまで少し待つ
-        print("  Motiveデータの受信を待機中...")
-        wait_start = time.time()
-        while time.time() - wait_start < 10.0:
-            with io_lock:
-                cam_ok = motive_camera_received
-                cargo_ok = motive_cargo_received
-            if cam_ok and cargo_ok:
-                print("  ✓ Motiveデータ受信確認（カメラ + 荷物）")
-                break
-            time.sleep(0.2)
-        else:
-            with io_lock:
-                cam_ok = motive_camera_received
-                cargo_ok = motive_cargo_received
-            if not cam_ok:
-                print("  ⚠ Motiveカメラデータが受信されていません。")
-            if not cargo_ok:
-                print("  ⚠ Motive荷物データが受信されていません。")
-
-        R_result, residual = calibrate_camera_axis(
-            picam2, cap, camera_matrix, distortion_coeff
-        )
-        if R_result is not None:
-            print(f"  ✓ キャリブレーション完了 (残差: {residual:.2f}°)")
-        else:
-            print("  ⚠ キャリブレーション失敗。デフォルトの R_cv_to_body を使用します。")
-            print("    (前向きカメラ固定前提: body_Front=cam_Z, body_Right=cam_X, body_Down=cam_Y)")
-        print("="*60 + "\n")
-    else:
-        print("  カメラ向きソース: ArduPilot → キャリブレーションをスキップ")
-
     # ArUcoディテクタの設定
     dictionary = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
     detector = aruco.ArucoDetector(dictionary)
-    print("✓ マーカー追跡ループを開始します（中心ID: {}, 正方形頂点ID: {}）...".format(ID_CENTER_MARKER, SQUARE_MARKER_IDS))
+    print("✓ マーカー追跡ループを開始します（手先ID: {}, 荷物ID: {}）...".format(HAND_MARKER_IDS, CARGO_MARKER_IDS))
     last_print_time = 0
     try:
         while running:
@@ -924,19 +683,24 @@ def camera_tracker_loop(m, show_window=False):
             # マーカー検出
             corners, ids, rejected = detector.detectMarkers(img)
             has_cargo = False
-            has_id1 = False
+            has_hand = False
             dist_x, dist_y, dist_z = float('nan'), float('nan'), float('nan')
             
             if ids is not None:
-                obj_points = []
-                img_points = []
-                detected_ids = []
-                id1_cam = None
+                cargo_obj_points = []
+                cargo_img_points = []
+                cargo_detected_ids = []
+                
+                hand_obj_points = []
+                hand_img_points = []
+                hand_detected_ids = []
+                
                 for i, corner in enumerate(corners):
                     marker_id = int(ids[i][0])
-                    # ID2-5: 荷物の頂点として中心を推定
-                    if marker_id in MARKER_CENTER_OFFSETS:
-                        O_id = MARKER_CENTER_OFFSETS[marker_id]
+                    
+                    # ID5-8: 荷物の頂点として中心を推定
+                    if marker_id in CARGO_MARKER_OFFSETS:
+                        O_id = CARGO_MARKER_OFFSETS[marker_id]
                         # 各マーカーの4頂点の3D座標（荷物座標系）
                         corners_3d = np.array([
                             [O_id[0] - MARKER_SIZE / 2, O_id[1] + MARKER_SIZE / 2, 0.0],
@@ -944,25 +708,36 @@ def camera_tracker_loop(m, show_window=False):
                             [O_id[0] + MARKER_SIZE / 2, O_id[1] - MARKER_SIZE / 2, 0.0],
                             [O_id[0] - MARKER_SIZE / 2, O_id[1] - MARKER_SIZE / 2, 0.0],
                         ], dtype=np.float32)
-                        obj_points.append(corners_3d)
-                        img_points.append(corner.reshape(4, 2))
-                        detected_ids.append(marker_id)
-                    # ID1: ドローン側マーカー（補正用）
-                    elif marker_id == ID_CENTER_MARKER:
-                        # ID1のカメラ座標系位置を取得しておく
-                        id1_cam = estimate_square_center_from_marker(corner, marker_id, MARKER_SIZE, camera_matrix, distortion_coeff)
+                        cargo_obj_points.append(corners_3d)
+                        cargo_img_points.append(corner.reshape(4, 2))
+                        cargo_detected_ids.append(marker_id)
+                        
+                    # ID1-4: 手先の頂点として中心を推定
+                    elif marker_id in HAND_MARKER_OFFSETS:
+                        O_id = HAND_MARKER_OFFSETS[marker_id]
+                        # 各マーカーの4頂点の3D座標（手先座標系）
+                        corners_3d = np.array([
+                            [O_id[0] - MARKER_SIZE / 2, O_id[1] + MARKER_SIZE / 2, 0.0],
+                            [O_id[0] + MARKER_SIZE / 2, O_id[1] + MARKER_SIZE / 2, 0.0],
+                            [O_id[0] + MARKER_SIZE / 2, O_id[1] - MARKER_SIZE / 2, 0.0],
+                            [O_id[0] - MARKER_SIZE / 2, O_id[1] - MARKER_SIZE / 2, 0.0],
+                        ], dtype=np.float32)
+                        hand_obj_points.append(corners_3d)
+                        hand_img_points.append(corner.reshape(4, 2))
+                        hand_detected_ids.append(marker_id)
 
                 used_last_center = False
                 center_cam = None
                 rvec_cargo = None
                 
-                if len(obj_points) > 0:
-                    obj_points = np.vstack(obj_points)
-                    img_points = np.vstack(img_points)
+                # 荷物PnP推定
+                if len(cargo_obj_points) > 0:
+                    cargo_obj_pts = np.vstack(cargo_obj_points)
+                    cargo_img_pts = np.vstack(cargo_img_points)
                     # 全検出マーカーの頂点から荷物中心位置・姿勢をPnP推定
                     success, rvec_sol, tvec_sol = cv2.solvePnP(
-                        obj_points,
-                        img_points,
+                        cargo_obj_pts,
+                        cargo_img_pts,
                         camera_matrix,
                         distortion_coeff,
                         flags=cv2.SOLVEPNP_ITERATIVE
@@ -973,16 +748,68 @@ def camera_tracker_loop(m, show_window=False):
                         last_center_cam = center_cam
                         last_rvec_cargo = rvec_cargo
                         has_cargo = True
-                else:
-                    # 頂点マーカーが見えないがID1のみ見えている場合は最後に記録した中心情報を利用
-                    if id1_cam is not None and last_center_cam is not None and last_rvec_cargo is not None:
+                
+                # 手先PnP推定
+                hand_center_cam = None
+                rvec_hand = None
+                if len(hand_obj_points) > 0:
+                    hand_obj_pts = np.vstack(hand_obj_points)
+                    hand_img_pts = np.vstack(hand_img_points)
+                    # 全検出マーカーの頂点から手先中心位置・姿勢をPnP推定
+                    success_hand, rvec_sol_hand, tvec_sol_hand = cv2.solvePnP(
+                        hand_obj_pts,
+                        hand_img_pts,
+                        camera_matrix,
+                        distortion_coeff,
+                        flags=cv2.SOLVEPNP_ITERATIVE
+                    )
+                    if success_hand:
+                        hand_center_cam = tvec_sol_hand.reshape(3)
+                        rvec_hand = rvec_sol_hand.reshape(3)
+                        has_hand = True
+
+                # 荷物が見えないが手先が見えている場合は最後に記録した中心情報を利用
+                if not has_cargo:
+                    if has_hand and last_center_cam is not None and last_rvec_cargo is not None:
                         center_cam = last_center_cam
                         rvec_cargo = last_rvec_cargo
                         used_last_center = True
                         has_cargo = True
 
-                if id1_cam is not None:
-                    has_id1 = True
+                # カメラ座標系検出値の生値を保存 (CSV記録用)
+                c_cam_raw_val = [float('nan'), float('nan'), float('nan')]
+                if center_cam is not None:
+                    c_cam_raw_val = [float(center_cam[0]), float(center_cam[1]), float(center_cam[2])]
+                    # オフセット適用 (カメラから荷物中心へのオフセット)
+                    center_cam = center_cam + np.array([CARGO_OFFSET_CAM_X, CARGO_OFFSET_CAM_Y, CARGO_OFFSET_CAM_Z], dtype=np.float32)
+
+                h_cam_raw_val = [float('nan'), float('nan'), float('nan')]
+                if hand_center_cam is not None:
+                    h_cam_raw_val = [float(hand_center_cam[0]), float(hand_center_cam[1]), float(hand_center_cam[2])]
+                    # オフセット適用 (カメラから手先へのオフセット)
+                    hand_center_cam = hand_center_cam + np.array([HAND_OFFSET_CAM_X, HAND_OFFSET_CAM_Y, HAND_OFFSET_CAM_Z], dtype=np.float32)
+
+                # Motiveデータのカメラ座標系への逆投影真値の算出
+                m_cargo_cam_val = [float('nan'), float('nan'), float('nan')]
+                m_hand_cam_val = [float('nan'), float('nan'), float('nan')]
+                with io_lock:
+                    if motive_camera_received:
+                        R_inv = R_cam_to_world.T
+                        t_cam = t_cam_world
+                        if motive_cargo_received:
+                            c_world = np.array([motive_cargo_x, motive_cargo_y, motive_cargo_z], dtype=np.float32)
+                            c_cam = R_inv.dot(c_world - t_cam)
+                            m_cargo_cam_val = [float(c_cam[0]), float(c_cam[1]), float(c_cam[2])]
+                        if motive_drone_pos_received:
+                            d_world = np.array([motive_drone_x, motive_drone_y, motive_drone_z], dtype=np.float32)
+                            d_cam = R_inv.dot(d_world - t_cam)
+                            m_hand_cam_val = [float(d_cam[0]), float(d_cam[1]), float(d_cam[2])]
+
+                with io_lock:
+                    cargo_cam_raw = c_cam_raw_val
+                    hand_cam_raw = h_cam_raw_val
+                    motive_cargo_cam = m_cargo_cam_val
+                    motive_hand_cam = m_hand_cam_val
 
                 if has_cargo:
                     # ✅ テレメトリおよび姿勢（Roll, Pitch, Yaw）データの取得
@@ -1006,13 +833,10 @@ def camera_tracker_loop(m, show_window=False):
                     # ─── 荷物中心のワールド座標を算出 ───
                     if CAMERA_ORIENTATION_SOURCE == "motive":
                         # Motiveカメラ rigid body による直接変換を優先
-                        result_motive_cargo = camera_to_world_xyz_motive(center_cam)
+                        result_motive_cargo = camera_to_world_xyz_motive(center_cam, debug=False)
                         if result_motive_cargo is not None:
                             cargo_x, cargo_y, cargo_z = result_motive_cargo
                             coord_source = "Motive-Camera"
-                            # ★ キャリブレーション済みかどうかをソース名に反映
-                            if calibration_done:
-                                coord_source = "Motive-Calibrated"
                         else:
                             # フォールバック: 機体姿勢ベースの座標変換
                             cargo_x, cargo_y, cargo_z = camera_to_world_xyz(
@@ -1029,18 +853,18 @@ def camera_tracker_loop(m, show_window=False):
                             center_cam, ap_roll, ap_pitch, ap_yaw, drone_gps)
                         coord_source = "ArduPilot-Mag"
 
-                    # ID1が見えていれば、中心との差分を使ってドローン目標を算出、および相対xyz座標を計算
-                    if has_id1:
-                        tvec_error = center_cam - id1_cam
-                        # 中心位置を原点とする座標系から見たID1までのxyz距離
-                        v_cam = id1_cam - center_cam
+                    # 手先が見えていれば、中心との差分を使ってドローン目標を算出、および相対xyz座標を計算
+                    if has_hand:
+                        tvec_error = center_cam - hand_center_cam
+                        # 中心位置を原点とする座標系から見た手先までのxyz距離
+                        v_cam = hand_center_cam - center_cam
                         R_cargo, _ = cv2.Rodrigues(rvec_cargo)
                         v_cargo = R_cargo.T.dot(v_cam)
                         dist_x = float(v_cargo[0])
                         dist_y = float(v_cargo[1])
                         dist_z = float(v_cargo[2])
                     else:
-                        # ID1が見えない場合は荷物中心そのものを目標にする（ただしID1目標距離は算出しない）
+                        # 手先が見えない場合は荷物中心そのものを目標にする（ただし目標距離は算出しない）
                         tvec_error = center_cam
 
                     # ─── ドローン誘導目標のワールド座標を算出 ───
@@ -1070,14 +894,12 @@ def camera_tracker_loop(m, show_window=False):
                         target['y'] = target_y
                         # 前向きテスト用：高さ(Z)方向もマーカーの高さに追随
                         target['z'] = target_z
-                        # （従来の下向きカメラのように一定高度を維持する場合は以下を有効化してください）
-                        # target['z'] = TARGET_HEIGHT_ABOVE_TAKEOFF
                         
                         cargo_center_world['x'] = cargo_x
                         cargo_center_world['y'] = cargo_y
                         cargo_center_world['z'] = cargo_z
                         cargo_detected = True
-                        id1_detected = has_id1
+                        id1_detected = has_hand
                         dist_id1_to_cargo_x = dist_x
                         dist_id1_to_cargo_y = dist_y
                         dist_id1_to_cargo_z = dist_z
@@ -1102,28 +924,32 @@ def camera_tracker_loop(m, show_window=False):
 
                     # 1秒間隔でコンソールに進捗を表示
                     if time.time() - last_print_time > 1.0:
-                        ids_text = ",".join(str(mid) for mid in detected_ids)
-                        id1_text = "(ID1 vis)" if has_id1 else "(ID1 NOT vis)"
+                        cargo_ids_text = ",".join(str(mid) for mid in cargo_detected_ids)
+                        hand_ids_text = ",".join(str(mid) for mid in hand_detected_ids)
+                        hand_text = f"(Hand vis: {hand_ids_text})" if has_hand else "(Hand NOT vis)"
                         last_text = "(using last center)" if used_last_center else ""
-                        calib_text = "[CAL]" if calibration_done else "[UNCAL]"
                         
-                        dist_id1_text = f"X:{dist_x:.3f}, Y:{dist_y:.3f}, Z:{dist_z:.3f}" if has_id1 else "N/A"
-                        print(f"[Tracker] {calib_text} 検出IDs: {ids_text} {id1_text} {last_text} | "
+                        dist_hand_text = f"X:{dist_x:.3f}, Y:{dist_y:.3f}, Z:{dist_z:.3f}" if has_hand else "N/A"
+                        print(f"[Tracker] 検出Cargo IDs: {cargo_ids_text} | {hand_text} {last_text} | "
                                f"座標ソース: {coord_source} | "
                                f"推定中心(px): [X:{cargo_center_cam_x:.1f}, Y:{cargo_center_cam_y:.1f}] | "
-                               f"ID1-中心目標距離(xyz): [{dist_id1_text}] | "
+                               f"手先-荷物中心目標距離(xyz): [{dist_hand_text}] | "
                                f"目標座標 [X:{target_x:.2f}, Y:{target_y:.2f}, Z:{target['z']:.2f}]")
                         last_print_time = time.time()
                 else:
                     # 荷物が検出されていない場合
                     with io_lock:
                         cargo_detected = False
-                        id1_detected = has_id1
+                        id1_detected = has_hand
                         dist_id1_to_cargo_x = float('nan')
                         dist_id1_to_cargo_y = float('nan')
                         dist_id1_to_cargo_z = float('nan')
                         cargo_center_cam_x = float('nan')
                         cargo_center_cam_y = float('nan')
+                        cargo_cam_raw = [float('nan'), float('nan'), float('nan')]
+                        hand_cam_raw = [float('nan'), float('nan'), float('nan')]
+                        motive_cargo_cam = [float('nan'), float('nan'), float('nan')]
+                        motive_hand_cam = [float('nan'), float('nan'), float('nan')]
             else:
                 # ids is None
                 with io_lock:
@@ -1134,6 +960,10 @@ def camera_tracker_loop(m, show_window=False):
                     dist_id1_to_cargo_z = float('nan')
                     cargo_center_cam_x = float('nan')
                     cargo_center_cam_y = float('nan')
+                    cargo_cam_raw = [float('nan'), float('nan'), float('nan')]
+                    hand_cam_raw = [float('nan'), float('nan'), float('nan')]
+                    motive_cargo_cam = [float('nan'), float('nan'), float('nan')]
+                    motive_hand_cam = [float('nan'), float('nan'), float('nan')]
 
             # 表示が許可されていればウィンドウ表示
             if show_window:
@@ -1142,7 +972,7 @@ def camera_tracker_loop(m, show_window=False):
                     display = aruco.drawDetectedMarkers(display, corners, ids)
                     
                     if has_cargo and center_cam is not None and rvec_cargo is not None:
-                        # 1. 中心位置の投影と描画 (緑の丸)
+                        # 1. 荷物中心位置の投影と描画 (緑の丸)
                         center_pts_3d = np.array([[0.0, 0.0, 0.0]], dtype=np.float32)
                         center_img_pts, _ = cv2.projectPoints(
                             center_pts_3d, rvec_cargo, center_cam, camera_matrix, distortion_coeff
@@ -1156,40 +986,51 @@ def camera_tracker_loop(m, show_window=False):
 
                         # 2. 座標系の描画 (X:赤, Y:緑, Z:青)
                         try:
-                            cv2.drawFrameAxes(display, camera_matrix, distortion_coeff, rvec_cargo, center_cam, SQUARE_SIDE)
+                            cv2.drawFrameAxes(display, camera_matrix, distortion_coeff, rvec_cargo, center_cam, CARGO_SQUARE_SIDE)
                         except AttributeError:
                             try:
-                                cv2.aruco.drawAxis(display, camera_matrix, distortion_coeff, rvec_cargo, center_cam, SQUARE_SIDE)
+                                cv2.aruco.drawAxis(display, camera_matrix, distortion_coeff, rvec_cargo, center_cam, CARGO_SQUARE_SIDE)
                             except AttributeError:
                                 pass
 
-                        # 3. ID2-5がすべて検出されている場合、15cm四方の枠を描画
-                        if len([mid for mid in [2, 3, 4, 5] if mid in detected_ids]) == 4:
-                            square_pts_3d = np.array([
-                                [-HALF_SIDE,  HALF_SIDE, 0.0],
-                                [ HALF_SIDE,  HALF_SIDE, 0.0],
-                                [ HALF_SIDE, -HALF_SIDE, 0.0],
-                                [-HALF_SIDE, -HALF_SIDE, 0.0]
+                        # 3. Cargo ID5-8がすべて検出されている場合、15cm四方の枠を描画
+                        if len([mid for mid in CARGO_MARKER_IDS if mid in cargo_detected_ids]) == 4:
+                            cargo_square_pts_3d = np.array([
+                                [-CARGO_HALF_SIDE,  CARGO_HALF_SIDE, 0.0],
+                                [ CARGO_HALF_SIDE,  CARGO_HALF_SIDE, 0.0],
+                                [ CARGO_HALF_SIDE, -CARGO_HALF_SIDE, 0.0],
+                                [-CARGO_HALF_SIDE, -CARGO_HALF_SIDE, 0.0]
                             ], dtype=np.float32)
-                            square_img_pts, _ = cv2.projectPoints(
-                                square_pts_3d, rvec_cargo, center_cam, camera_matrix, distortion_coeff
+                            cargo_square_img_pts, _ = cv2.projectPoints(
+                                cargo_square_pts_3d, rvec_cargo, center_cam, camera_matrix, distortion_coeff
                             )
-                            pts_2d = square_img_pts.reshape(-1, 2).astype(np.int32)
-                            cv2.polylines(display, [pts_2d], isClosed=True, color=(0, 165, 255), thickness=2, lineType=cv2.LINE_AA)
-                            cv2.putText(display, "15cm Cargo Frame", (pts_2d[0][0], pts_2d[0][1] - 10),
+                            cargo_pts_2d = cargo_square_img_pts.reshape(-1, 2).astype(np.int32)
+                            cv2.polylines(display, [cargo_pts_2d], isClosed=True, color=(0, 165, 255), thickness=2, lineType=cv2.LINE_AA)
+                            cv2.putText(display, "15cm Cargo Frame", (cargo_pts_2d[0][0], cargo_pts_2d[0][1] - 10),
                                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 165, 255), 1, cv2.LINE_AA)
 
-                        # 4. 画面上にID1の相対位置を表示
-                        if has_id1:
-                            text_str = f"ID1 Rel to Center: X:{dist_x:.3f} Y:{dist_y:.3f} Z:{dist_z:.3f}"
-                            cv2.putText(display, text_str, (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2, cv2.LINE_AA)
-                        else:
-                            cv2.putText(display, "ID1 Rel to Center: N/A (ID1 invisible)", (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2, lineType=cv2.LINE_AA)
+                    # 3.5 Hand ID1-4がすべて検出されている場合、15cm四方の枠を描画
+                    if len([mid for mid in HAND_MARKER_IDS if mid in hand_detected_ids]) == 4 and hand_center_cam is not None and rvec_hand is not None:
+                        hand_square_pts_3d = np.array([
+                            [-HAND_HALF_SIDE,  HAND_HALF_SIDE, 0.0],
+                            [ HAND_HALF_SIDE,  HAND_HALF_SIDE, 0.0],
+                            [ HAND_HALF_SIDE, -HAND_HALF_SIDE, 0.0],
+                            [-HAND_HALF_SIDE, -HAND_HALF_SIDE, 0.0]
+                        ], dtype=np.float32)
+                        hand_square_img_pts, _ = cv2.projectPoints(
+                            hand_square_pts_3d, rvec_hand, hand_center_cam, camera_matrix, distortion_coeff
+                        )
+                        hand_pts_2d = hand_square_img_pts.reshape(-1, 2).astype(np.int32)
+                        cv2.polylines(display, [hand_pts_2d], isClosed=True, color=(255, 0, 255), thickness=2, lineType=cv2.LINE_AA)
+                        cv2.putText(display, "15cm Hand Frame", (hand_pts_2d[0][0], hand_pts_2d[0][1] - 10),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1, cv2.LINE_AA)
 
-                    # 5. ★ キャリブレーション状態を画面に表示
-                    calib_status = f"Calibration: {'DONE (residual {:.1f} deg)'.format(calibration_residual) if calibration_done else 'DEFAULT (uncalibrated)'}"
-                    cv2.putText(display, calib_status, (15, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                                (0, 255, 0) if calibration_done else (0, 128, 255), 1, cv2.LINE_AA)
+                    # 4. 画面上に手先位置の相対位置を表示
+                    if has_hand:
+                        text_str = f"Hand Rel to Center: X:{dist_x:.3f} Y:{dist_y:.3f} Z:{dist_z:.3f}"
+                        cv2.putText(display, text_str, (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2, cv2.LINE_AA)
+                    else:
+                        cv2.putText(display, "Hand Rel to Center: N/A (Hand invisible)", (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2, lineType=cv2.LINE_AA)
 
                 if video_writer is None:
                     # ディスプレイ用にウィンドウの設定を行う (1640x1232は大きいため縮小表示)
@@ -1277,7 +1118,7 @@ def record_data():
             c_cam_x = cargo_center_cam_x
             c_cam_y = cargo_center_cam_y
             
-            # ✅ Motiveデータのログ取得（ID1センサから）
+            # ✅ Motive ID1センサ データ
             m_drone_x = motive_drone_x
             m_drone_y = motive_drone_y
             m_drone_z = motive_drone_z
@@ -1291,7 +1132,7 @@ def record_data():
             m_pitch = motive_pitch_rad
             m_yaw = motive_yaw_rad
             
-            # ✅ カメラ Motive データのログ取得
+            # ✅ カメラ Motive データ
             m_cam_x = motive_camera_x
             m_cam_y = motive_camera_y
             m_cam_z = motive_camera_z
@@ -1302,10 +1143,12 @@ def record_data():
             p_roll = current_roll_rad
             p_pitch = current_pitch_rad
             p_yaw = current_yaw_rad
-
-            # ★ キャリブレーション情報
-            cal_done = 1 if calibration_done else 0
-            cal_resid = calibration_residual
+            
+            # カメラ座標系生値とMotive逆投影真値のコピー
+            c_cam_raw = cargo_cam_raw.copy()
+            h_cam_raw = hand_cam_raw.copy()
+            m_c_cam = motive_cargo_cam.copy()
+            m_h_cam = motive_hand_cam.copy()
             
         data_records.append([
             time.time(), 
@@ -1330,8 +1173,11 @@ def record_data():
             coord_src,
             # Pixhawk姿勢 カラム
             p_roll, p_pitch, p_yaw,
-            # ★ キャリブレーション情報
-            cal_done, cal_resid
+            # ✅ 新規追加：カメラ座標系 生データとMotive逆投影真値
+            c_cam_raw[0], c_cam_raw[1], c_cam_raw[2],
+            h_cam_raw[0], h_cam_raw[1], h_cam_raw[2],
+            m_c_cam[0], m_c_cam[1], m_c_cam[2],
+            m_h_cam[0], m_h_cam[1], m_h_cam[2]
         ])
         time.sleep(1 / SEND_HZ)
 def save_csv():
@@ -1357,26 +1203,20 @@ def save_csv():
             'Motive_Camera_Received',
             'Coord_Source',
             'Pixhawk_Roll', 'Pixhawk_Pitch', 'Pixhawk_Yaw',
-            # ★ キャリブレーション情報
-            'Calibration_Done', 'Calibration_Residual_Deg'
+            # ✅ カメラ座標系 生データ
+            'Cargo_Cam_X', 'Cargo_Cam_Y', 'Cargo_Cam_Z',
+            'Hand_Cam_X', 'Hand_Cam_Y', 'Hand_Cam_Z',
+            # ✅ カメラ座標系 Motive真値（逆投影）
+            'Motive_Cargo_Cam_X', 'Motive_Cargo_Cam_Y', 'Motive_Cargo_Cam_Z',
+            'Motive_Hand_Cam_X', 'Motive_Hand_Cam_Y', 'Motive_Hand_Cam_Z'
         ])
         writer.writerows(data_records)
     print(f"\n✓ CSV保存完了: {path} ({len(data_records)} 行)")
-
-    # ★ キャリブレーション結果も別ファイルに保存
-    if calibration_done:
-        calib_path = CSV_DIR / f"{now}_calibration.npz"
-        np.savez(calib_path,
-                 R_cv_to_body=R_cv_to_body_calibrated,
-                 residual_deg=calibration_residual)
-        print(f"✓ キャリブレーション結果保存: {calib_path}")
-
 # ───── メイン関数 ─────
 def main():
-    global running
+    global running, CAMERA_ORIENTATION_SOURCE
     print("="*50)
-    print("ArduPilot 精密制御 - 起動時カメラ軸キャリブレーション版")
-    print("  (カメラ開始角度に依存しないAR-Motive座標アラインメント)")
+    print("ArduPilot 精密制御 - 前向きカメラテスト用 (手先ID1-4, 荷物ID5-8)")
     print("="*50)
     
     try:
@@ -1401,6 +1241,7 @@ def main():
         threading.Thread(target=monitor_vehicle, args=(mav,), daemon=True).start()
         threading.Thread(target=record_data, daemon=True).start()
         threading.Thread(target=motive_udp_listener, daemon=True).start()
+
         # 起動時にカメラ映像表示の有無を選択
         choice = input_with_timeout("カメラ映像を表示しますか？ 1:表示 2:非表示 (デフォルト2): ", timeout=15, default='2')
         show_camera_window = (choice.strip() == '1')
@@ -1410,7 +1251,6 @@ def main():
         control_thread.start()
         
         # カメラ追跡ループをメインスレッドで実行 (OpenCV GUI of main thread workaround)
-        # ★ camera_tracker_loop() 内部でキャリブレーションが自動実行される
         camera_tracker_loop(mav, show_camera_window)
         
     except KeyboardInterrupt:
