@@ -117,6 +117,10 @@ def motive_udp_listener():
                     ned_qw = motive_qw
                     
                     r, p, y = quaternion_to_euler_ned(ned_qx, ned_qy, ned_qz, ned_qw)
+                    # South-positive: rotate yaw by 180 degrees (pi radians)
+                    y = (y + math.pi) % (2 * math.pi)
+                    if y > math.pi:
+                        y -= 2 * math.pi
                     
                     with io_lock:
                         motive_roll_rad = r
@@ -477,13 +481,15 @@ def camera_tracker_loop(m, show_window=False):
                     with io_lock:
                         drone_gps = gps_now.copy()
                         if motive_attitude_received:
+                            # ✅ ID1センサから取得したドローン真値を使用（すでにSouth-positive）
                             drone_roll = motive_roll_rad
                             drone_pitch = motive_pitch_rad
                             drone_yaw = motive_yaw_rad
                         else:
+                            # フォールバック: Pixhawk IMU（North-positiveのためSouth-positiveへ変換）
                             drone_roll = current_roll_rad
                             drone_pitch = current_pitch_rad
-                            drone_yaw = current_yaw_rad
+                            drone_yaw = (current_yaw_rad + math.pi) % (2 * math.pi)
 
                     # 荷物中心の世界座標を算出
                     cargo_x, cargo_y, cargo_z = camera_to_world_xyz(center_cam, drone_roll, drone_pitch, drone_yaw, drone_gps)

@@ -211,6 +211,10 @@ def motive_udp_listener():
                     ned_qw = motive_qw
                     
                     r, p, y = quaternion_to_euler_ned(ned_qx, ned_qy, ned_qz, ned_qw)
+                    # South-positive: rotate yaw by 180 degrees (pi radians)
+                    y = (y + math.pi) % (2 * math.pi)
+                    if y > math.pi:
+                        y -= 2 * math.pi
                     
                     with io_lock:
                         # ✅ ID1センサから取得したドローン真値
@@ -308,8 +312,10 @@ def motive_udp_listener():
                         dp_world = np.array([motive_drone_x - motive_cargo_x,
                                              motive_drone_y - motive_cargo_y,
                                              motive_drone_z - motive_cargo_z])
-                        # ENU (East, North, Up) から NED (North, East, Down) に変換
-                        dp_ned = np.array([dp_world[1], dp_world[0], -dp_world[2]])
+                        # ENU (East, North, Up) から SED (South, West, Down) に変換
+                        # (北向きから南向きに180度回転)
+                        # dp_sed = R_z(pi) * dp_ned = [-dp_ned_x, -dp_ned_y, dp_ned_z]
+                        dp_sed = np.array([-dp_world[1], -dp_world[0], -dp_world[2]])
                         
                         # 荷物の姿勢をNEDクオータニオンに変換
                         nc_qx = motive_cargo_qx
@@ -317,15 +323,16 @@ def motive_udp_listener():
                         nc_qz = -motive_cargo_qy
                         nc_qw = motive_cargo_qw
                         
-                        # 回転行列（荷物ボディ座標系 -> NED）
+                        # 回転行列（荷物ボディ座標系 -> SED: 南向きを基準にするためZ軸まわりに180度回転）
+                        # R_c_sed = R_z(pi) * R_c_ned (1行目と2行目の符号を反転)
                         R_c = np.array([
-                            [1 - 2*(nc_qy**2 + nc_qz**2),     2*(nc_qx*nc_qy - nc_qw*nc_qz),   2*(nc_qx*nc_qz + nc_qw*nc_qy)],
-                            [2*(nc_qx*nc_qy + nc_qw*nc_qz),   1 - 2*(nc_qx**2 + nc_qz**2),     2*(nc_qy*nc_qz - nc_qw*nc_qx)],
+                            [-(1 - 2*(nc_qy**2 + nc_qz**2)),   -2*(nc_qx*nc_qy - nc_qw*nc_qz),   -2*(nc_qx*nc_qz + nc_qw*nc_qy)],
+                            [-2*(nc_qx*nc_qy + nc_qw*nc_qz),   -(1 - 2*(nc_qx**2 + nc_qz**2)),   -2*(nc_qy*nc_qz - nc_qw*nc_qx)],
                             [2*(nc_qx*nc_qz - nc_qw*nc_qy),   2*(nc_qy*nc_qz + nc_qw*nc_qx),   1 - 2*(nc_qx**2 + nc_qy**2)]
                         ], dtype=np.float32)
                         
                         # 荷物ローカル座標系への逆回転 (R_c^T)
-                        dp_cargo = R_c.T.dot(dp_ned)
+                        dp_cargo = R_c.T.dot(dp_sed)
                         motive_rel_x = float(dp_cargo[0])
                         motive_rel_y = float(dp_cargo[1])
                         motive_rel_z = float(dp_cargo[2])
@@ -791,18 +798,15 @@ def camera_tracker_loop(m, show_window=False):
                     with io_lock:
                         drone_gps = gps_now.copy()
                         if motive_attitude_received:
-                            # ✅ ID1センサから取得したドローン真値を使用
+                            # ✅ ID1センサから取得したドローン真値を使用（すでにSouth-positive）
                             drone_roll = motive_roll_rad
                             drone_pitch = motive_pitch_rad
                             drone_yaw = motive_yaw_rad
                         else:
-                            # フォールバック: Pixhawk IMU
+                            # フォールバック: Pixhawk IMU（North-positiveのためSouth-positiveへ変換）
                             drone_roll = current_roll_rad
                             drone_pitch = current_pitch_rad
-                            drone_yaw = current_yaw_rad
-
-                        # ✅ 物理的な向き（南向き）とシステム上の報告値（北向き）の180度オフセットを修正
-                        drone_yaw = (drone_yaw + math.pi) % (2 * math.pi)
+                            drone_yaw = (current_yaw_rad + math.pi) % (2 * math.pi)
 
                     # ─── 荷物中心のワールド座標を算出 ───
                     if CAMERA_ORIENTATION_SOURCE == "motive":
