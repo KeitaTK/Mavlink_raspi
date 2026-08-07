@@ -36,6 +36,9 @@ def load_and_process_csv(filepath):
     motive_cargo_cam = []
     motive_hand_cam = []
     
+    # オプティカルオフセット校正用サンプル
+    calib_samples = []
+    
     with open(filepath, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for idx, row in enumerate(reader):
@@ -61,7 +64,6 @@ def load_and_process_csv(filepath):
                 ar_cargo_uncorr.append([ax, ay, az])
                 
                 # カメラ座標系データの取得
-                # 手先（ID1）が検出されているか、およびMotiveカメラデータが受信できている行を抽出
                 if 'ID1_Detected' in row and int(row['ID1_Detected']) == 1:
                     hcx = float(row['Hand_Cam_X'])
                     hcy = float(row['Hand_Cam_Y'])
@@ -85,6 +87,44 @@ def load_and_process_csv(filepath):
                         hand_cam.append([hcx, hcy, hcz])
                         motive_cargo_cam.append([m_ccx, m_ccy, m_ccz])
                         motive_hand_cam.append([m_hcx, m_hcy, m_hcz])
+                
+                # CAMERA_OPTICAL_OFFSET キャリブレーション用データの収集
+                if HAS_NUMPY and 'Motive_Camera_X' in row:
+                    mcam_x = float(row['Motive_Camera_X'])
+                    mcam_y = float(row['Motive_Camera_Y'])
+                    mcam_z = float(row['Motive_Camera_Z'])
+                    
+                    ccx = float(row['Cargo_Cam_X'])
+                    ccy = float(row['Cargo_Cam_Y'])
+                    ccz = float(row['Cargo_Cam_Z'])
+                    
+                    m_ccx = float(row['Motive_Cargo_Cam_X'])
+                    m_ccy = float(row['Motive_Cargo_Cam_Y'])
+                    m_ccz = float(row['Motive_Cargo_Cam_Z'])
+                    
+                    if not (math.isnan(mcam_x) or math.isnan(ccx) or math.isnan(m_ccx) or mcam_x == 0.0):
+                        v1_cam = np.array([ccx, ccy, ccz], dtype=np.float64)
+                        v1_w = np.array([ax - mcam_x, ay - mcam_y, az - mcam_z], dtype=np.float64)
+                        
+                        v2_cam = np.array([m_ccx, m_ccy, m_ccz], dtype=np.float64)
+                        v2_w = np.array([mcx - mcam_x, mcy - mcam_y, mcz - mcam_z], dtype=np.float64)
+                        
+                        # SVD による回転行列 R の復元 (Camera -> World)
+                        A_mat = np.column_stack([v1_cam, v2_cam])
+                        B_mat = np.column_stack([v1_w, v2_w])
+                        H = A_mat @ B_mat.T
+                        U, S, Vt = np.linalg.svd(H)
+                        R_mat = Vt.T @ U.T
+                        if np.linalg.det(R_mat) < 0:
+                            Vt[2, :] *= -1
+                            R_mat = Vt.T @ U.T
+                            
+                        calib_samples.append({
+                            'R': R_mat,
+                            'mcam': np.array([mcam_x, mcam_y, mcam_z], dtype=np.float64),
+                            'mcargo': np.array([mcx, mcy, mcz], dtype=np.float64),
+                            'ccam': v1_cam
+                        })
                         
             except (ValueError, KeyError) as e:
                 continue
@@ -106,6 +146,8 @@ def load_and_process_csv(filepath):
         'motive_cargo_cam': np.mean(motive_cargo_cam, axis=0) if HAS_NUMPY and len(motive_cargo_cam) > 0 else ([sum(x)/len(x) for x in zip(*motive_cargo_cam)] if len(motive_cargo_cam) > 0 else [float('nan')]*3),
         'motive_hand_cam': np.mean(motive_hand_cam, axis=0) if HAS_NUMPY and len(motive_hand_cam) > 0 else ([sum(x)/len(x) for x in zip(*motive_hand_cam)] if len(motive_hand_cam) > 0 else [float('nan')]*3),
         
+        'calib_samples': calib_samples,
+        
         'raw_data': {
             'cargo_motive': motive_cargo,
             'cargo_ar_uncorr': ar_cargo_uncorr,
@@ -116,6 +158,87 @@ def load_and_process_csv(filepath):
         }
     }
     return res
+
+def calibrate_optical_offset(r1, r2, offset_cargo_r1=None, offset_hand_r1=None):
+    """
+    【方法3: 複数カメラ向きログによる CAMERA_OPTICAL_OFFSET 最適化】
+    最小二乗法を用いて、カメラ向きの異なる複数のログデータから
+    カメラ光学中心オフセット CAMERA_OPTICAL_OFFSET [X, Y, Z] を自動算出します。
+    """
+    if not HAS_NUMPY:
+        print("⚠ NumPy が利用できないため、CAMERA_OPTICAL_OFFSET のキャリブレーション計算をスキップします。")
+        return None
+        
+    s1 = r1.get('calib_samples', [])
+    s2 = r2.get('calib_samples', [])
+    all_samples = s1 + s2
+    
+    if len(all_samples) < 10:
+        print("⚠ 有効なキャリブレーションサンプル数が不足しています。")
+        return None
+        
+    A_rows = []
+    b_rows = []
+    
+    for s in all_samples:
+        R = s['R']
+        y = s['mcargo'] - s['mcam'] - R @ s['ccam']
+        A_rows.append(R)
+        b_rows.append(y)
+        
+    A = np.vstack(A_rows)
+    b = np.concatenate(b_rows)
+    
+    # 最小二乗法による大域的最適解の導出 (A * offset = b)
+    offset, _, _, _ = np.linalg.lstsq(A, b, rcond=None)
+    
+    # 校正前後の誤差評価
+    errs_before = [np.linalg.norm((s['mcam'] + s['R'] @ s['ccam']) - s['mcargo']) for s in all_samples]
+    errs_after = [np.linalg.norm((s['mcam'] + s['R'] @ (s['ccam'] + offset)) - s['mcargo']) for s in all_samples]
+    
+    err1_before = [np.linalg.norm((s['mcam'] + s['R'] @ s['ccam']) - s['mcargo']) for s in s1] if s1 else []
+    err1_after = [np.linalg.norm((s['mcam'] + s['R'] @ (s['ccam'] + offset)) - s['mcargo']) for s in s1] if s1 else []
+    
+    err2_before = [np.linalg.norm((s['mcam'] + s['R'] @ s['ccam']) - s['mcargo']) for s in s2] if s2 else []
+    err2_after = [np.linalg.norm((s['mcam'] + s['R'] @ (s['ccam'] + offset)) - s['mcargo']) for s in s2] if s2 else []
+    
+    print("\n" + "="*60)
+    print(" ■ 【方法3】CAMERA_OPTICAL_OFFSET 最小二乗自動キャリブレーション結果")
+    print("   (カメラ向きの異なるログ統合最適化: Run 1 & Run 2)")
+    print("="*60)
+    print(" 【算出された最適オフセット値】")
+    print(f"  CAMERA_OPTICAL_OFFSET (m)  : [X:{offset[0]:.4f}, Y:{offset[1]:.4f}, Z:{offset[2]:.4f}]")
+    print(f"  CAMERA_OPTICAL_OFFSET (cm) : [X:{offset[0]*100:.2f} cm, Y:{offset[1]*100:.2f} cm, Z:{offset[2]*100:.2f} cm]")
+    print("-" * 60)
+    print(" 【3D位置誤差の改善結果】")
+    print(f"  全体平均誤差  :  適用前 {np.mean(errs_before)*100:.2f} cm  -->  適用後 {np.mean(errs_after)*100:.2f} cm (改善度: {(np.mean(errs_before)-np.mean(errs_after))*100:+.2f} cm)")
+    if s1:
+        print(f"  Run 1 平均誤差 :  適用前 {np.mean(err1_before)*100:.2f} cm  -->  適用後 {np.mean(err1_after)*100:.2f} cm")
+    if s2:
+        print(f"  Run 2 平均誤差 :  適用前 {np.mean(err2_before)*100:.2f} cm  -->  適用後 {np.mean(err2_after)*100:.2f} cm")
+    print("-" * 60)
+    print(" 💡 【AR-hook1_test.py への貼り付け用コード】")
+    print(f" CAMERA_OPTICAL_OFFSET = np.array([{offset[0]:.4f}, {offset[1]:.4f}, {offset[2]:.4f}], dtype=np.float32)")
+    print("="*60)
+
+    # 💾 NPZファイルとして自動保存
+    try:
+        save_path = Path(__file__).parent / "camera_optical_offset.npz"
+        opt_arr = offset.astype(np.float32)
+        c_off = offset_cargo_r1.astype(np.float32) if 'offset_cargo_r1' in locals() else np.zeros(3, dtype=np.float32)
+        h_off = offset_hand_r1.astype(np.float32) if 'offset_hand_r1' in locals() else np.zeros(3, dtype=np.float32)
+        
+        np.savez(
+            save_path,
+            optical_offset=opt_arr,
+            cargo_offset=c_off,
+            hand_offset=h_off
+        )
+        print(f"💾 キャリブレーションファイルを自動保存しました: {save_path}")
+    except Exception as e:
+        print(f"⚠ NPZファイルの保存に失敗しました: {e}")
+
+    return offset
 
 def main():
     # デフォルトのファイルパス（2回分の実行ログ）
@@ -132,14 +255,14 @@ def main():
         return
         
     print("=" * 60)
-    print(" 2回分のCSVログの比較による荷物の変位導出解析")
+    print(" 2回分のCSVログの比較による荷物の変位導出解析 & オプティカルオフセット校正")
     print("=" * 60)
     
     r1 = load_and_process_csv(run1_path)
     r2 = load_and_process_csv(run2_path)
     
     if not r1 or not r2:
-        print("❌ いずれかのファイルの解析に失敗したため、変位の導出を中止します。")
+        print("❌ いずれかのファイルの解析に失敗したため、処理を中止します。")
         return
         
     # 変位（Displacement）の計算
@@ -156,7 +279,6 @@ def main():
     err_uncorr_len = np.linalg.norm(err_uncorr)
     
     # 精度向上用のカメラ座標系オフセット推奨値 (Offset = Motive_Cam - AR_Cam)
-    # ※ nanがある場合は計算しないように判定
     has_cam_r1 = not np.isnan(r1['cargo_cam'][0])
     has_cam_r2 = not np.isnan(r2['cargo_cam'][0])
     
@@ -192,6 +314,9 @@ def main():
     print("-" * 60)
     print(f"  補正前変位誤差 (AR_raw - Motive)  : [eX:{err_uncorr[0]:.4f}, eY:{err_uncorr[1]:.4f}, eZ:{err_uncorr[2]:.4f}] | 距離誤差: {err_uncorr_len*100:.2f} cm")
     print("="*60)
+
+    # 【方法3: 複数カメラ向きログによる CAMERA_OPTICAL_OFFSET 最小二乗キャリブレーション】
+    calibrate_optical_offset(r1, r2, offset_cargo_r1, offset_hand_r1)
 
     if has_cam_r1 or has_cam_r2:
         print("\n" + "="*60)
@@ -295,3 +420,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

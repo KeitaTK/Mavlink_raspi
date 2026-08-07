@@ -58,6 +58,25 @@ CARGO_OFFSET_CAM_X = 0.0
 CARGO_OFFSET_CAM_Y = 0.0
 CARGO_OFFSET_CAM_Z = 0.0
 
+# ───── オフセット・キャリブレーションパラメータの自動読み込み (camera_optical_offset.npz) ─────
+OFFSET_PARAMS_FILE = Path(__file__).parent / "camera_optical_offset.npz" if "__file__" in locals() else Path("camera_optical_offset.npz")
+if OFFSET_PARAMS_FILE.exists():
+    try:
+        with np.load(OFFSET_PARAMS_FILE) as data:
+            if "optical_offset" in data:
+                CAMERA_OPTICAL_OFFSET = data["optical_offset"].astype(np.float32)
+                print(f"✓ オプティカルオフセット (camera_optical_offset.npz) のロードに成功しました: {CAMERA_OPTICAL_OFFSET}")
+            if "hand_offset" in data:
+                h_off = data["hand_offset"]
+                HAND_OFFSET_CAM_X, HAND_OFFSET_CAM_Y, HAND_OFFSET_CAM_Z = float(h_off[0]), float(h_off[1]), float(h_off[2])
+                print(f"✓ 手先カメラオフセットのロードに成功しました: [{HAND_OFFSET_CAM_X:.4f}, {HAND_OFFSET_CAM_Y:.4f}, {HAND_OFFSET_CAM_Z:.4f}]")
+            if "cargo_offset" in data:
+                c_off = data["cargo_offset"]
+                CARGO_OFFSET_CAM_X, CARGO_OFFSET_CAM_Y, CARGO_OFFSET_CAM_Z = float(c_off[0]), float(c_off[1]), float(c_off[2])
+                print(f"✓ 荷物カメラオフセットのロードに成功しました: [{CARGO_OFFSET_CAM_X:.4f}, {CARGO_OFFSET_CAM_Y:.4f}, {CARGO_OFFSET_CAM_Z:.4f}]")
+    except Exception as e:
+        print(f"⚠ オフセットファイル {OFFSET_PARAMS_FILE.name} のロードに失敗しました ({e})。デフォルト値を使用します。")
+
 # ───── 基準点設定 ─────
 REF_LAT, REF_LON, REF_ALT = 36.0757800, 136.2132900, 0.0
 TARGET_HEIGHT_ABOVE_TAKEOFF = 1.10
